@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Архитектор Вирусных Рилс</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&family=Rubik:wght@300;400;500;600;700&family=Montserrat:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=M+PLUS+1p:wght@100;300;400;500;700&family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.cdnfonts.com/css/instagram-sans" rel="stylesheet">
+    <style>
+      @font-face {
+        font-family: 'GenShinGothic';
+        src: local('M PLUS 1p Light'), local('MPLUS1p-Light');
+        font-weight: 300;
+      }
+      @font-face {
+        font-family: 'GenShinGothic';
+        src: local('M PLUS 1p'), local('MPLUS1p-Regular');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'OpenSerif';
+        src: local('Noto Serif'), local('NotoSerif-Regular');
+        font-weight: 400;
+      }
+      @font-face {
+        font-family: 'OpenSerif';
+        src: local('Noto Serif Italic'), local('NotoSerif-Italic');
+        font-weight: 400;
+        font-style: italic;
+      }
+      @font-face {
+        font-family: 'Georgia';
+        src: local('Georgia');
+        font-style: normal;
+      }
+      @font-face {
+        font-family: 'Georgia';
+        src: local('Georgia Italic'), local('Georgia-Italic');
+        font-style: italic;
+      }
+    </style>
+    <style>
+      html {
+        font-size: 13px;
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #0f172a; /* Slate 950 */
+        color: #f8fafc;
+        font-size: 13px;
+      }
+      .text-xs { font-size: 11.5px !important; }
+      .text-sm { font-size: 13px !important; }
+      .text-base { font-size: 13px !important; }
+      .text-lg { font-size: 15px !important; }
+      .text-xl { font-size: 16px !important; }
+      .text-2xl { font-size: 19px !important; }
+      .text-3xl { font-size: 23px !important; }
+      /* Hide scrollbar for clean UI in previews */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+      /* Slider Styling */
+      input[type=range] {
+        -webkit-appearance: none; 
+        background: transparent; 
+      }
+      input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 16px;
+        width: 16px;
+        border-radius: 50%;
+        background: #6366f1;
+        cursor: pointer;
+        margin-top: -6px; 
+      }
+      input[type=range]::-webkit-slider-runnable-track {
+        width: 100%;
+        height: 4px;
+        cursor: pointer;
+        background: #334155;
+        border-radius: 2px;
+      }
+    </style>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

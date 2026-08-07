@@ -1,0 +1,21 @@
+{
+  "name": "video-renderer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --check server.js && node --check overlay.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
+    "@supabase/supabase-js": "^2.101.1",
+    "canvas": "^3.2.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.0",
+    "express": "^5.2.1",
+    "fluent-ffmpeg": "^2.1.3"
+  }
+}
