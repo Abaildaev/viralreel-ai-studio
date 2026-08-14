@@ -1465,17 +1465,13 @@ CREATE TABLE IF NOT EXISTS ai_sales_agents (
 );
 
 /*
-  One config per account, and one account-agnostic fallback per user. A plain
-  UNIQUE constraint would not enforce the second case, because NULLs never
-  compare equal — hence the partial index.
+  One config per account, and one account-agnostic fallback per user.
+  Postgres 15+ NULLS NOT DISTINCT ensures NULL instagram_account_id is treated
+  as a single unique default row per user.
 */
-CREATE UNIQUE INDEX IF NOT EXISTS ai_sales_agents_account_idx
-  ON ai_sales_agents (user_id, instagram_account_id)
-  WHERE instagram_account_id IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS ai_sales_agents_default_idx
-  ON ai_sales_agents (user_id)
-  WHERE instagram_account_id IS NULL;
+ALTER TABLE ai_sales_agents
+  ADD CONSTRAINT ai_sales_agents_user_account_uq
+  UNIQUE NULLS NOT DISTINCT (user_id, instagram_account_id);
 
 ALTER TABLE ai_sales_agents ENABLE ROW LEVEL SECURITY;
 
@@ -1550,3 +1546,60 @@ SET search_path = public
 AS $$
   DELETE FROM ai_sales_messages WHERE created_at < now() - interval '90 days';
 $$;
+
+-- ------------------------------------------------------------------------
+-- 20260814180000_add_encrypted_deepseek_credentials.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Per-user DeepSeek credentials for server-side automations.
+
+  The browser never reads this table. The value is AES-GCM encrypted by the
+  authenticated Edge Function with CREDENTIALS_ENCRYPTION_KEY before it gets
+  here; the webhook decrypts it only while replying on behalf of that user.
+*/
+
+CREATE TABLE IF NOT EXISTS user_ai_credentials (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  deepseek_api_key_encrypted text NOT NULL,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE user_ai_credentials ENABLE ROW LEVEL SECURITY;
+
+/* No client policies on purpose: clients can set/status the credential only
+   through the authenticated Edge Function and can never select its value. */
+
+-- ------------------------------------------------------------------------
+-- 20260814190000_add_instagram_contacts.sql
+-- ------------------------------------------------------------------------
+
+/* Cached public profile data for people who initiated an Instagram Direct chat. */
+CREATE TABLE IF NOT EXISTS instagram_contacts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  instagram_account_id uuid NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  sender_igsid text NOT NULL,
+  username text,
+  display_name text,
+  profile_picture_url text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (instagram_account_id, sender_igsid)
+);
+
+CREATE INDEX IF NOT EXISTS instagram_contacts_account_updated_idx
+  ON instagram_contacts (instagram_account_id, updated_at DESC);
+
+ALTER TABLE instagram_contacts ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own Instagram contacts" ON instagram_contacts;
+CREATE POLICY "Users can view own Instagram contacts"
+  ON instagram_contacts FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM instagram_accounts account
+      WHERE account.id = instagram_contacts.instagram_account_id
+        AND account.user_id = auth.uid()
+    )
+  );

@@ -10,7 +10,8 @@ import AiSalesAgentSimulator from '../components/AiSalesAgentSimulator';
 import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
-import { Button, Callout, PageHeader, PageShell } from '../components/ui';
+import ConversationsTab from '../components/automations/ConversationsTab';
+import { Button, PageHeader, PageShell } from '../components/ui';
 import {
   DEFAULT_SALES_AGENT_CONFIG,
   loadSalesAgentConfig,
@@ -26,9 +27,10 @@ import {
   SparklesIcon,
   PlusIcon,
   ArrowRightIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 
-type Tab = 'rules' | 'analytics' | 'live' | 'sales_agent' | 'tester';
+type Tab = 'rules' | 'analytics' | 'live' | 'sales_agent' | 'conversations' | 'tester';
 
 const blankForm: AutomationForm = {
   id: null,
@@ -70,28 +72,38 @@ export default function AutomationsPage() {
   const [editingForm, setEditingForm] = useState<AutomationForm>(blankForm);
   const [savingRule, setSavingRule] = useState(false);
 
-  // Sales Agent showcase view mode
-  const [salesAgentView, setSalesAgentView] = useState<'showcase' | 'editor'>('showcase');
   const [agentConfig, setAgentConfig] = useState<AiSalesAgentConfig>(DEFAULT_SALES_AGENT_CONFIG);
+  const [selectedAgentAccountId, setSelectedAgentAccountId] = useState<string | null>(null);
   const [savingAgent, setSavingAgent] = useState(false);
 
-  // The agent config now lives in the database, because the Edge Function that
-  // answers real Direct messages reads the same row.
+  // The agent config lives in the database and localStorage
   useEffect(() => {
     if (!user) return;
-    loadSalesAgentConfig(accounts[0]?.id ?? null).then(setAgentConfig);
+    const defaultAccId = accounts[0]?.id ?? null;
+    setSelectedAgentAccountId(defaultAccId);
+    loadSalesAgentConfig(defaultAccId).then(setAgentConfig);
   }, [user, accounts]);
 
   const handleSaveAgent = async () => {
     if (!user) return;
     setSavingAgent(true);
-    const { error } = await saveSalesAgentConfig(agentConfig, user.id);
+    const { error, isLocalFallback } = await saveSalesAgentConfig(agentConfig, user.id);
     setSavingAgent(false);
 
     if (error) {
       toast({ message: `Не удалось сохранить агента: ${error.message}`, tone: 'error' });
       return;
     }
+
+    if (isLocalFallback) {
+      toast(
+        agentConfig.isEnabled
+          ? 'Агент сохранён локально в браузере. Для синхронизации с Direct примените SQL-миграцию в Supabase.'
+          : 'Агент сохранён локально в браузере (тестовый режим).',
+      );
+      return;
+    }
+
     toast(
       agentConfig.isEnabled
         ? 'Агент сохранён и включён — он начнёт отвечать в Direct'
@@ -322,6 +334,19 @@ export default function AutomationsPage() {
 
         <button
           type="button"
+          onClick={() => setActiveTab('conversations')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+            activeTab === 'conversations'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <ChatBubbleLeftRightIcon className="w-4 h-4" />
+          Диалоги
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab('live')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'live'
@@ -363,132 +388,26 @@ export default function AutomationsPage() {
 
       {/* Tab 2: AI Sales Agent */}
       {activeTab === 'sales_agent' && (
-        <div className="space-y-6">
-          {salesAgentView === 'showcase' ? (
-            /* ChatPlace style 4-point showcase screen */
-            <div className="bg-white rounded-3xl border border-gray-200/80 p-8 sm:p-12 shadow-xs text-center max-w-4xl mx-auto space-y-8 animate-in fade-in">
-              <div className="max-w-xl mx-auto space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
-                  Интерактивная песочница
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
-                  ИИ-менеджер для продаж в Instagram Direct
-                </h2>
-                <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-                  Обучите персонального ИИ-ассистента на базе ваших товаров, услуг и цен. Тестируйте скрипты отработки возражений в реальном времени.
-                </p>
-              </div>
-
-              {/* 4 Points Grid with Blue Circle Icons */}
-              <div className="grid sm:grid-cols-2 gap-4 text-left max-w-3xl mx-auto">
-                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
-                    ★
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-gray-900">Отвечает 24/7</h4>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                      Не упускает ни одной заявки, мгновенно вовлекая клиента в диалог в любое время суток.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
-                    ⚙
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-gray-900">Простая настройка</h4>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                      Заполните базу знаний своими товарами, ссылками и ценами без сложного программирования.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
-                    👤
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-gray-900">Общается как человек</h4>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                      Задает квалифицирующие вопросы, шутит в тему и мягко отрабатывает любые возражения.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
-                    ⚡
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-gray-900">Держит общение под контролем</h4>
-                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-                      Автоматически распознает стоп-слова и передает сложные диалоги живому оператору.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="pt-4 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSalesAgentView('editor')}
-                  className="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center gap-2 active:scale-95"
-                >
-                  <SparklesIcon className="w-4 h-4" />
-                  Открыть конфигуратор и симулятор
-                  <ArrowRightIcon className="w-4 h-4" />
-                </button>
-              </div>
+        <div className="space-y-6 animate-in fade-in">
+          <div className="grid lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-7">
+              <AiSalesAgentConfigView
+                config={agentConfig}
+                onChange={setAgentConfig}
+                accounts={accounts}
+                selectedAccountId={selectedAgentAccountId}
+                onAccountChange={(accId) => {
+                  setSelectedAgentAccountId(accId);
+                  loadSalesAgentConfig(accId).then(setAgentConfig);
+                }}
+                onSave={handleSaveAgent}
+                saving={savingAgent}
+              />
             </div>
-          ) : (
-            /* 2-Column Configurator & Direct Simulator */
-            <div className="space-y-4 animate-in fade-in">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setSalesAgentView('showcase')}
-                  className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1"
-                >
-                  ← Назад к описанию возможностей
-                </button>
-              </div>
-
-              <div className="grid lg:grid-cols-12 gap-6 items-start">
-                <div className="lg:col-span-7 space-y-4">
-                  <Callout tone={agentConfig.isEnabled ? 'success' : 'info'}>
-                    {agentConfig.isEnabled
-                      ? 'Агент включён: он отвечает в Direct на сообщения, которые не подошли ни под один сценарий.'
-                      : 'Агент выключен. Пока он выключен, эта вкладка — песочница: реальным людям ничего не отправляется.'}
-                  </Callout>
-
-                  <AiSalesAgentConfigView config={agentConfig} onChange={setAgentConfig} />
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Button
-                      variant="primary"
-                      onClick={handleSaveAgent}
-                      loading={savingAgent}
-                    >
-                      Сохранить агента
-                    </Button>
-                    <Button
-                      onClick={() =>
-                        setAgentConfig((c) => ({ ...c, isEnabled: !c.isEnabled }))
-                      }
-                    >
-                      {agentConfig.isEnabled ? 'Выключить в Direct' : 'Включить в Direct'}
-                    </Button>
-                  </div>
-                </div>
-                <div className="lg:col-span-5 sticky top-6">
-                  <AiSalesAgentSimulator config={agentConfig} />
-                </div>
-              </div>
+            <div className="lg:col-span-5 sticky top-6">
+              <AiSalesAgentSimulator config={agentConfig} />
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -496,6 +415,8 @@ export default function AutomationsPage() {
       {activeTab === 'analytics' && (
         <AutomationAnalyticsDashboard events={events} rules={rules} stats={stats} />
       )}
+
+      {activeTab === 'conversations' && <ConversationsTab />}
 
       {/* Tab 4: Live Feed */}
       {activeTab === 'live' && (

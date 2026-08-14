@@ -6,13 +6,13 @@
   rules drift apart, the simulator starts lying about what the account will
   actually say to a customer.
 
-  The DeepSeek key comes from the DEEPSEEK_API_KEY function secret. It is not in
-  the database and not in the bundle — the browser's BYOK key stays in the
-  browser and is used only for the generator and the simulator.
+  Each user keeps their own DeepSeek key in encrypted server-side storage. It
+  never reaches the browser after saving; the webhook decrypts it just before
+  making a model request.
 */
 
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
-const MODEL_ID = "deepseek-v4-pro";
+const MODEL_ID = "deepseek-v4-flash";
 
 /** Instagram truncates long DMs and they read as spam. */
 const MAX_REPLY_CHARS = 900;
@@ -157,12 +157,12 @@ ${agent.custom_instructions}
 }
 
 /** Returns null when the model is unreachable or answers with nothing usable. */
-async function callDeepSeek(systemPrompt: string, transcript: TranscriptMessage[]): Promise<string | null> {
-  const apiKey = Deno.env.get("DEEPSEEK_API_KEY");
-  if (!apiKey) {
-    console.warn("AI sales agent is enabled but DEEPSEEK_API_KEY is not set");
-    return null;
-  }
+async function callDeepSeek(
+  apiKey: string | null,
+  systemPrompt: string,
+  transcript: TranscriptMessage[],
+): Promise<string | null> {
+  if (!apiKey) return null;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -184,7 +184,6 @@ async function callDeepSeek(systemPrompt: string, transcript: TranscriptMessage[
         messages,
         temperature: 0.7,
         max_tokens: 400,
-        thinking: { type: "disabled" },
       }),
     });
 
@@ -226,6 +225,7 @@ export async function decideAgentReply(
   transcript: TranscriptMessage[],
   incomingText: string,
   alreadyHandedOff: boolean,
+  apiKey: string | null,
 ): Promise<AgentDecision> {
   const intent = detectMessageIntent(incomingText, agent.handoff_keywords ?? []);
 
@@ -254,7 +254,11 @@ export async function decideAgentReply(
     };
   }
 
-  const reply = await callDeepSeek(buildSystemPrompt(agent), [
+  if (!apiKey) {
+    return { reply: null, intent, handOff: false, skippedReason: "Ключ DeepSeek не сохранён в Настройках" };
+  }
+
+  const reply = await callDeepSeek(apiKey, buildSystemPrompt(agent), [
     ...transcript,
     { role: "user", content: incomingText },
   ]);

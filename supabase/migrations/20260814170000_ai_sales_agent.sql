@@ -46,17 +46,13 @@ CREATE TABLE IF NOT EXISTS ai_sales_agents (
 );
 
 /*
-  One config per account, and one account-agnostic fallback per user. A plain
-  UNIQUE constraint would not enforce the second case, because NULLs never
-  compare equal — hence the partial index.
+  One config per account, and one account-agnostic fallback per user.
+  Postgres 15+ NULLS NOT DISTINCT ensures NULL instagram_account_id is treated
+  as a single unique default row per user.
 */
-CREATE UNIQUE INDEX IF NOT EXISTS ai_sales_agents_account_idx
-  ON ai_sales_agents (user_id, instagram_account_id)
-  WHERE instagram_account_id IS NOT NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS ai_sales_agents_default_idx
-  ON ai_sales_agents (user_id)
-  WHERE instagram_account_id IS NULL;
+ALTER TABLE ai_sales_agents
+  ADD CONSTRAINT ai_sales_agents_user_account_uq
+  UNIQUE NULLS NOT DISTINCT (user_id, instagram_account_id);
 
 ALTER TABLE ai_sales_agents ENABLE ROW LEVEL SECURITY;
 

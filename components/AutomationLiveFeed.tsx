@@ -14,6 +14,7 @@ export interface LiveAutomationEvent {
   trigger_type: 'dm' | 'comment';
   incoming_text: string;
   commenter_username: string | null;
+  sender_igsid?: string | null;
   status: 'received' | 'ignored' | 'sent' | 'failed';
   public_reply_status: 'pending' | 'sent' | 'skipped' | 'failed';
   dm_status: 'pending' | 'sent' | 'skipped' | 'failed';
@@ -77,6 +78,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
               trigger_type: newRow.trigger_type || 'comment',
               incoming_text: newRow.incoming_text || '',
               commenter_username: newRow.commenter_username,
+              sender_igsid: newRow.sender_igsid,
               status: newRow.status,
               public_reply_status: newRow.public_reply_status || 'skipped',
               dm_status: newRow.dm_status || 'pending',

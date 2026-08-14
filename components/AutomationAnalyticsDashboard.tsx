@@ -19,6 +19,13 @@ interface AutomationAnalyticsDashboardProps {
   stats: LeadMagnetStats[];
 }
 
+type CrmContact = LiveAutomationEvent & {
+  interaction_count: number;
+  sent_count: number;
+  failed_count: number;
+  search_text: string;
+};
+
 export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboardProps> = ({
   events,
   rules,
@@ -28,6 +35,13 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
   const [crmSearch, setCrmSearch] = useState('');
   const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | 'sent' | 'failed'>('all');
   const [selectedLeadModal, setSelectedLeadModal] = useState<LiveAutomationEvent | null>(null);
+
+  const contactLabel = (lead: LiveAutomationEvent) => {
+    if (lead.commenter_username) return `@${lead.commenter_username}`;
+    return lead.trigger_type === 'dm'
+      ? `Пользователь · ${lead.sender_igsid?.slice(-6) || 'Direct'}`
+      : 'Пользователь Instagram';
+  };
 
   // Key KPI Aggregations
   const totalComments = events.filter((e) => e.trigger_type === 'comment').length;
@@ -131,31 +145,65 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       .slice(0, 5);
   }, [events]);
 
-  // Filtered CRM Leads
+  // One CRM row per Instagram person. The event feed remains ungrouped because
+  // it is an audit log; CRM is a contact list and should not repeat a person.
   const crmLeads = useMemo(() => {
-    return events.filter((e) => {
-      if (crmStatusFilter === 'sent' && !(e.status === 'sent' || e.dm_status === 'sent')) return false;
-      if (crmStatusFilter === 'failed' && !(e.status === 'failed' || e.dm_status === 'failed')) return false;
+    const grouped = new Map<string, CrmContact>();
+
+    for (const event of events) {
+      const contactKey = event.sender_igsid
+        ? `id:${event.sender_igsid}`
+        : event.commenter_username
+          ? `username:${event.commenter_username.toLowerCase()}`
+          : `event:${event.id}`;
+      const isSent = event.status === 'sent' || event.dm_status === 'sent';
+      const isFailed = event.status === 'failed' || event.dm_status === 'failed';
+      const searchable = `${event.commenter_username || ''} ${event.sender_igsid || ''} ${event.incoming_text || ''} ${event.lead_magnets?.codeword || ''}`.toLowerCase();
+      const previous = grouped.get(contactKey);
+
+      if (!previous) {
+        grouped.set(contactKey, {
+          ...event,
+          interaction_count: 1,
+          sent_count: isSent ? 1 : 0,
+          failed_count: isFailed ? 1 : 0,
+          search_text: searchable,
+        });
+        continue;
+      }
+
+      const latest = new Date(event.created_at) > new Date(previous.created_at) ? event : previous;
+      grouped.set(contactKey, {
+        ...latest,
+        interaction_count: previous.interaction_count + 1,
+        sent_count: previous.sent_count + (isSent ? 1 : 0),
+        failed_count: previous.failed_count + (isFailed ? 1 : 0),
+        search_text: `${previous.search_text} ${searchable}`,
+      });
+    }
+
+    return [...grouped.values()].filter((e) => {
+      if (crmStatusFilter === 'sent' && e.sent_count === 0) return false;
+      if (crmStatusFilter === 'failed' && e.failed_count === 0) return false;
       if (crmSearch.trim()) {
         const q = crmSearch.toLowerCase();
-        const user = (e.commenter_username || '').toLowerCase();
-        const text = (e.incoming_text || '').toLowerCase();
-        const code = (e.lead_magnets?.codeword || '').toLowerCase();
-        return user.includes(q) || text.includes(q) || code.includes(q);
+        return e.search_text.includes(q);
       }
       return true;
-    });
+    }).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
   }, [events, crmStatusFilter, crmSearch]);
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['Instagram Username', 'Тип', 'Кодовое слово', 'Входящий текст', 'Статус', 'Дата и время'];
+    const headers = ['Instagram Username / ID', 'Тип', 'Обращений', 'Кодовое слово', 'Последний текст', 'Доставлено', 'Ошибок', 'Последняя активность'];
     const rows = crmLeads.map((lead) => [
-      `@${lead.commenter_username || 'инкогнито'}`,
+      lead.commenter_username ? `@${lead.commenter_username}` : lead.sender_igsid || 'Неизвестно',
       lead.trigger_type === 'comment' ? 'Комментарий' : 'Direct',
+      lead.interaction_count,
       lead.lead_magnets?.codeword || '',
       `"${(lead.incoming_text || '').replace(/"/g, '""')}"`,
-      lead.status === 'sent' ? 'Доставлено' : lead.status === 'failed' ? 'Ошибка' : 'В обработке',
+      lead.sent_count,
+      lead.failed_count,
       new Date(lead.created_at).toLocaleString('ru-RU'),
     ]);
 
@@ -368,7 +416,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
               База контактов (CRM)
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Пользователи, оставившие комментарий с кодовым словом
+              Один пользователь — одна карточка со всей активностью
             </p>
           </div>
 
@@ -431,7 +479,8 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                 </tr>
               ) : (
                 crmLeads.map((lead) => {
-                  const username = lead.commenter_username || 'инкогнито';
+                  const username = lead.commenter_username || `direct_${lead.sender_igsid?.slice(-6) || 'user'}`;
+                  const isDirectWithoutUsername = lead.trigger_type === 'dm' && !lead.commenter_username;
 
                   return (
                     <tr
@@ -443,11 +492,14 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                       <td className="px-5 py-3.5 flex items-center gap-2.5">
                         <LeadAvatar username={username} size="sm" />
                         <div>
-                          <span className="font-semibold text-gray-900 text-xs">
-                            @{username}
-                          </span>
-                          <span className="text-[11px] text-gray-400 ml-1.5">
-                            {lead.trigger_type === 'comment' ? 'комментарий' : 'direct'}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-gray-900 text-xs">{contactLabel(lead)}</span>
+                            <span className="text-[10px] font-semibold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded-md">
+                              {lead.interaction_count} {lead.interaction_count === 1 ? 'обращение' : 'обращений'}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-gray-400">
+                            Последнее: {lead.trigger_type === 'comment' ? 'комментарий' : 'direct'}
                           </span>
                         </div>
                       </td>
@@ -503,7 +555,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                             Диалог
                           </button>
 
-                          {username !== 'инкогнито' && (
+                          {!isDirectWithoutUsername && Boolean(lead.commenter_username) && (
                             <a
                               href={`https://instagram.com/${username}`}
                               target="_blank"

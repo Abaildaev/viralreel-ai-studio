@@ -7,6 +7,7 @@ import {
   ChatBubbleLeftRightIcon,
   DocumentTextIcon,
   SparklesIcon,
+  GlobeAltIcon,
 } from '@heroicons/react/24/outline';
 import {
   Button,
@@ -19,6 +20,7 @@ import {
   Section,
   Switch,
 } from '../components/ui';
+import TimezonePicker from '../components/TimezonePicker';
 
 type TestResult = { success: boolean; message: string } | null;
 
@@ -26,6 +28,7 @@ const SettingsPage: React.FC = () => {
   const { user } = useAuth();
   const { toast } = useConfirm();
   const [deepseekApiKey, setDeepseekApiKey] = useState('');
+  const [timezone, setTimezone] = useState('Europe/Moscow');
   const [tgToken, setTgToken] = useState('');
   const [tgChatId, setTgChatId] = useState('');
   const [tgActive, setTgActive] = useState(true);
@@ -35,6 +38,8 @@ const SettingsPage: React.FC = () => {
   const [showDeepseekKey, setShowDeepseekKey] = useState(false);
   const [testingDeepseek, setTestingDeepseek] = useState(false);
   const [deepseekTestResult, setDeepseekTestResult] = useState<TestResult>(null);
+  const [hasStoredDeepseekKey, setHasStoredDeepseekKey] = useState(false);
+  const [deepseekKeyDirty, setDeepseekKeyDirty] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -43,6 +48,26 @@ const SettingsPage: React.FC = () => {
       // BYOK: the DeepSeek key is the user's own and stays in this browser.
       const localKey = localStorage.getItem('deepseek_api_key');
       if (localKey) setDeepseekApiKey(localKey);
+
+      const { data: credentialStatus } = await supabase.functions.invoke('deepseek-credential', {
+        body: { action: 'status' },
+      });
+      const hasServerCredential = Boolean(credentialStatus?.configured);
+      setHasStoredDeepseekKey(hasServerCredential);
+      // A key saved before encrypted server storage existed must be migrated
+      // by one explicit click on “Save settings”. Without this flag the input
+      // looks populated but the webhook has nothing it is allowed to read.
+      if (localKey && !hasServerCredential) setDeepseekKeyDirty(true);
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('timezone')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (profile?.timezone) {
+        setTimezone(profile.timezone);
+      }
 
       const { data: telegram } = await supabase
         .from('telegram_settings')
@@ -63,9 +88,31 @@ const SettingsPage: React.FC = () => {
   const handleSave = async () => {
     setSaving(true);
     setTestResult(null);
-    localStorage.setItem('deepseek_api_key', deepseekApiKey);
+
+    let deepseekError: string | null = null;
+    if (deepseekKeyDirty) {
+      const { data, error } = await supabase.functions.invoke('deepseek-credential', {
+        body: deepseekApiKey.trim()
+          ? { action: 'save', apiKey: deepseekApiKey.trim() }
+          : { action: 'clear' },
+      });
+      if (error || data?.error) {
+        deepseekError = data?.error || error?.message || 'Не удалось сохранить ключ DeepSeek';
+      } else {
+        setHasStoredDeepseekKey(Boolean(data?.configured));
+        setDeepseekKeyDirty(false);
+      }
+    }
+
+    if (deepseekApiKey.trim()) {
+      localStorage.setItem('deepseek_api_key', deepseekApiKey.trim());
+    }
 
     let telegramError: string | null = null;
+
+    if (user) {
+      await supabase.from('profiles').update({ timezone }).eq('id', user.id);
+    }
 
     if (user && tgToken && tgChatId) {
       const { data: existingTelegram } = await supabase
@@ -93,8 +140,8 @@ const SettingsPage: React.FC = () => {
     setSaving(false);
     setDeepseekTestResult(null);
 
-    if (telegramError) {
-      toast({ message: `Не удалось сохранить настройки Telegram: ${telegramError}`, tone: 'error' });
+    if (telegramError || deepseekError) {
+      toast({ message: deepseekError || `Не удалось сохранить настройки Telegram: ${telegramError}`, tone: 'error' });
     } else {
       toast('Настройки сохранены');
     }
@@ -167,7 +214,7 @@ const SettingsPage: React.FC = () => {
         <Section
           icon={<SparklesIcon className="h-5 w-5" />}
           title="DeepSeek"
-          hint="ИИ-генерация контента · ключ хранится только в этом браузере"
+          hint="ИИ-генерация контента и ИИ-продавец · ключ шифруется для серверной автоматизации"
         >
           <div className="space-y-3">
             <Field label="API-ключ">
@@ -178,7 +225,10 @@ const SettingsPage: React.FC = () => {
                     aria-describedby={describedBy}
                     type={showDeepseekKey ? 'text' : 'password'}
                     value={deepseekApiKey}
-                    onChange={(event) => setDeepseekApiKey(event.target.value)}
+                    onChange={(event) => {
+                      setDeepseekApiKey(event.target.value);
+                      setDeepseekKeyDirty(true);
+                    }}
                     placeholder="sk-..."
                     className="flex-1 font-mono"
                   />
@@ -198,14 +248,23 @@ const SettingsPage: React.FC = () => {
               >
                 Получить API-ключ →
               </a>
-              {deepseekApiKey && (
+              {(deepseekApiKey || hasStoredDeepseekKey) && (
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
+                    const { data, error } = await supabase.functions.invoke('deepseek-credential', {
+                      body: { action: 'clear' },
+                    });
+                    if (error || data?.error) {
+                      toast({ message: data?.error || error?.message || 'Не удалось удалить ключ', tone: 'error' });
+                      return;
+                    }
                     localStorage.removeItem('deepseek_api_key');
                     setDeepseekApiKey('');
+                    setHasStoredDeepseekKey(false);
+                    setDeepseekKeyDirty(false);
                     setDeepseekTestResult(null);
-                    toast('Ключ удалён из браузера');
+                    toast('Ключ удалён из браузера и защищённого хранилища');
                   }}
                   className="text-xs font-medium text-red-500 hover:text-red-600"
                 >
@@ -213,6 +272,16 @@ const SettingsPage: React.FC = () => {
                 </button>
               )}
             </div>
+
+            {hasStoredDeepseekKey && !deepseekKeyDirty && (
+              <Callout tone="success">Ключ защищённо сохранён и доступен ИИ-продавцу в Direct.</Callout>
+            )}
+
+            {deepseekApiKey && !hasStoredDeepseekKey && (
+              <Callout tone="warning">
+                Ключ пока сохранён только в браузере. Нажмите «Сохранить настройки», чтобы подключить его к ИИ-продавцу в Direct.
+              </Callout>
+            )}
 
             {deepseekTestResult && (
               <Callout tone={deepseekTestResult.success ? 'success' : 'danger'}>
@@ -292,6 +361,22 @@ const SettingsPage: React.FC = () => {
               <li>Введите @username канала или получите Chat ID</li>
               <li>Нажмите «Проверить подключение»</li>
             </ol>
+          </div>
+        </Section>
+
+        <Section
+          icon={<GlobeAltIcon className="h-5 w-5" />}
+          title="Часовой пояс"
+          hint="Используется для планирования и автопубликации постов"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-1">
+            <div>
+              <p className="text-xs font-semibold text-gray-900">Основной часовой пояс</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">
+                По этому времени рассчитываются слоты календаря и публикуются Reels
+              </p>
+            </div>
+            <TimezonePicker value={timezone} onChange={setTimezone} align="right" />
           </div>
         </Section>
 

@@ -8,6 +8,7 @@ import { useConfirm } from '../contexts/ModalContext';
 import CustomDatePicker from './CustomDatePicker';
 import CustomTimePicker from './CustomTimePicker';
 import SchedulerCalendarView from './SchedulerCalendarView';
+import TimezonePicker from './TimezonePicker';
 import {
   dayLabelInTimezone,
   formatInTimezone,
@@ -15,7 +16,6 @@ import {
   loadPublishWindow,
   maxPostsPerDay,
   nextSlotTimes,
-  TIMEZONE_OPTIONS,
   WEEKDAY_OPTIONS,
 } from '../utils/scheduleUtils';
 import {
@@ -843,15 +843,10 @@ const InstagramScheduler: React.FC = () => {
                       </button>
                     </div>
 
-                    <select
+                    <TimezonePicker
                       value={timezone}
-                      onChange={(e) => changeTimezone(e.target.value)}
-                      className="bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                    >
-                      {TIMEZONE_OPTIONS.map(tz => (
-                        <option key={tz.value} value={tz.value}>{tz.label}</option>
-                      ))}
-                    </select>
+                      onChange={changeTimezone}
+                    />
                   </div>
 
                   {scheduleMode === 'slots' ? (

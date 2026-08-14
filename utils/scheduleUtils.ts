@@ -238,31 +238,111 @@ export const TIME_SLOT_OPTIONS = Array.from({ length: 48 }, (_, index) => {
   return `${hour}:${minute}`;
 });
 
-export const TIMEZONE_OPTIONS = [
-  { value: 'Europe/Kaliningrad', label: 'Калининград (UTC+2)' },
-  { value: 'Europe/Moscow', label: 'Москва (UTC+3)' },
-  { value: 'Europe/Samara', label: 'Самара (UTC+4)' },
-  { value: 'Asia/Yekaterinburg', label: 'Екатеринбург (UTC+5)' },
-  { value: 'Asia/Omsk', label: 'Омск (UTC+6)' },
-  { value: 'Asia/Krasnoyarsk', label: 'Красноярск (UTC+7)' },
-  { value: 'Asia/Irkutsk', label: 'Иркутск (UTC+8)' },
-  { value: 'Asia/Yakutsk', label: 'Якутск (UTC+9)' },
-  { value: 'Asia/Vladivostok', label: 'Владивосток (UTC+10)' },
-  { value: 'Asia/Magadan', label: 'Магадан (UTC+11)' },
-  { value: 'Asia/Kamchatka', label: 'Камчатка (UTC+12)' },
-  { value: 'Europe/Kiev', label: 'Киев (UTC+2)' },
-  { value: 'Europe/Minsk', label: 'Минск (UTC+3)' },
-  { value: 'Asia/Almaty', label: 'Алматы (UTC+6)' },
-  { value: 'Asia/Tashkent', label: 'Ташкент (UTC+5)' },
-  { value: 'Asia/Tbilisi', label: 'Тбилиси (UTC+4)' },
-  { value: 'Asia/Baku', label: 'Баку (UTC+4)' },
-  { value: 'Europe/Istanbul', label: 'Стамбул (UTC+3)' },
-  { value: 'Asia/Dubai', label: 'Дубай (UTC+4)' },
-  { value: 'Europe/London', label: 'Лондон (UTC+0)' },
-  { value: 'Europe/Berlin', label: 'Берлин (UTC+1)' },
-  { value: 'America/New_York', label: 'Нью-Йорк (UTC-5)' },
-  { value: 'America/Los_Angeles', label: 'Лос-Анджелес (UTC-8)' },
-  { value: 'Asia/Bangkok', label: 'Бангкок (UTC+7)' },
+export interface TimezoneOption {
+  value: string;
+  label: string;
+  city: string;
+  offset: string;
+  offsetMinutes: number;
+  region: 'cis' | 'europe' | 'asia' | 'americas' | 'mideast' | 'pacific';
+}
+
+export const TIMEZONE_OPTIONS: TimezoneOption[] = [
+  // UTC-11 .. UTC-1
+  { value: 'Pacific/Pago_Pago', label: 'Паго-Паго, Самоа (UTC-11)', city: 'Паго-Паго', offset: 'UTC-11', offsetMinutes: -660, region: 'pacific' },
+  { value: 'Pacific/Honolulu', label: 'Гонолулу, Гавайи (UTC-10)', city: 'Гонолулу', offset: 'UTC-10', offsetMinutes: -600, region: 'pacific' },
+  { value: 'America/Anchorage', label: 'Анкоридж, Аляска (UTC-9)', city: 'Анкоридж', offset: 'UTC-9', offsetMinutes: -540, region: 'americas' },
+  { value: 'America/Los_Angeles', label: 'Лос-Анджелес, Сан-Франциско, Ванкувер (UTC-8)', city: 'Лос-Анджелес', offset: 'UTC-8', offsetMinutes: -480, region: 'americas' },
+  { value: 'America/Denver', label: 'Денвер, Финикс (UTC-7)', city: 'Денвер', offset: 'UTC-7', offsetMinutes: -420, region: 'americas' },
+  { value: 'America/Chicago', label: 'Чикаго, Мехико, Даллас (UTC-6)', city: 'Чикаго', offset: 'UTC-6', offsetMinutes: -360, region: 'americas' },
+  { value: 'America/New_York', label: 'Нью-Йорк, Майами, Торонто (UTC-5)', city: 'Нью-Йорк', offset: 'UTC-5', offsetMinutes: -300, region: 'americas' },
+  { value: 'America/Santiago', label: 'Сантьяго, Каракас, Ла-Пас (UTC-4)', city: 'Сантьяго', offset: 'UTC-4', offsetMinutes: -240, region: 'americas' },
+  { value: 'America/Sao_Paulo', label: 'Буэнос-Айрес, Сан-Паулу, Рио (UTC-3)', city: 'Сан-Паулу', offset: 'UTC-3', offsetMinutes: -180, region: 'americas' },
+  { value: 'America/Noronha', label: 'Фернанду-ди-Норонья (UTC-2)', city: 'Норонья', offset: 'UTC-2', offsetMinutes: -120, region: 'americas' },
+  { value: 'Atlantic/Azores', label: 'Азорские острова, Кабо-Верде (UTC-1)', city: 'Азоры', offset: 'UTC-1', offsetMinutes: -60, region: 'europe' },
+
+  // UTC+0
+  { value: 'UTC', label: 'UTC / Гринвич (UTC+0)', city: 'UTC', offset: 'UTC+0', offsetMinutes: 0, region: 'europe' },
+  { value: 'Europe/London', label: 'Лондон, Дублин, Лиссабон (UTC+0)', city: 'Лондон', offset: 'UTC+0', offsetMinutes: 0, region: 'europe' },
+
+  // UTC+1
+  { value: 'Europe/Berlin', label: 'Берлин, Париж, Рим, Мадрид, Варшава (UTC+1)', city: 'Берлин', offset: 'UTC+1', offsetMinutes: 60, region: 'europe' },
+
+  // UTC+2
+  { value: 'Europe/Kaliningrad', label: 'Калининград (UTC+2)', city: 'Калининград', offset: 'UTC+2', offsetMinutes: 120, region: 'cis' },
+  { value: 'Europe/Kiev', label: 'Киев, Кишинёв, Рига, Вильнюс, Таллин (UTC+2)', city: 'Киев', offset: 'UTC+2', offsetMinutes: 120, region: 'europe' },
+  { value: 'Africa/Cairo', label: 'Каир, Афины, Бухарест (UTC+2)', city: 'Каир', offset: 'UTC+2', offsetMinutes: 120, region: 'mideast' },
+
+  // UTC+3
+  { value: 'Europe/Moscow', label: 'Москва, Санкт-Петербург (UTC+3)', city: 'Москва', offset: 'UTC+3', offsetMinutes: 180, region: 'cis' },
+  { value: 'Europe/Minsk', label: 'Минск (UTC+3)', city: 'Минск', offset: 'UTC+3', offsetMinutes: 180, region: 'cis' },
+  { value: 'Europe/Istanbul', label: 'Стамбул, Анкара (UTC+3)', city: 'Стамбул', offset: 'UTC+3', offsetMinutes: 180, region: 'europe' },
+  { value: 'Asia/Riyadh', label: 'Эр-Рияд, Доха, Кувейт (UTC+3)', city: 'Эр-Рияд', offset: 'UTC+3', offsetMinutes: 180, region: 'mideast' },
+
+  // UTC+3:30
+  { value: 'Asia/Tehran', label: 'Тегеран (UTC+3:30)', city: 'Тегеран', offset: 'UTC+3:30', offsetMinutes: 210, region: 'mideast' },
+
+  // UTC+4
+  { value: 'Europe/Samara', label: 'Самара, Саратов, Ижевск, Ульяновск (UTC+4)', city: 'Самара', offset: 'UTC+4', offsetMinutes: 240, region: 'cis' },
+  { value: 'Asia/Baku', label: 'Баку (UTC+4)', city: 'Баку', offset: 'UTC+4', offsetMinutes: 240, region: 'cis' },
+  { value: 'Asia/Tbilisi', label: 'Тбилиси (UTC+4)', city: 'Тбилиси', offset: 'UTC+4', offsetMinutes: 240, region: 'cis' },
+  { value: 'Asia/Yerevan', label: 'Ереван (UTC+4)', city: 'Ереван', offset: 'UTC+4', offsetMinutes: 240, region: 'cis' },
+  { value: 'Asia/Dubai', label: 'Дубай, Абу-Даби, Маскат (UTC+4)', city: 'Дубай', offset: 'UTC+4', offsetMinutes: 240, region: 'mideast' },
+
+  // UTC+4:30
+  { value: 'Asia/Kabul', label: 'Кабул (UTC+4:30)', city: 'Кабул', offset: 'UTC+4:30', offsetMinutes: 270, region: 'mideast' },
+
+  // UTC+5
+  { value: 'Asia/Yekaterinburg', label: 'Екатеринбург, Челябинск, Уфа, Пермь, Тюмень (UTC+5)', city: 'Екатеринбург', offset: 'UTC+5', offsetMinutes: 300, region: 'cis' },
+  { value: 'Asia/Tashkent', label: 'Ташкент, Самарканд (UTC+5)', city: 'Ташкент', offset: 'UTC+5', offsetMinutes: 300, region: 'cis' },
+  { value: 'Asia/Ashgabat', label: 'Ашхабад (UTC+5)', city: 'Ашхабад', offset: 'UTC+5', offsetMinutes: 300, region: 'cis' },
+  { value: 'Asia/Dushanbe', label: 'Душанбе (UTC+5)', city: 'Душанбе', offset: 'UTC+5', offsetMinutes: 300, region: 'cis' },
+  { value: 'Asia/Karachi', label: 'Исламабад, Карачи (UTC+5)', city: 'Карачи', offset: 'UTC+5', offsetMinutes: 300, region: 'asia' },
+
+  // UTC+5:30
+  { value: 'Asia/Kolkata', label: 'Дели, Мумбаи, Коломбо (UTC+5:30)', city: 'Дели', offset: 'UTC+5:30', offsetMinutes: 330, region: 'asia' },
+  // UTC+5:45
+  { value: 'Asia/Kathmandu', label: 'Катманду (UTC+5:45)', city: 'Катманду', offset: 'UTC+5:45', offsetMinutes: 345, region: 'asia' },
+
+  // UTC+6
+  { value: 'Asia/Omsk', label: 'Омск (UTC+6)', city: 'Омск', offset: 'UTC+6', offsetMinutes: 360, region: 'cis' },
+  { value: 'Asia/Almaty', label: 'Астана, Алматы, Шымкент (UTC+5/UTC+6)', city: 'Алматы', offset: 'UTC+5', offsetMinutes: 300, region: 'cis' },
+  { value: 'Asia/Bishkek', label: 'Бишкек (UTC+6)', city: 'Бишкек', offset: 'UTC+6', offsetMinutes: 360, region: 'cis' },
+  { value: 'Asia/Dhaka', label: 'Дакка (UTC+6)', city: 'Дакка', offset: 'UTC+6', offsetMinutes: 360, region: 'asia' },
+
+  // UTC+7
+  { value: 'Asia/Krasnoyarsk', label: 'Красноярск, Томск, Кемерово, Барнаул (UTC+7)', city: 'Красноярск', offset: 'UTC+7', offsetMinutes: 420, region: 'cis' },
+  { value: 'Asia/Novosibirsk', label: 'Новосибирск (UTC+7)', city: 'Новосибирск', offset: 'UTC+7', offsetMinutes: 420, region: 'cis' },
+  { value: 'Asia/Bangkok', label: 'Бангкок, Джакарта, Ханой, Пхукет (UTC+7)', city: 'Бангкок', offset: 'UTC+7', offsetMinutes: 420, region: 'asia' },
+
+  // UTC+8
+  { value: 'Asia/Irkutsk', label: 'Иркутск, Улан-Удэ (UTC+8)', city: 'Иркутск', offset: 'UTC+8', offsetMinutes: 480, region: 'cis' },
+  { value: 'Asia/Shanghai', label: 'Пекин, Шанхай, Гонконг, Гуанчжоу (UTC+8)', city: 'Пекин', offset: 'UTC+8', offsetMinutes: 480, region: 'asia' },
+  { value: 'Asia/Singapore', label: 'Сингапур, Куала-Лумпур, Бали (UTC+8)', city: 'Сингапур', offset: 'UTC+8', offsetMinutes: 480, region: 'asia' },
+  { value: 'Asia/Ulaanbaatar', label: 'Улан-Батор (UTC+8)', city: 'Улан-Батор', offset: 'UTC+8', offsetMinutes: 480, region: 'asia' },
+
+  // UTC+9
+  { value: 'Asia/Yakutsk', label: 'Якутск, Чита, Благовещенск (UTC+9)', city: 'Якутск', offset: 'UTC+9', offsetMinutes: 540, region: 'cis' },
+  { value: 'Asia/Tokyo', label: 'Токио, Киото, Осака (UTC+9)', city: 'Токио', offset: 'UTC+9', offsetMinutes: 540, region: 'asia' },
+  { value: 'Asia/Seoul', label: 'Сеул (UTC+9)', city: 'Сеул', offset: 'UTC+9', offsetMinutes: 540, region: 'asia' },
+
+  // UTC+9:30
+  { value: 'Australia/Adelaide', label: 'Аделаида, Дарвин (UTC+9:30)', city: 'Аделаида', offset: 'UTC+9:30', offsetMinutes: 570, region: 'pacific' },
+
+  // UTC+10
+  { value: 'Asia/Vladivostok', label: 'Владивосток, Хабаровск (UTC+10)', city: 'Владивосток', offset: 'UTC+10', offsetMinutes: 600, region: 'cis' },
+  { value: 'Australia/Sydney', label: 'Сидней, Мельбурн, Брисбен (UTC+10)', city: 'Сидней', offset: 'UTC+10', offsetMinutes: 600, region: 'pacific' },
+
+  // UTC+11
+  { value: 'Asia/Magadan', label: 'Магадан, Сахалин, Южно-Сахалинск (UTC+11)', city: 'Магадан', offset: 'UTC+11', offsetMinutes: 660, region: 'cis' },
+
+  // UTC+12
+  { value: 'Asia/Kamchatka', label: 'Камчатка, Анадырь, Петропавловск (UTC+12)', city: 'Камчатка', offset: 'UTC+12', offsetMinutes: 720, region: 'cis' },
+  { value: 'Pacific/Auckland', label: 'Окленд, Веллингтон, Фиджи (UTC+12)', city: 'Окленд', offset: 'UTC+12', offsetMinutes: 720, region: 'pacific' },
+
+  // UTC+13 .. UTC+14
+  { value: 'Pacific/Tongatapu', label: 'Нукуалофа, Тонга (UTC+13)', city: 'Нукуалофа', offset: 'UTC+13', offsetMinutes: 780, region: 'pacific' },
+  { value: 'Pacific/Kiritimati', label: 'Остров Рождества, Кирибати (UTC+14)', city: 'Киритимати', offset: 'UTC+14', offsetMinutes: 840, region: 'pacific' },
 ];
 
 export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => ({

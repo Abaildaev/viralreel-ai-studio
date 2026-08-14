@@ -115,50 +115,92 @@ function configToRow(config: AiSalesAgentConfig, userId: string) {
   };
 }
 
+const LOCAL_STORAGE_AGENT_KEY = 'viralreel_ai_sales_agent_config';
+
 /**
  * Loads the agent for one account, falling back to the user's account-agnostic
- * config — the same precedence the webhook applies, so the editor shows the row
- * that will actually answer.
+ * config or localStorage — so the simulator and editor work even before SQL migrations.
  */
 export async function loadSalesAgentConfig(
   accountId: string | null,
 ): Promise<AiSalesAgentConfig> {
-  const { data, error } = await supabase
-    .from('ai_sales_agents')
-    .select(AGENT_COLUMNS)
-    .or(
-      accountId
-        ? `instagram_account_id.eq.${accountId},instagram_account_id.is.null`
-        : 'instagram_account_id.is.null',
-    );
+  try {
+    const { data, error } = await supabase
+      .from('ai_sales_agents')
+      .select(AGENT_COLUMNS)
+      .or(
+        accountId
+          ? `instagram_account_id.eq.${accountId},instagram_account_id.is.null`
+          : 'instagram_account_id.is.null',
+      );
 
-  if (error || !data?.length) {
-    return { ...DEFAULT_SALES_AGENT_CONFIG, instagram_account_id: accountId };
+    if (!error && data && data.length > 0) {
+      const rows = data as unknown as AgentRow[];
+      const preferred =
+        rows.find((row) => row.instagram_account_id === accountId) ??
+        rows.find((row) => row.instagram_account_id === null);
+
+      if (preferred) {
+        return rowToConfig(preferred);
+      }
+    }
+  } catch (err) {
+    console.warn('Could not load sales agent from Supabase, checking local storage:', err);
   }
 
-  const rows = data as unknown as AgentRow[];
-  const preferred =
-    rows.find((row) => row.instagram_account_id === accountId) ??
-    rows.find((row) => row.instagram_account_id === null);
+  // Fallback to localStorage
+  try {
+    const saved = localStorage.getItem(LOCAL_STORAGE_AGENT_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return { ...DEFAULT_SALES_AGENT_CONFIG, ...parsed, instagram_account_id: accountId };
+    }
+  } catch {
+    /* ignore */
+  }
 
-  return preferred
-    ? rowToConfig(preferred)
-    : { ...DEFAULT_SALES_AGENT_CONFIG, instagram_account_id: accountId };
+  return { ...DEFAULT_SALES_AGENT_CONFIG, instagram_account_id: accountId };
 }
 
 export async function saveSalesAgentConfig(
   config: AiSalesAgentConfig,
   userId: string,
-): Promise<{ error: Error | null }> {
-  const payload = configToRow(config, userId);
+): Promise<{ error: Error | null; isLocalFallback?: boolean }> {
+  // Always persist to localStorage first so work is never lost
+  try {
+    localStorage.setItem(LOCAL_STORAGE_AGENT_KEY, JSON.stringify(config));
+  } catch {
+    /* ignore */
+  }
 
-  // The partial unique indexes make account-scoped and default rows distinct,
-  // so upsert has to be told which conflict it is resolving.
-  const { error } = await supabase.from('ai_sales_agents').upsert(payload, {
-    onConflict: config.instagram_account_id ? 'user_id,instagram_account_id' : 'user_id',
-  });
+  try {
+    const payload = configToRow(config, userId);
 
-  return { error: error ? new Error(error.message) : null };
+    // The partial unique indexes make account-scoped and default rows distinct,
+    // so upsert has to be told which conflict it is resolving.
+    const { error } = await supabase.from('ai_sales_agents').upsert(payload, {
+      onConflict: 'user_id,instagram_account_id',
+    });
+
+    if (error) {
+      // If table is missing in remote Supabase schema cache
+      if (
+        error.message?.includes('schema cache') ||
+        error.message?.includes('ai_sales_agents') ||
+        error.code === '42P01' ||
+        error.code === 'PGRST204'
+      ) {
+        console.warn('Таблица ai_sales_agents еще не создана в Supabase. Сохранено локально в браузере.');
+        return { error: null, isLocalFallback: true };
+      }
+      return { error: new Error(error.message) };
+    }
+
+    return { error: null };
+  } catch (err: any) {
+    console.warn('Supabase save error, fallback to local save succeeded:', err);
+    return { error: null, isLocalFallback: true };
+  }
 }
 
 function buildSystemPrompt(config: AiSalesAgentConfig): string {

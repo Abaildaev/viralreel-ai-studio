@@ -4,6 +4,7 @@ import { constantTimeEqual, secretEquals } from "../_shared/crypto.ts";
 import { describeInstagramError, InstagramApiError } from "../_shared/instagram.ts";
 import {
   buildDirectMessage,
+  buildReplyText,
   LEAD_MAGNET_COLUMNS,
   LeadMagnetRow,
   normalizeText,
@@ -18,6 +19,7 @@ import {
   SalesAgentRow,
   TranscriptMessage,
 } from "../_shared/sales-agent.ts";
+import { decryptCredential } from "../_shared/credentials.ts";
 
 const GRAPH_API_BASE_URL = "https://graph.instagram.com/v26.0";
 
@@ -176,6 +178,33 @@ interface AccountRow {
   access_token: string;
 }
 
+interface InstagramContactProfile {
+  name?: string | null;
+  username?: string | null;
+  profile_pic?: string | null;
+}
+
+async function fetchInstagramContactProfile(
+  senderIgsid: string,
+  accessToken: string,
+): Promise<InstagramContactProfile | null> {
+  try {
+    const response = await fetch(
+      `${GRAPH_API_BASE_URL}/${senderIgsid}?fields=name,username,profile_pic`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok || data?.error) {
+      console.warn("Instagram profile lookup failed", data?.error?.message ?? response.status);
+      return null;
+    }
+    return data as InstagramContactProfile;
+  } catch (error) {
+    console.warn("Instagram profile lookup failed", error);
+    return null;
+  }
+}
+
 /**
  * Runs the AI sales agent for one incoming Direct message.
  *
@@ -220,7 +249,22 @@ async function runSalesAgent(
   }));
   const alreadyHandedOff = (history ?? []).some((row) => row.handed_off);
 
-  const decision = await decideAgentReply(agent, transcript, event.text, alreadyHandedOff);
+  const { data: credential } = await supabase
+    .from("user_ai_credentials")
+    .select("deepseek_api_key_encrypted")
+    .eq("user_id", account.user_id)
+    .maybeSingle();
+
+  let apiKey: string | null = null;
+  if (credential?.deepseek_api_key_encrypted) {
+    try {
+      apiKey = await decryptCredential(credential.deepseek_api_key_encrypted);
+    } catch (error) {
+      console.error("Could not decrypt DeepSeek credential", error);
+    }
+  }
+
+  const decision = await decideAgentReply(agent, transcript, event.text, alreadyHandedOff, apiKey);
 
   // The incoming message is recorded either way — a thread the agent declined
   // to answer is exactly the one a human needs to see.
@@ -289,6 +333,22 @@ async function processEvent(event: IncomingEvent): Promise<void> {
   if (!account) {
     console.warn(`No active Instagram account found for webhook entry ${event.accountIgId}`);
     return;
+  }
+
+  if (event.triggerType === "dm" && event.senderIgsid) {
+    const profile = await fetchInstagramContactProfile(event.senderIgsid, account.access_token);
+    if (profile) {
+      event.commenterUsername = profile.username ?? undefined;
+      const { error: contactError } = await supabase.from("instagram_contacts").upsert({
+        instagram_account_id: account.id,
+        sender_igsid: event.senderIgsid,
+        username: profile.username ?? null,
+        display_name: profile.name ?? null,
+        profile_picture_url: profile.profile_pic ?? null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "instagram_account_id,sender_igsid" });
+      if (contactError) console.error("Could not cache Instagram contact", contactError);
+    }
   }
 
   // Our own public replies come back as comment events; without this the
@@ -362,6 +422,19 @@ async function processEvent(event: IncomingEvent): Promise<void> {
 
   const matched = match.leadMagnet;
 
+  // Keyword replies are a real part of a Direct thread too. Persist both sides
+  // so the owner can read one coherent conversation in the CRM, not only the
+  // messages handled by the open-ended sales agent.
+  if (event.triggerType === "dm" && event.senderIgsid) {
+    await supabase.from("ai_sales_messages").insert({
+      instagram_account_id: account.id,
+      sender_igsid: event.senderIgsid,
+      role: "user",
+      content: event.text,
+      detected_intent: "lead_magnet",
+    });
+  }
+
   if (event.senderIgsid && matched.repeat_delay_hours > 0) {
     const cutoff = new Date(Date.now() - matched.repeat_delay_hours * 60 * 60 * 1000).toISOString();
     const { count } = await supabase
@@ -421,6 +494,16 @@ async function processEvent(event: IncomingEvent): Promise<void> {
       error_message: describeInstagramError(error),
     });
     return;
+  }
+
+  if (event.triggerType === "dm" && event.senderIgsid) {
+    await supabase.from("ai_sales_messages").insert({
+      instagram_account_id: account.id,
+      sender_igsid: event.senderIgsid,
+      role: "agent",
+      content: buildReplyText(matched),
+      detected_intent: "lead_magnet",
+    });
   }
 
   let publicReplyStatus = "skipped";
