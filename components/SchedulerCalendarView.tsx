@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ScheduledPost } from '../types';
 import { useSignedUrls } from '../hooks/useSignedUrl';
 import {
@@ -6,10 +6,7 @@ import {
   ChevronRightIcon,
   ClockIcon,
   EyeIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
   CalendarDaysIcon,
-  FilmIcon,
   PlayIcon,
 } from '@heroicons/react/24/outline';
 

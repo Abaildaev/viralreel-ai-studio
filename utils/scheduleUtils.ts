@@ -22,14 +22,6 @@ export async function loadPublishWindow(userId: string): Promise<PublishWindow> 
   };
 }
 
-function getHourInTimezone(date: Date, timezone: string): number {
-  const formatted = date.toLocaleString('en-US', {
-    timeZone: timezone,
-    hour: 'numeric',
-    hour12: false,
-  });
-  return parseInt(formatted, 10);
-}
 
 function getDatePartsInTimezone(date: Date, timezone: string) {
   const parts = new Intl.DateTimeFormat('en-US', {

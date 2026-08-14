@@ -4,7 +4,6 @@ import {
   ShieldCheckIcon,
   ExclamationTriangleIcon,
   ArrowPathIcon,
-  CheckCircleIcon,
   ClockIcon,
   KeyIcon,
 } from '@heroicons/react/24/outline';
@@ -33,7 +32,6 @@ export const TokenHealthCard: React.FC<TokenHealthCardProps> = ({
 
   const isCritical = remainingDays <= 7;
   const isWarning = remainingDays <= 15 && !isCritical;
-  const isHealthy = remainingDays > 15;
 
   return (
     <div

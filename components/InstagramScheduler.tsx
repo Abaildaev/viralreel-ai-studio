@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { ScheduledPost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,7 +15,6 @@ import {
   loadPublishWindow,
   maxPostsPerDay,
   nextSlotTimes,
-  TIME_SLOT_OPTIONS,
   TIMEZONE_OPTIONS,
   WEEKDAY_OPTIONS,
 } from '../utils/scheduleUtils';
@@ -28,11 +27,9 @@ import {
   XMarkIcon,
   EyeIcon,
   QueueListIcon,
-  PaperAirplaneIcon,
   ArrowsRightLeftIcon,
   ArrowsUpDownIcon,
   RocketLaunchIcon,
-  Squares2X2Icon,
   Bars3Icon,
 } from '@heroicons/react/24/outline';
 import { Callout, PageHeader, PageShell } from './ui';
@@ -65,6 +62,13 @@ const InstagramScheduler: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [sendingPostId, setSendingPostId] = useState<string | null>(null);
   const [previewPost, setPreviewPost] = useState<ScheduledPost | null>(null);
+  /*
+    Loaded but not read yet, and deliberately kept: Telegram publishing is
+    half-built. Settings can be entered and tested on the Settings page, and the
+    `publish-telegram` function exists, but nothing calls it — not this
+    component and not the cron. Deleting this would erase the last trace of the
+    missing wiring; see the note in README.
+  */
   const [telegramSettings, setTelegramSettings] = useState<TelegramSettings | null>(null);
 
   const [viewTab, setViewTab] = useState<'queue' | 'calendar'>('queue');
@@ -405,24 +409,6 @@ const InstagramScheduler: React.FC = () => {
     });
   };
 
-  const formatTimeOnly = (dateStr: string) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleString('ru-RU', {
-      hour: '2-digit', minute: '2-digit',
-    });
-  };
-
-  const formatDayLabel = (dateStr: string) => {
-    const d = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (d.toDateString() === today.toDateString()) return 'Сегодня';
-    if (d.toDateString() === tomorrow.toDateString()) return 'Завтра';
-    return d.toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' });
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'draft':
@@ -515,15 +501,6 @@ const InstagramScheduler: React.FC = () => {
 
   const isOverdue = (dateStr: string | null) => dateStr ? new Date(appendZ(dateStr)) <= new Date() : false;
 
-  const getTotalTime = () => {
-    if (selectedPostIds.length <= 1) return '';
-    const totalMin = (selectedPostIds.length - 1) * intervalMinutes;
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    if (h === 0) return `~${m}м`;
-    if (m === 0) return `~${h}ч`;
-    return `~${h}ч ${m}м`;
-  };
 
   return (
     <PageShell>

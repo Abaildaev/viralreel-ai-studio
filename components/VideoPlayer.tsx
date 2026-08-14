@@ -188,21 +188,6 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const isSerifFont = (f: string) => f === 'Georgia' || f === 'Merriweather' || f === 'OpenSerif';
 
-  const splitIntoLines = (text: string, maxChars: number): string[] => {
-    const words = text.split(' ');
-    const result: string[] = [];
-    let current = '';
-    for (const word of words) {
-      if (current && (current + ' ' + word).length > maxChars) {
-        result.push(current);
-        current = word;
-      } else {
-        current = current ? current + ' ' + word : word;
-      }
-    }
-    if (current) result.push(current);
-    return result;
-  };
 
   const getContainerStyles = () => {
     let base = bgStyle === 'none' ? `p-1 rounded-xl transition-all duration-200` : `p-3 rounded-xl transition-all duration-200`;

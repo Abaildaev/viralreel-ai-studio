@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ClockIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { ClockIcon } from '@heroicons/react/24/outline';
 
 interface CustomTimePickerProps {
   value: string; // "HH:MM"

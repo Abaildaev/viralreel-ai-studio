@@ -2,12 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import LeadAvatar from './LeadAvatar';
 import {
-  SparklesIcon,
   ChatBubbleLeftRightIcon,
-  EnvelopeIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ClockIcon,
   ArrowPathIcon,
   MagnifyingGlassIcon,
   XMarkIcon,

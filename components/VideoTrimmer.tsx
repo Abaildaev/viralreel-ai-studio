@@ -3,7 +3,6 @@ import {
   ScissorsIcon,
   PlayIcon,
   PauseIcon,
-  ArrowPathIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
 

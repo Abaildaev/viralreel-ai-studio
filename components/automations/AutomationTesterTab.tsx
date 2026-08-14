@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { LeadMagnet, InstagramAccount } from '../../types';
-import { BeakerIcon, SparklesIcon, PaperAirplaneIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { BeakerIcon, SparklesIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 interface TestResult {
   blockers: string[];

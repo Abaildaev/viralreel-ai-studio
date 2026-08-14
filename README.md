@@ -50,7 +50,7 @@ npm run dev
 3. Разверните Edge Functions:
 
    ```bash
-   npx supabase functions deploy auto-publish publish-reels publish-telegram verify-instagram-token check-tokens cleanup-storage
+   npx supabase functions deploy auto-publish publish-reels publish-telegram verify-instagram-token check-tokens cleanup-storage connect-instagram-account instagram-webhook list-instagram-media subscribe-instagram-webhooks test-automation meta-legal
    ```
 
 4. Для cron-задач создайте случайный секрет и выполните в SQL Editor:
@@ -74,6 +74,10 @@ npm run dev
 - Для публикации нужно подключить собственный Instagram Professional account и настроить приложение Meta.
 - До подключения Meta можно пользоваться генерацией, рендером, черновиками и планировщиком.
 - Для передачи проекта новому клиенту приложите к новой ИИ-сессии файл [`public/CLIENT_AI_SETUP_PROMPT_RU.md`](public/CLIENT_AI_SETUP_PROMPT_RU.md). Он требует создать отдельные клиентские Supabase и Meta App и не переносит секреты текущего владельца.
+
+## Известные незавершённые места
+
+- **Публикация в Telegram настраивается, но не выполняется.** В «Настройках» можно ввести токен бота и Chat ID, кнопка «Проверить подключение» работает (она обращается к Telegram напрямую), и функция `publish-telegram` развёрнута. Но её никто не вызывает: ни фронтенд, ни cron. Пока не появится вызов, посты в канал уходить не будут.
 
 ## Проверка проекта
 

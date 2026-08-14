@@ -1,5 +1,5 @@
 import React from 'react';
-import { CtaType, LeadMagnet, LeadMagnetInfo, VideoTemplate } from '../types';
+import { CtaType, LeadMagnet, VideoTemplate } from '../types';
 import { toneOptions } from '../constants';
 import {
   CloudArrowUpIcon,

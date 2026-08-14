@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { LeadMagnet, InstagramAccount } from '../../types';
-import { getAuthenticatedHeaders, supabase } from '../../lib/supabase';
+import { InstagramAccount } from '../../types';
+import { getAuthenticatedHeaders } from '../../lib/supabase';
 import {
   XMarkIcon,
   PlusIcon,
   TrashIcon,
-  SparklesIcon,
   ArrowPathIcon,
-  InformationCircleIcon,
+  CheckIcon,
   FilmIcon,
-  ChatBubbleLeftRightIcon,
-  PaperAirplaneIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline';
+import { Callout, Skeleton } from '../ui';
 
 export interface AutomationForm {
   id: string | null;
@@ -68,6 +67,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
   const [keywordDraft, setKeywordDraft] = useState('');
   const [media, setMedia] = useState<InstagramMedia[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState('');
 
   useEffect(() => {
     if (form.instagram_account_id && form.media_scope === 'selected') {
@@ -75,20 +75,32 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
     }
   }, [form.instagram_account_id, form.media_scope]);
 
+  /*
+    The function is named `list-instagram-media` and takes a POST with the
+    account id in the body. This called `instagram-media` over GET with a query
+    string — wrong on all three counts, so it answered 404 and the swallowed
+    error left the picker permanently empty with nothing on screen to say why.
+  */
   const loadMedia = async (accountId: string) => {
     setMediaLoading(true);
+    setMediaError('');
     try {
-      const headers = await getAuthenticatedHeaders();
       const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/instagram-media?account_id=${accountId}`,
-        { headers }
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/list-instagram-media`,
+        {
+          method: 'POST',
+          headers: await getAuthenticatedHeaders(),
+          body: JSON.stringify({ account_id: accountId }),
+        },
       );
-      if (res.ok) {
-        const json = await res.json();
-        setMedia(json.media || []);
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.error) {
+        throw new Error(json?.error || `Instagram вернул ошибку (${res.status})`);
       }
-    } catch {
-      // ignore
+      setMedia(json.media || []);
+    } catch (error: any) {
+      setMedia([]);
+      setMediaError(error?.message || 'Не удалось загрузить посты');
     } finally {
       setMediaLoading(false);
     }
@@ -295,6 +307,124 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
             </div>
           </div>
 
+          {/*
+            Media scope. The webhook already honours `media_scope: 'selected'`
+            by checking the comment's media id against `media_ids`, but nothing
+            here could set either — so a rule saved as `selected` matched no
+            comment at all, silently.
+          */}
+          {form.trigger_comments && (
+            <div className="space-y-3 border-t border-gray-100 pt-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-900">На каких постах ловить комментарии</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">
+                  По умолчанию правило работает на всех постах аккаунта.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { value: 'all', label: 'Все посты' },
+                  { value: 'selected', label: 'Только выбранные' },
+                ] as const).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setForm((c) => ({ ...c, media_scope: option.value }))}
+                    className={`rounded-xl px-3 py-2 text-xs font-medium transition-colors ${
+                      form.media_scope === option.value
+                        ? 'bg-brand-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              {form.media_scope === 'selected' && (
+                <div className="space-y-2">
+                  {!form.instagram_account_id && (
+                    <Callout tone="warning">
+                      Выберите Instagram-аккаунт выше, чтобы загрузить его посты.
+                    </Callout>
+                  )}
+
+                  {form.instagram_account_id && mediaLoading && (
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                      {Array.from({ length: 8 }, (_, index) => (
+                        <Skeleton key={index} className="aspect-square w-full" />
+                      ))}
+                    </div>
+                  )}
+
+                  {form.instagram_account_id && !mediaLoading && mediaError && (
+                    <Callout tone="danger">
+                      {mediaError}
+                      <button
+                        type="button"
+                        onClick={() => loadMedia(form.instagram_account_id!)}
+                        className="ml-2 font-semibold underline"
+                      >
+                        Повторить
+                      </button>
+                    </Callout>
+                  )}
+
+                  {form.instagram_account_id && !mediaLoading && !mediaError && media.length === 0 && (
+                    <Callout tone="info">
+                      У аккаунта нет постов, доступных через Instagram API.
+                    </Callout>
+                  )}
+
+                  {media.length > 0 && (
+                    <>
+                      <div className="grid max-h-64 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+                        {media.map((item) => {
+                          const selected = form.media_ids.includes(item.id);
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => toggleMediaSelection(item.id)}
+                              aria-pressed={selected}
+                              title={item.caption || 'Без подписи'}
+                              className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
+                                selected ? 'border-brand-600' : 'border-transparent hover:border-gray-300'
+                              }`}
+                            >
+                              {item.thumbnail_url ? (
+                                <img
+                                  src={item.thumbnail_url}
+                                  alt={item.caption || 'Пост Instagram'}
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center bg-gray-100">
+                                  <FilmIcon className="h-5 w-5 text-gray-400" />
+                                </span>
+                              )}
+                              {selected && (
+                                <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-white">
+                                  <CheckIcon className="h-3 w-3" />
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[11px] text-gray-500">
+                        Выбрано: {form.media_ids.length}. Пустой выбор означает, что правило не
+                        сработает ни на одном комментарии.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Public Comment Replies Pool */}
           <div className="space-y-3 pt-3 border-t border-gray-100">
             <div className="flex items-center justify-between">
@@ -309,13 +439,32 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
               </label>
 
               {form.public_reply_enabled && (
-                <button
-                  type="button"
-                  onClick={addPublicReply}
-                  className="text-xs text-brand-600 font-semibold hover:underline flex items-center gap-1"
-                >
-                  <PlusIcon className="w-3.5 h-3.5" /> Добавить вариант
-                </button>
+                <div className="flex items-center gap-3">
+                  {/* The suggested wordings existed in this file but nothing
+                      offered them, so an empty list fell back to the webhook's
+                      single hardcoded line and every reply read the same. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((c) => ({
+                        ...c,
+                        public_reply_variants: Array.from(
+                          new Set([...c.public_reply_variants.filter(Boolean), ...defaultPublicReplies]),
+                        ),
+                      }))
+                    }
+                    className="flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-800 hover:underline"
+                  >
+                    <SparklesIcon className="h-3.5 w-3.5" /> Подставить примеры
+                  </button>
+                  <button
+                    type="button"
+                    onClick={addPublicReply}
+                    className="text-xs text-brand-600 font-semibold hover:underline flex items-center gap-1"
+                  >
+                    <PlusIcon className="w-3.5 h-3.5" /> Добавить вариант
+                  </button>
+                </div>
               )}
             </div>
 

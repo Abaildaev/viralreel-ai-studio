@@ -7,8 +7,6 @@ import {
   XMarkIcon,
   MusicalNoteIcon,
   CheckIcon,
-  ChevronRightIcon,
-  SparklesIcon,
 } from '@heroicons/react/24/outline';
 
 interface AudioModalProps {

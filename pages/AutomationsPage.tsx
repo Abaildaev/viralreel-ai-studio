@@ -20,7 +20,6 @@ import {
   SparklesIcon,
   PlusIcon,
   ArrowRightIcon,
-  CheckIcon,
 } from '@heroicons/react/24/outline';
 
 type Tab = 'rules' | 'analytics' | 'live' | 'sales_agent' | 'tester';

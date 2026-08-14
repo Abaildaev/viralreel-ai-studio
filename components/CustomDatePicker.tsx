@@ -3,7 +3,6 @@ import {
   CalendarDaysIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  XMarkIcon,
 } from '@heroicons/react/24/outline';
 
 interface CustomDatePickerProps {

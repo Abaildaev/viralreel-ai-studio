@@ -6,18 +6,11 @@ import LeadAvatar from './LeadAvatar';
 import {
   ChatBubbleBottomCenterTextIcon,
   EnvelopeIcon,
-  SparklesIcon,
   ArrowTrendingUpIcon,
   ArrowDownTrayIcon,
   FunnelIcon,
-  CheckBadgeIcon,
-  VideoCameraIcon,
   MagnifyingGlassIcon,
-  ClockIcon,
   ArrowTopRightOnSquareIcon,
-  ChatBubbleLeftRightIcon,
-  CheckCircleIcon,
-  XCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface AutomationAnalyticsDashboardProps {

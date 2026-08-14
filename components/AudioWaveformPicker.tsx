@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
+  ArrowPathIcon,
   MusicalNoteIcon,
   PlayIcon,
   PauseIcon,
-  ArrowPathIcon,
   SparklesIcon,
   SpeakerWaveIcon,
 } from '@heroicons/react/24/outline';
@@ -40,7 +40,6 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isScrubbing, setIsScrubbing] = useState(false);
 
   // Fetch and decode audio to get raw PCM data for waveform
   useEffect(() => {
@@ -261,6 +260,21 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
         title="Кликните на звуковую дорожку для выбора момента старта"
       >
         <canvas ref={canvasRef} className="w-full h-full block" />
+
+        {/*
+          Decoding a track takes a noticeable moment, and until it finishes the
+          canvas draws simulated peaks — which look like a real waveform. The
+          loading flag was already being set correctly; nothing was showing it,
+          so the placeholder passed for the real thing.
+        */}
+        {isLoadingBuffer && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-gray-950/60">
+            <span className="flex items-center gap-2 text-[10px] font-semibold text-gray-300">
+              <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+              Читаю дорожку…
+            </span>
+          </div>
+        )}
 
         {/* Start Point Badge on hover / marker */}
         <div
