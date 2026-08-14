@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { LeadMagnet, ReelOutputMode, VideoTemplate } from '../types';
 import { ArrowPathIcon, CloudArrowUpIcon, SparklesIcon } from '@heroicons/react/24/outline';
-import { SparklesIcon as SparklesSolid } from '@heroicons/react/24/solid';
 import AppSelect from './ui/AppSelect';
+import { useSignedUrls } from '../hooks/useSignedUrl';
 
 interface GeneratorSidebarProps {
   videoUrl: string | null;
@@ -55,11 +55,21 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
   selectedTemplateId,
   onTemplateSelect,
 }) => {
+  const [sourceAspect, setSourceAspect] = useState<number | null>(null);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const activeTemplates = templates.filter((template) => template.is_active);
+  const templateUrls = useSignedUrls('templates', activeTemplates.map((template) => template.file_path));
   const availableLeadMagnets = getAvailableLeadMagnets(allLeadMagnets, selectedAccountId);
   const selectedLeadMagnet = availableLeadMagnets.find((magnet) => magnet.id === selectedLeadMagnetId)
     ?? availableLeadMagnets[0];
+  const selectedTemplate = activeTemplates.find((template) => template.id === selectedTemplateId);
   const outputCount = variationCount * (outputMode === 'both' ? 2 : 1);
   const countLabel = outputMode === 'both' ? 'Комплектов' : 'Роликов';
+  const previewWidth = Math.round(224 * (sourceAspect ?? 16 / 9));
+
+  useEffect(() => {
+    setSourceAspect(null);
+  }, [videoUrl]);
 
   return (
     <div className="w-full border-b border-gray-200 bg-white p-6">
@@ -71,8 +81,22 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
       <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-5">
         <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Исходное AI-видео</h3>
         {videoUrl ? (
-          <div className="group relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-            <video src={videoUrl} className="h-36 w-full rounded-xl bg-gray-900 object-contain" />
+          <div
+            className="group relative mx-auto cursor-pointer overflow-hidden rounded-xl bg-gray-900"
+            style={{
+              aspectRatio: sourceAspect ?? 16 / 9,
+              width: `min(100%, ${previewWidth}px)`,
+            }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <video
+              src={videoUrl}
+              className="h-full w-full object-contain"
+              onLoadedMetadata={(event) => {
+                const { videoWidth, videoHeight } = event.currentTarget;
+                if (videoWidth && videoHeight) setSourceAspect(videoWidth / videoHeight);
+              }}
+            />
             <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
               <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-900">Изменить видео</span>
             </div>
@@ -89,29 +113,81 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
         )}
         <input type="file" ref={fileInputRef} onChange={onFileChange} accept="video/*" className="hidden" />
 
-        <div className="mt-3">
-          <label className="mb-1.5 block text-xs font-medium text-gray-500">Или выберите из подложек</label>
-          <AppSelect
-            value={selectedTemplateId}
-            onChange={(event) => onTemplateSelect(event.target.value)}
-            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
-          >
-            <option value="">— Не выбрано —</option>
-            {templates.map((template) => (
-              <option key={template.id} value={template.id}>{template.name}</option>
-            ))}
-          </AppSelect>
-        </div>
+        {activeTemplates.length > 0 && (
+          <div className="mt-3 border-t border-gray-200 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-gray-600">Подложка</p>
+                <p className="mt-0.5 truncate text-[11px] text-gray-400">
+                  {selectedTemplate ? selectedTemplate.name : 'Можно выбрать готовое видео из библиотеки'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTemplatePickerOpen((open) => !open)}
+                className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+              >
+                {templatePickerOpen ? 'Скрыть' : selectedTemplate ? 'Изменить' : 'Выбрать'}
+              </button>
+            </div>
+
+            {templatePickerOpen && (
+              <div className="mt-3 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3 lg:grid-cols-4">
+              {activeTemplates.map((template) => {
+                const selected = template.id === selectedTemplateId;
+                const src = templateUrls[template.file_path];
+                return (
+                  <button
+                    key={template.id}
+                    type="button"
+                    onClick={() => {
+                      onTemplateSelect(template.id);
+                      setTemplatePickerOpen(false);
+                    }}
+                    className={`group relative overflow-hidden rounded-xl border text-left transition-all ${selected ? 'border-brand-600 ring-2 ring-brand-600/20' : 'border-gray-200 hover:border-gray-400'}`}
+                    title={`Выбрать: ${template.name}`}
+                  >
+                    <div className="aspect-video bg-gray-900">
+                      {src ? (
+                        <video
+                          src={src}
+                          muted
+                          loop
+                          playsInline
+                          preload="metadata"
+                          className="h-full w-full object-contain"
+                          onMouseEnter={(event) => event.currentTarget.play().catch(() => {})}
+                          onMouseLeave={(event) => {
+                            event.currentTarget.pause();
+                            event.currentTarget.currentTime = 0;
+                          }}
+                        />
+                      ) : (
+                        <div className="h-full w-full animate-pulse bg-gray-800" />
+                      )}
+                    </div>
+                    <span className="block truncate bg-white px-2 py-1.5 text-[10px] font-medium text-gray-700">
+                      {template.name}
+                    </span>
+                    {selected && (
+                      <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-xs text-white shadow-sm">
+                        ✓
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {videoUrl && (
         <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
-          <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
-            <p className="flex items-center gap-2 text-sm font-bold text-brand-950">
-              <SparklesSolid className="h-4 w-4 text-brand-600" />
-              Какие версии генерировать?
-            </p>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+          <div className="rounded-2xl border border-gray-200 bg-white p-4">
+            <p className="text-base font-medium tracking-tight text-gray-900">Какие версии генерировать?</p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
               {[
                 { id: 'both' as const, title: 'Оба', detail: 'С и без заголовка' },
                 { id: 'headline' as const, title: 'С заголовком', detail: 'X 50% / Y 20%' },
@@ -121,14 +197,14 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
                   key={option.id}
                   type="button"
                   onClick={() => setOutputMode(option.id)}
-                  className={`rounded-lg border p-2.5 text-left transition-colors ${outputMode === option.id ? 'border-brand-600 bg-brand-600 text-white shadow-sm' : 'border-brand-200 bg-white text-brand-900 hover:border-brand-400'}`}
+                  className={`rounded-xl border p-3 text-left transition-all ${outputMode === option.id ? 'border-[#2563EB] bg-[#2563EB] text-white shadow-sm' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50'}`}
                 >
-                  <span className="block font-bold">{option.title}</span>
-                  <span className={`mt-1 block text-[10px] leading-snug ${outputMode === option.id ? 'text-brand-100' : 'text-brand-700'}`}>{option.detail}</span>
+                  <span className="block text-[13px] font-medium leading-tight">{option.title}</span>
+                  <span className={`mt-1.5 block text-[11px] leading-snug ${outputMode === option.id ? 'text-white/75' : 'text-gray-500'}`}>{option.detail}</span>
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-brand-700">
+            <p className="mt-3 text-xs leading-relaxed text-gray-500">
               {outputMode === 'both'
                 ? 'Каждая идея даст два Reels с одним продающим описанием и CTA.'
                 : outputMode === 'headline'

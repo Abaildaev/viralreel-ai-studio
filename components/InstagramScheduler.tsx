@@ -436,13 +436,14 @@ const InstagramScheduler: React.FC = () => {
 
   const getVideoUrl = (path: string | null) => (path ? videoUrls[path] : undefined);
 
-  const VideoThumb: React.FC<{ path: string | null; isActive: boolean }> = ({ path, isActive }) => {
+  const VideoThumb: React.FC<{ post: ScheduledPost; isActive: boolean }> = ({ post, isActive }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [loaded, setLoaded] = useState(false);
-    const url = getVideoUrl(path);
+    const url = getVideoUrl(post.video_path);
+    const preservesSourceAspect = post.font_settings?.variantKind === 'clean';
 
     const handleMouseEnter = () => {
-      if (!path || !url) return;
+      if (!post.video_path || !url) return;
       if (!loaded && videoRef.current) {
         videoRef.current.src = url;
         setLoaded(true);
@@ -459,18 +460,18 @@ const InstagramScheduler: React.FC = () => {
 
     return (
       <div
-        className="w-full h-36 bg-gray-800 relative overflow-hidden"
+        className={`w-full bg-gray-800 relative overflow-hidden ${preservesSourceAspect ? 'aspect-video' : 'h-36'}`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
         {!loaded && (
           <div className="absolute inset-0 flex items-center justify-center">
-            {path ? <PlayIcon className="w-8 h-8 text-white/30" /> : <span className="text-xs text-white/40">Файл очищен</span>}
+            {post.video_path ? <PlayIcon className="w-8 h-8 text-white/30" /> : <span className="text-xs text-white/40">Файл очищен</span>}
           </div>
         )}
         <video
           ref={videoRef}
-          className="w-full h-full object-cover"
+          className={`w-full h-full ${preservesSourceAspect ? 'object-contain' : 'object-cover'}`}
           muted
           loop
           playsInline
@@ -717,10 +718,7 @@ const InstagramScheduler: React.FC = () => {
                         }`}
                         title="Кликните для выбора, перетащите мышкой для смены порядка в очереди"
                       >
-                        <VideoThumb
-                          path={post.video_path}
-                          isActive={false}
-                        />
+                        <VideoThumb post={post} isActive={false} />
 
                         {/* Drag Handle Indicator */}
                         <div

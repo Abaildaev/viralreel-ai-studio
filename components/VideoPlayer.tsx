@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { FontFamily, TextAlign, BgStyle, FontWeight, AiShowcaseStyle } from '../types';
+import { FontFamily, TextAlign, BgStyle, FontWeight, AiShowcaseStyle, ViralVariation } from '../types';
 
 interface VideoPlayerProps {
   src: string;
@@ -26,6 +26,7 @@ interface VideoPlayerProps {
   showcaseStyle?: AiShowcaseStyle;
   showcaseEmoji?: string;
   textRotation?: number;
+  variantKind?: ViralVariation['variantKind'];
   showSafeZones?: boolean;
   onPositionChange?: (x: number, y: number) => void;
   onCarouselBaitPositionChange?: (y: number) => void;
@@ -56,6 +57,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   showcaseStyle,
   showcaseEmoji,
   textRotation = 0,
+  variantKind,
   showSafeZones: initialSafeZones = false,
   onPositionChange,
   onCarouselBaitPositionChange
@@ -65,13 +67,20 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(isPlaying);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(true);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [isDraggingBait, setIsDraggingBait] = useState(false);
   const [safeZonesActive, setSafeZonesActive] = useState(initialSafeZones);
+  const [sourceAspectRatio, setSourceAspectRatio] = useState<number | null>(null);
+  const preservesSourceAspect = variantKind === 'clean';
 
   useEffect(() => {
     setPlaying(isPlaying);
   }, [isPlaying]);
+
+  useEffect(() => {
+    setSourceAspectRatio(null);
+  }, [src]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -97,6 +106,13 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const togglePlayPause = () => {
     if (!isDraggingText && !isDraggingBait) {
+      // Browser autoplay starts previews muted. A deliberate click is a user
+      // gesture, so we can safely let the creator hear the source footage.
+      if (!audioSrc && isVideoMuted) {
+        setIsVideoMuted(false);
+        setPlaying(true);
+        return;
+      }
       setPlaying(!playing);
     }
   };
@@ -269,7 +285,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-black overflow-hidden rounded-lg shadow-xl aspect-[9/16] cursor-pointer group select-none"
+      className="relative w-full bg-black overflow-hidden rounded-lg shadow-xl cursor-pointer group select-none"
+      style={{ aspectRatio: preservesSourceAspect ? sourceAspectRatio ?? 16 / 9 : 9 / 16 }}
       onClick={togglePlayPause}
     >
       <video
@@ -280,8 +297,12 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           transform: `scale(${videoScale}) translate(${videoPanX}%, ${videoPanY}%)`
         }}
         loop
-        muted
+        muted={audioSrc ? true : isVideoMuted}
         playsInline
+        onLoadedMetadata={(event) => {
+          const { videoWidth, videoHeight } = event.currentTarget;
+          if (videoWidth && videoHeight) setSourceAspectRatio(videoWidth / videoHeight);
+        }}
       />
 
       {audioSrc && (
@@ -290,6 +311,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           src={audioSrc}
           loop
         />
+      )}
+
+      {!audioSrc && (
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            setIsVideoMuted((current) => !current);
+          }}
+          className="absolute bottom-3 right-3 z-40 rounded-full border border-white/20 bg-black/60 p-2 text-white backdrop-blur-md transition-all hover:bg-black/80"
+          title={isVideoMuted ? 'Включить звук видео' : 'Выключить звук видео'}
+        >
+          <span className="text-xs">{isVideoMuted ? '🔇' : '🔊'}</span>
+        </button>
       )}
 
       {audioSrc && (
@@ -310,24 +344,26 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
       )}
 
       {/* Safe Zones Toggle Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setSafeZonesActive(!safeZonesActive);
-        }}
-        className={`absolute top-3 left-3 z-40 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-lg ${
-          safeZonesActive
-            ? 'bg-cyan-500 text-gray-950 border-cyan-300 ring-2 ring-cyan-400/40 font-bold'
-            : 'bg-black/60 hover:bg-black/80 text-white/90 border-white/20'
-        }`}
-        title="Показать / скрыть безопасные зоны Instagram Reels"
-      >
-        <span>📐</span>
-        <span>{safeZonesActive ? 'Сетка Reels: ВКЛ' : 'Сетка Reels'}</span>
-      </button>
+      {!preservesSourceAspect && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSafeZonesActive(!safeZonesActive);
+          }}
+          className={`absolute top-3 left-3 z-40 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-lg ${
+            safeZonesActive
+              ? 'bg-cyan-500 text-gray-950 border-cyan-300 ring-2 ring-cyan-400/40 font-bold'
+              : 'bg-black/60 hover:bg-black/80 text-white/90 border-white/20'
+          }`}
+          title="Показать / скрыть безопасные зоны Instagram Reels"
+        >
+          <span>📐</span>
+          <span>{safeZonesActive ? 'Сетка Reels: ВКЛ' : 'Сетка Reels'}</span>
+        </button>
+      )}
 
       {/* Realistic Instagram Reels Safe Zones Overlay */}
-      {safeZonesActive && (
+      {!preservesSourceAspect && safeZonesActive && (
         <div className="absolute inset-0 pointer-events-none z-30 flex flex-col justify-between p-3 select-none">
           {/* Top Header UI */}
           <div className="flex items-center justify-between text-white drop-shadow-md pt-1 px-1">

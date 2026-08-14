@@ -41,6 +41,7 @@ const TemplatesPage: React.FC = () => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [templateAspects, setTemplateAspects] = useState<Record<string, number>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const templateUrls = useSignedUrls('templates', templates.map(t => t.file_path));
@@ -78,6 +79,23 @@ const TemplatesPage: React.FC = () => {
       };
       video.onerror = () => resolve(0);
     });
+  };
+
+  const rememberTemplateAspect = (templateId: string, video: HTMLVideoElement) => {
+    if (!video.videoWidth || !video.videoHeight) return;
+    const aspect = video.videoWidth / video.videoHeight;
+    setTemplateAspects((current) => (
+      Math.abs((current[templateId] ?? 0) - aspect) < 0.001
+        ? current
+        : { ...current, [templateId]: aspect }
+    ));
+  };
+
+  const formatAspect = (aspect?: number) => {
+    if (!aspect) return 'Определяю формат';
+    if (aspect > 1.45) return '16:9';
+    if (aspect < 0.8) return '9:16';
+    return '1:1';
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -300,7 +318,7 @@ const TemplatesPage: React.FC = () => {
       {loading ? (
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 8 }, (_, index) => (
-            <Skeleton key={index} className="aspect-[9/16] w-full" />
+          <Skeleton key={index} className="aspect-video w-full" />
           ))}
         </div>
       ) : templates.length === 0 ? (
@@ -339,13 +357,17 @@ const TemplatesPage: React.FC = () => {
                 template.is_active ? 'border-gray-200' : 'border-gray-200 opacity-50'
               }`}
             >
-              <div className="relative aspect-[9/16] bg-gray-900">
+              <div
+                className="relative w-full overflow-hidden bg-gray-900"
+                style={{ aspectRatio: templateAspects[template.id] ?? 16 / 9 }}
+              >
                 <video
                   src={getVideoUrl(template.file_path)}
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-contain"
                   muted
                   playsInline
                   preload="metadata"
+                  onLoadedMetadata={(event) => rememberTemplateAspect(template.id, event.currentTarget)}
                   onMouseEnter={(e) => (e.target as HTMLVideoElement).play().catch(() => {})}
                   onMouseLeave={(e) => {
                     const v = e.target as HTMLVideoElement;
@@ -361,6 +383,9 @@ const TemplatesPage: React.FC = () => {
                   )}
                   <span className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full">
                     {formatDuration(template.duration)}
+                  </span>
+                  <span className="bg-black/60 backdrop-blur-sm text-white text-[10px] px-2 py-0.5 rounded-full">
+                    {formatAspect(templateAspects[template.id])}
                   </span>
                 </div>
                 {!template.is_active && (

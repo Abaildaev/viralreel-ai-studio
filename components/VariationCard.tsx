@@ -81,6 +81,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
           showcaseStyle={variation.showcaseStyle}
           showcaseEmoji={variation.showcaseEmoji}
           textRotation={variation.textRotation || 0}
+          variantKind={variation.variantKind}
           onPositionChange={(x, y) => onUpdatePosition(variation.id, x, y)}
           onCarouselBaitPositionChange={(y) => onUpdateStyle(variation.id, 'carouselBaitPosY', y)}
         />
