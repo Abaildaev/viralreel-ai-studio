@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppView, InstagramAccount } from '../types';
+import AccountAvatar from './AccountAvatar';
 import { useAccount } from '../contexts/AccountContext';
 import { useBatchGeneration } from '../contexts/BatchGenerationContext';
 import {
@@ -151,9 +152,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
               onClick={() => !collapsed && setShowAccountDropdown(!showAccountDropdown)}
               className={`w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50 transition-colors ${collapsed ? 'justify-center' : ''}`}
             >
-              <div className="w-9 h-9 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-base flex-shrink-0">
-                {selectedAccount?.username?.charAt(0).toUpperCase() || 'A'}
-              </div>
+              <AccountAvatar account={selectedAccount} size="md" />
               {!collapsed && (
                 <>
                   <div className="flex-1 text-left min-w-0">
@@ -188,11 +187,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
                           isSelected ? 'bg-teal-50' : 'hover:bg-gray-50'
                         }`}
                       >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 ${
-                          isSelected ? 'bg-teal-600' : 'bg-gray-400'
-                        }`}>
-                          {account.username.charAt(0).toUpperCase()}
-                        </div>
+                        <AccountAvatar account={account} size="sm" />
                         <div className="flex-1 text-left min-w-0">
                           <p className={`text-sm font-medium truncate ${isSelected ? 'text-teal-900' : 'text-gray-900'}`}>
                             @{account.username}

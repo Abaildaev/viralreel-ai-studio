@@ -3,6 +3,7 @@ import { getAuthenticatedHeaders, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import { LeadMagnet, LeadMagnetStats } from '../types';
+import Section from '../components/Section';
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
@@ -736,11 +737,9 @@ const AutomationsPage: React.FC = () => {
   );
 };
 
+/** Thin alias so this page and AI Showcase render the identical section chrome. */
 const BuilderSection: React.FC<{ number: string; title: string; subtitle: string; children: React.ReactNode }> = ({ number, title, subtitle, children }) => (
-  <section className="bg-white border border-gray-200 rounded-xl p-5 sm:p-6 shadow-sm">
-    <div className="flex gap-3 mb-5"><span className="w-8 h-8 rounded-full bg-gray-900 text-white text-sm font-bold flex items-center justify-center flex-shrink-0">{number}</span><div><h2 className="font-bold text-gray-900">{title}</h2><p className="text-sm text-gray-500 mt-0.5">{subtitle}</p></div></div>
-    {children}
-  </section>
+  <Section step={number} title={title} hint={subtitle}>{children}</Section>
 );
 
 const ChoiceCard: React.FC<{ active: boolean; title: string; description: string; onClick: () => void }> = ({ active, title, description, onClick }) => (

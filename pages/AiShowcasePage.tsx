@@ -5,12 +5,13 @@ import VideoPlayer from '../components/VideoPlayer';
 import VariationsGrid from '../components/VariationsGrid';
 import AudioModal from '../components/AudioModal';
 import { generateAiShowcaseContent } from '../services/geminiService';
+import Section from '../components/Section';
 import {
   SparklesIcon,
   CloudArrowUpIcon,
   ArrowPathIcon,
-  ChatBubbleBottomCenterTextIcon,
-  ShieldCheckIcon,
+  BoltIcon,
+  NoSymbolIcon,
 } from '@heroicons/react/24/outline';
 
 const AI_SHOWCASE_DEMO_VIDEO_URL = 'https://assets.mixkit.co/videos/preview/mixkit-hand-holding-a-smartphone-with-a-green-screen-41544-large.mp4';
@@ -220,43 +221,30 @@ const AiShowcasePage: React.FC = () => {
   const activeAiModel: AiModelType = selectedModel === 'all' ? 'claude' : selectedModel;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-8">
+    <div className="p-8 max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">AI Showcase</h1>
         <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-          Каждый запуск создаёт уникальные тексты через DeepSeek и распределяет их по белым плашкам,
-          белому тексту с эмодзи, Figma + AI-композициям и тёмным карточкам.
+          Каждый запуск создаёт уникальные тексты через DeepSeek и раскладывает их по белым плашкам,
+          тексту с эмодзи, Figma + AI-композициям и тёмным карточкам.
         </p>
-        <div className="badge badge-success mt-3">
-          <ShieldCheckIcon className="w-3.5 h-3.5" /> Автоподбор логотипов по смыслу
-        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Control Panel */}
-        <div className="lg:col-span-6 space-y-6">
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-3">
-            <label htmlFor="showcase-topic" className="block text-sm font-semibold text-gray-900">
-              1. Тема или ниша
-            </label>
-            <p className="text-xs text-gray-500">
-              DeepSeek использует её, чтобы подготовить уникальные заголовки и описания.
-            </p>
+        <div className="lg:col-span-6 space-y-4">
+          <Section step={1} title="Тема или ниша" hint="DeepSeek использует её, чтобы подготовить уникальные заголовки и описания.">
             <textarea
               id="showcase-topic"
               value={topic}
               onChange={(event) => setTopic(event.target.value)}
               placeholder="Например: как дизайнеру создавать лендинги с ИИ"
               rows={3}
-              className="w-full resize-y bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm text-gray-900 focus:ring-2 focus:ring-teal-500 outline-none"
+              className="field resize-y"
             />
-          </div>
+          </Section>
 
-          {/* AI Model Brand Selector */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <label className="block text-sm font-semibold text-gray-900">
-              2. Выберите Нейросеть (режим логотипа)
-            </label>
+          <Section step={2} title="Нейросеть" hint="Определяет, чей логотип появится в кадре.">
             <div className="grid grid-cols-5 gap-1.5">
               <button
                 type="button"
@@ -306,7 +294,7 @@ const AiShowcasePage: React.FC = () => {
                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
                 }`}
               >
-                <span className="text-base leading-none">🚫</span>
+                <NoSymbolIcon className="w-5 h-5" />
                 <span className="text-[11px]">Без лого</span>
               </button>
 
@@ -319,23 +307,14 @@ const AiShowcasePage: React.FC = () => {
                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
                 }`}
               >
-                <span className="text-base leading-none">⚡</span>
+                <BoltIcon className="w-5 h-5" />
                 <span className="text-[11px]">Авто ИИ</span>
               </button>
             </div>
-          </div>
+          </Section>
 
-          {/* Codeword Selector for ManyChat / Direct */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <label className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
-              <ChatBubbleBottomCenterTextIcon className="w-5 h-5 text-teal-600" />
-              3. Кодовое слово (для ManyChat / ЛС)
-            </label>
-            <p className="text-xs text-gray-500">
-              Выбирайте естественные слова, которые не вызывают спам-фильтров алгоритма.
-            </p>
-
-            <div className="flex flex-wrap gap-2">
+          <Section step={3} title="Кодовое слово" hint="Слово, которое зритель напишет в комментарии. Выбирайте естественные — они не попадают под спам-фильтры.">
+            <div className="flex flex-wrap gap-2 mb-3">
               {presetCodewords.map((word) => (
                 <button
                   key={word}
@@ -352,25 +331,16 @@ const AiShowcasePage: React.FC = () => {
               ))}
             </div>
 
-            <div className="relative">
-              <input
-                type="text"
-                value={codeword}
-                onChange={(e) => setCodeword(e.target.value.toUpperCase())}
-                placeholder="Свое кодовое слово (напр. ГАЙД)"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-bold tracking-wider text-teal-700 focus:ring-2 focus:ring-teal-500 outline-none uppercase"
-              />
-            </div>
-          </div>
+            <input
+              type="text"
+              value={codeword}
+              onChange={(e) => setCodeword(e.target.value.toUpperCase())}
+              placeholder="Своё слово, например ГАЙД"
+              className="field font-semibold tracking-wider uppercase"
+            />
+          </Section>
 
-          {/* Video Footage Selection */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <label className="block text-sm font-semibold text-gray-900">
-              4. Видео-футаж сайта или интерфейса
-            </label>
-            <p className="text-xs text-gray-500">
-              Нужен только для сохранения финального MP4. До загрузки для предпросмотра используется демо-футаж.
-            </p>
+          <Section step={4} title="Видео-футаж" hint="Нужен только для сохранения финального MP4. До загрузки предпросмотр идёт на демо-футаже.">
             <input
               type="file"
               ref={gen.fileInputRef}
@@ -380,52 +350,48 @@ const AiShowcasePage: React.FC = () => {
             />
             <button
               onClick={() => gen.fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-teal-500 p-6 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-teal-600 transition-all bg-gray-50/50"
+              className="w-full border border-dashed border-gray-300 hover:border-teal-500 py-5 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-500 hover:text-teal-700 transition-colors"
             >
-              <CloudArrowUpIcon className="w-8 h-8" />
-              <span className="text-sm font-medium">Загрузить видео футажа сайта (9:16)</span>
+              <CloudArrowUpIcon className="w-6 h-6" />
+              <span className="text-sm font-medium">Загрузить футаж 9:16</span>
             </button>
-          </div>
+          </Section>
 
-          {/* Quantity Selector & One-click Generation */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-            <label className="block text-sm font-semibold text-gray-900">
-              5. Количество роликов для генерации
-            </label>
-
-            <select
-              value={gen.variationCount}
-              onChange={(e) => gen.setVariationCount(Number(e.target.value))}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3.5 text-sm focus:ring-2 focus:ring-teal-500 outline-none font-medium"
-            >
-              {[1, 2, 3, 4, 5, 6, 8, 10].map(num => (
-                <option key={num} value={num}>{num} {num === 1 ? 'ролик' : num < 5 ? 'ролика' : 'роликов'}</option>
-              ))}
-            </select>
-
-            <button
-              onClick={handleGenerateAiHooks}
-              disabled={gen.isGenerating}
-              className="w-full py-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-2 shadow-lg transition-all disabled:bg-gray-300"
-            >
-              {gen.isGenerating ? (
-                <>
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                  DeepSeek генерирует...
-                </>
-              ) : (
-                <>
-                  <SparklesIcon className="w-5 h-5" />
-                  Сгенерировать {gen.variationCount} {gen.variationCount === 1 ? 'ролик' : gen.variationCount < 5 ? 'ролика' : 'роликов'}
-                </>
-              )}
-            </button>
+          <Section step={5} title="Количество роликов">
+            <div className="flex gap-2">
+              <select
+                value={gen.variationCount}
+                onChange={(e) => gen.setVariationCount(Number(e.target.value))}
+                className="field max-w-40"
+              >
+                {[1, 2, 3, 4, 5, 6, 8, 10].map(num => (
+                  <option key={num} value={num}>{num} {num === 1 ? 'ролик' : num < 5 ? 'ролика' : 'роликов'}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleGenerateAiHooks}
+                disabled={gen.isGenerating}
+                className="btn btn-primary btn-lg flex-1"
+              >
+                {gen.isGenerating ? (
+                  <>
+                    <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                    DeepSeek генерирует…
+                  </>
+                ) : (
+                  <>
+                    <SparklesIcon className="w-4 h-4" />
+                    Сгенерировать
+                  </>
+                )}
+              </button>
+            </div>
             {generationError && (
-              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p role="alert" className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {generationError}
               </p>
             )}
-          </div>
+          </Section>
         </div>
 
         {/* Right Live Preview & Grid */}
@@ -445,15 +411,12 @@ const AiShowcasePage: React.FC = () => {
               onReset={gen.handleReset}
             />
           ) : (
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-base font-semibold text-gray-900">Предпросмотр формата</h2>
-                <span className="text-xs text-teal-600 font-semibold bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
-                  ⚡ Автоподбор логотипа по контексту
-                </span>
-              </div>
-
-              <div className="w-full max-w-xs mx-auto aspect-[9/16] rounded-xl overflow-hidden shadow-2xl">
+            <Section
+              title="Предпросмотр формата"
+              hint="Логотип подбирается по смыслу заголовка."
+              action={<span className="badge badge-accent">Демо-футаж</span>}
+            >
+              <div className="w-full max-w-xs mx-auto aspect-[9/16] rounded-xl overflow-hidden shadow-lg">
                 <VideoPlayer
                   src={gen.videoUrl || AI_SHOWCASE_DEMO_VIDEO_URL}
                   hookText={"POV: $10K website — Figma + Claude"}
@@ -470,7 +433,7 @@ const AiShowcasePage: React.FC = () => {
                   aiModel={activeAiModel}
                 />
               </div>
-            </div>
+            </Section>
           )}
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { InstagramAccount } from '../types';
+import AccountAvatar from '../components/AccountAvatar';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import {
@@ -378,25 +379,7 @@ const AccountsPage: React.FC = () => {
               }`}
             >
               <div className="flex items-center gap-4">
-                {account.profile_picture_url ? (
-                  <img
-                    src={account.profile_picture_url}
-                    alt={account.username}
-                    className="w-14 h-14 rounded-xl object-cover shadow-lg"
-                    onError={(e) => {
-                      const img = e.target as HTMLImageElement;
-                      img.style.display = 'none';
-                      const fallback = img.parentElement?.querySelector('.avatar-fallback') as HTMLElement;
-                      if (fallback) fallback.style.display = 'flex';
-                    }}
-                  />
-                ) : null}
-                <div
-                  className="avatar-fallback w-14 h-14 rounded-xl bg-gray-400 items-center justify-center text-white font-bold text-xl shadow-lg"
-                  style={{ display: account.profile_picture_url ? 'none' : 'flex' }}
-                >
-                  {account.username.charAt(0).toUpperCase()}
-                </div>
+                <AccountAvatar account={account} size="lg" />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
