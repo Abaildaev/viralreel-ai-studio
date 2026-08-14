@@ -17,6 +17,14 @@ import {
   MagnifyingGlassIcon,
   PencilIcon,
 } from '@heroicons/react/24/outline';
+import {
+  Button,
+  Callout,
+  EmptyState,
+  PageHeader,
+  PageShell,
+  Skeleton,
+} from '../components/ui';
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/__+/g, '_');
@@ -228,28 +236,16 @@ const TemplatesPage: React.FC = () => {
   });
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-          Подложки
-          {selectedAccount && (
-            <span className="text-lg font-normal text-gray-400 ml-2">
-              @{selectedAccount.username}
-            </span>
-          )}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Фоновые видео для автогенерации. Активных: {activeCount} из {templates.length}
-        </p>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        title={selectedAccount ? `Подложки · @${selectedAccount.username}` : 'Подложки'}
+        description={`Фоновые видео для автогенерации. Активных: ${activeCount} из ${templates.length}`}
+      />
 
       {!selectedAccount && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
-          <ExclamationTriangleIcon className="w-5 h-5 text-amber-500 flex-shrink-0" />
-          <p className="text-sm text-amber-700">
-            Выберите аккаунт в боковом меню, чтобы загружать и просматривать подложки.
-          </p>
-        </div>
+        <Callout tone="warning" className="mb-5">
+          Выберите аккаунт в боковом меню, чтобы загружать и просматривать подложки.
+        </Callout>
       )}
 
       {selectedAccount && (
@@ -319,27 +315,40 @@ const TemplatesPage: React.FC = () => {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }, (_, index) => (
+            <Skeleton key={index} className="aspect-[9/16] w-full" />
+          ))}
         </div>
       ) : templates.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
-          <FilmIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-500 mb-2">Нет подложек</h3>
-          <p className="text-sm text-gray-400">
-            {selectedAccount
-              ? 'Загрузите фоновые видео для этого аккаунта'
-              : 'Выберите аккаунт для начала работы'}
-          </p>
-        </div>
+        <EmptyState
+          icon={<FilmIcon className="h-6 w-6" />}
+          title="Нет подложек"
+          description={
+            selectedAccount
+              ? 'Загрузите фоновые видео — автогенератор берёт их как подложку для роликов.'
+              : 'Выберите аккаунт в боковом меню, чтобы начать работу.'
+          }
+          action={
+            selectedAccount ? (
+              <Button
+                variant="primary"
+                onClick={() => fileInputRef.current?.click()}
+                icon={<PlusIcon className="h-5 w-5" />}
+              >
+                Загрузить видео
+              </Button>
+            ) : undefined
+          }
+        />
       ) : filteredTemplates.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 border border-gray-200 rounded-xl">
-          <MagnifyingGlassIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-          <h3 className="text-base font-medium text-gray-500 mb-1">Ничего не найдено</h3>
-          <p className="text-sm text-gray-400">Попробуйте другой запрос или фильтр</p>
-        </div>
+        <EmptyState
+          icon={<MagnifyingGlassIcon className="h-6 w-6" />}
+          title="Ничего не найдено"
+          description="Ни одна подложка не подходит под текущий запрос или фильтр."
+        />
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {filteredTemplates.map((template) => (
             <div
               key={template.id}
@@ -439,7 +448,7 @@ const TemplatesPage: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 };
 

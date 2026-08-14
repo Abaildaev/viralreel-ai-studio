@@ -31,6 +31,8 @@ export const Card: React.FC<CardProps> = ({
 export interface SectionProps {
   /** Shown in a badge when the section is one step of an ordered flow. */
   step?: number | string;
+  /** Shown in an accent tile. Mutually exclusive with `step` in practice. */
+  icon?: React.ReactNode;
   title: string;
   hint?: string;
   /** Optional control aligned to the right of the title. */
@@ -46,6 +48,7 @@ export interface SectionProps {
  */
 export const Section: React.FC<SectionProps> = ({
   step,
+  icon,
   title,
   hint,
   action,
@@ -57,6 +60,11 @@ export const Section: React.FC<SectionProps> = ({
       {step !== undefined && (
         <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-gray-900 text-xs font-semibold text-white">
           {step}
+        </span>
+      )}
+      {icon && (
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white">
+          {icon}
         </span>
       )}
       <div className="min-w-0 flex-1">
