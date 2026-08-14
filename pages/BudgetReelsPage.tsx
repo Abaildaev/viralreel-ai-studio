@@ -10,6 +10,7 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
+import { PageHeader, PageShell } from '../components/ui';
 import { supabase, getSignedUrl } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
@@ -386,17 +387,22 @@ export default function BudgetReelsPage() {
   const disabled = isAnimating || isRendering || batchRunning;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      {/* ЗАГОЛОВОК */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Бюджет Reels</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Генерация видео с калькулятором бюджета. Формат 9:16.
-        </p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Бюджет Reels"
+        description="Генерация видео с калькулятором бюджета. Формат 9:16."
+      />
 
-      <div className="flex gap-8 items-start">
-        {/* === ЛЕВАЯ КОЛОНКА: ПРЕВЬЮ + КНОПКИ === */}
+      {/* The preview is a fixed 360px frame the renderer captures, so below
+          `xl` the controls stack under it rather than being squeezed beside it. */}
+      <div className="flex flex-col items-start gap-8 xl:flex-row">
+        {/*
+          === ЛЕВАЯ КОЛОНКА: ПРЕВЬЮ + КНОПКИ ===
+          The frame below is locked to 360px because the renderer captures it at
+          that size, so on a narrow phone it is the column that scrolls — the
+          negative margin lets it use the shell's padding before it does.
+        */}
+        <div className="scroll-x -mx-4 w-full px-4 sm:mx-0 sm:w-auto sm:px-0">
         <div className="flex flex-col items-center gap-4 shrink-0">
           {/*
             REELS КАРТОЧКА
@@ -472,9 +478,10 @@ export default function BudgetReelsPage() {
             </button>
           </div>
         </div>
+        </div>
 
         {/* === ПРАВАЯ КОЛОНКА: НАСТРОЙКИ ПАКЕТНОЙ ГЕНЕРАЦИИ === */}
-        <div className="flex-1 space-y-6">
+        <div className="w-full flex-1 space-y-6">
           {/* Блок настроек */}
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
@@ -628,6 +635,6 @@ export default function BudgetReelsPage() {
           </div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

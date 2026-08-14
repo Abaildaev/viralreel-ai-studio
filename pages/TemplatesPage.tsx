@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase, getSignedUrl } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { VideoTemplate } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
@@ -13,7 +13,6 @@ import {
   MusicalNoteIcon,
   CheckIcon,
   XMarkIcon,
-  ExclamationTriangleIcon,
   MagnifyingGlassIcon,
   PencilIcon,
 } from '@heroicons/react/24/outline';

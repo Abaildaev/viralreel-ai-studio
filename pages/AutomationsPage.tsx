@@ -10,6 +10,7 @@ import AiSalesAgentSimulator from '../components/AiSalesAgentSimulator';
 import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
+import { Button, PageHeader, PageShell } from '../components/ui';
 
 import {
   BoltIcon,
@@ -202,27 +203,23 @@ export default function AutomationsPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-      {/* Top Page Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Автоматизации & CRM</h1>
-          <p className="text-xs text-gray-500 mt-1">
-            Управляйте сценариями Comment-to-DM, обучайте ИИ-продавца и отслеживайте конверсии
-          </p>
-        </div>
-
-        {activeTab === 'rules' && (
-          <button
-            type="button"
-            onClick={handleCreateNew}
-            className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-all active:scale-95"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Создать сценарий
-          </button>
-        )}
-      </div>
+    <PageShell width="wide" className="space-y-6">
+      <PageHeader
+        title="Автоматизации & CRM"
+        description="Управляйте сценариями Comment-to-DM, обучайте ИИ-продавца и отслеживайте конверсии"
+        className="mb-0"
+        actions={
+          activeTab === 'rules' ? (
+            <Button
+              variant="primary"
+              onClick={handleCreateNew}
+              icon={<PlusIcon className="h-4 w-4" />}
+            >
+              Создать сценарий
+            </Button>
+          ) : undefined
+        }
+      />
 
       {/* Tabs Navigation */}
       <div className="flex items-center gap-1 p-1 bg-gray-100/90 rounded-2xl w-fit border border-gray-200/60 overflow-x-auto max-w-full">
@@ -442,6 +439,6 @@ export default function AutomationsPage() {
           onSave={handleSaveForm}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

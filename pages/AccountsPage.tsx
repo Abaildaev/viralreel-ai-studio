@@ -29,7 +29,7 @@ interface AccountPreview {
 const AccountsPage: React.FC = () => {
   const { user } = useAuth();
   const { refreshAccounts } = useAccount();
-  const { confirm, alert } = useConfirm();
+  const { confirm } = useConfirm();
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);

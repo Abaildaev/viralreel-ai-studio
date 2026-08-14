@@ -1,10 +1,8 @@
 import React from 'react';
 import { ViralVariation, AppState } from '../types';
 import VariationCard from './VariationCard';
-import {
-  CloudArrowUpIcon,
-  DocumentTextIcon,
-} from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
+import { Button, EmptyState } from './ui';
 
 interface VariationsGridProps {
   appState: AppState;
@@ -33,46 +31,46 @@ const VariationsGrid: React.FC<VariationsGridProps> = ({
   onSave,
   onReset,
 }) => {
+  const availableCount = variations.filter((v) => v.status !== 'sent').length;
+
   return (
-    <div className="flex-1 p-6 lg:p-10 overflow-y-auto bg-gray-50">
+    /*
+      The two placeholder states used to centre themselves in a `min-h-[60vh]`
+      box, which parked a large grey icon far below the controls with nothing
+      between them. They sit directly under the panel now.
+    */
+    <div className="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
       {appState === AppState.UPLOAD && !videoUrl && (
-        <div className="h-full flex flex-col items-center justify-center text-center min-h-[60vh]">
-          <div className="w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center mb-4">
-            <CloudArrowUpIcon className="w-10 h-10 text-gray-400" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-400 mb-2">Начните с видео</h2>
-          <p className="text-gray-400 text-sm">Загрузите фоновое видео для начала</p>
-        </div>
+        <EmptyState
+          icon={<CloudArrowUpIcon className="h-6 w-6" />}
+          title="Начните с видео"
+          description="Загрузите фоновое видео или выберите подложку в панели выше — дальше ИИ соберёт хуки."
+        />
       )}
 
       {appState === AppState.CONFIG && videoUrl && variations.length === 0 && (
-        <div className="h-full flex flex-col items-center justify-center text-center min-h-[60vh]">
-          <div className="w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center mb-4 animate-pulse">
-            <DocumentTextIcon className="w-10 h-10 text-gray-400" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-400 mb-2">Настройте стратегию</h2>
-          <p className="text-gray-400 text-sm">ИИ создаст вирусные хуки для вас</p>
-        </div>
+        <EmptyState
+          icon={<DocumentTextIcon className="h-6 w-6" />}
+          title="Настройте стратегию"
+          description="Задайте тему и тон в панели выше, затем запустите генерацию — вариации появятся здесь."
+        />
       )}
 
       {appState === AppState.PREVIEW && videoUrl && (
         <div className="space-y-6">
-          <div className="flex justify-between items-end border-b border-gray-200 pb-4">
+          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-gray-200 pb-4">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Сгенерированные вариации</h2>
-              <p className="text-gray-500 text-sm mt-1">
-                {variations.filter(v => v.status !== 'sent').length} из {variations.length} доступно
+              <h2 className="text-lg font-semibold text-gray-900">Сгенерированные вариации</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {availableCount} из {variations.length} доступно
               </p>
             </div>
-            <button
-              onClick={onReset}
-              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
-            >
+            <Button variant="ghost" size="sm" onClick={onReset}>
               Очистить все
-            </button>
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {variations.map((variation) => (
               <VariationCard
                 key={variation.id}

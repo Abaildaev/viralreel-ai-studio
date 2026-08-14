@@ -220,6 +220,15 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
         </div>
       </div>
 
+      {/*
+        A month grid is seven columns by definition — it cannot reflow. Below
+        roughly 640px the cells would be too narrow to read a time in, so the
+        grid keeps a usable minimum width and scrolls inside its own box rather
+        than stretching the page.
+      */}
+      <div className="scroll-x -mx-1 px-1">
+      <div className="min-w-[560px]">
+
       {/* Weekday labels */}
       <div className="grid grid-cols-7 gap-2 text-center">
         {WEEKDAY_NAMES_RU.map((weekday, idx) => (
@@ -305,6 +314,9 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
             </div>
           );
         })}
+      </div>
+
+      </div>
       </div>
 
       {/* Selected Day Expanded Drawer */}

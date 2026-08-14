@@ -5,7 +5,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import VariationsGrid from '../components/VariationsGrid';
 import AudioModal from '../components/AudioModal';
 import { generateAiShowcaseContent } from '../services/geminiService';
-import { Section } from '../components/ui';
+import { PageHeader, PageShell, Section } from '../components/ui';
 import {
   SparklesIcon,
   CloudArrowUpIcon,
@@ -221,16 +221,13 @@ const AiShowcasePage: React.FC = () => {
   const activeAiModel: AiModelType = selectedModel === 'all' ? 'claude' : selectedModel;
 
   return (
-    <div className="p-8 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">AI Showcase</h1>
-        <p className="text-sm text-gray-500 mt-1 max-w-2xl">
-          Каждый запуск создаёт уникальные тексты через DeepSeek и раскладывает их по белым плашкам,
-          тексту с эмодзи, Figma + AI-композициям и тёмным карточкам.
-        </p>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        title="AI Showcase"
+        description="Каждый запуск создаёт уникальные тексты через DeepSeek и раскладывает их по белым плашкам, тексту с эмодзи, Figma + AI-композициям и тёмным карточкам."
+      />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Control Panel */}
         <div className="lg:col-span-6 space-y-4">
           <Section step={1} title="Тема или ниша" hint="DeepSeek использует её, чтобы подготовить уникальные заголовки и описания.">
@@ -448,7 +445,7 @@ const AiShowcasePage: React.FC = () => {
           onClose={() => gen.setShowAudioModal(null)}
         />
       )}
-    </div>
+    </PageShell>
   );
 };
 

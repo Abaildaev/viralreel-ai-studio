@@ -35,6 +35,7 @@ import {
   Squares2X2Icon,
   Bars3Icon,
 } from '@heroicons/react/24/outline';
+import { Callout, PageHeader, PageShell } from './ui';
 
 interface TelegramSettings {
   bot_token: string;
@@ -525,7 +526,7 @@ const InstagramScheduler: React.FC = () => {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <PageShell>
       {publishStatus && (
         <div className={`mb-4 px-4 py-3 rounded-xl flex items-center justify-between text-sm font-medium animate-in transition-all ${
           publishStatus.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' :
@@ -541,32 +542,22 @@ const InstagramScheduler: React.FC = () => {
           </button>
         </div>
       )}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Планировщик
-            {selectedAccount && (
-              <span className="text-lg font-normal text-gray-400 ml-2">@{selectedAccount.username}</span>
-            )}
-          </h1>
-          <p className="text-gray-500">
-            {selectedAccount
-              ? `${draftPosts.length} черновиков, ${scheduledPosts.length} запланировано`
-              : 'Выберите аккаунт для просмотра постов'}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title={selectedAccount ? `Планировщик · @${selectedAccount.username}` : 'Планировщик'}
+        description={
+          selectedAccount
+            ? `${draftPosts.length} черновиков, ${scheduledPosts.length} запланировано`
+            : 'Выберите аккаунт для просмотра постов'
+        }
+      />
 
-      <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-        <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-green-800">Авто-публикация активна</p>
-          <p className="text-xs text-green-600 mt-0.5">
-            Запланированные посты публикуются автоматически по расписанию (серверный cron каждую минуту)
-          </p>
-        </div>
-        <CalendarDaysIcon className="w-5 h-5 text-green-500" />
-      </div>
+      <Callout tone="success" icon={<CalendarDaysIcon className="h-4 w-4" />} className="mb-5">
+        <p className="font-medium">Авто-публикация активна</p>
+        <p className="mt-0.5 text-xs leading-relaxed">
+          Запланированные посты публикуются автоматически по расписанию (серверный cron каждую
+          минуту)
+        </p>
+      </Callout>
 
 
 
@@ -1120,7 +1111,7 @@ const InstagramScheduler: React.FC = () => {
         </div>
       )}
 
-    </div>
+    </PageShell>
   );
 };
 

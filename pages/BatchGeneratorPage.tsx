@@ -24,11 +24,12 @@ import {
   CheckCircleIcon,
   ClockIcon,
 } from '@heroicons/react/24/outline';
+import { Button, PageHeader, PageShell, SkeletonList } from '../components/ui';
 
 const BatchGeneratorPage: React.FC = () => {
   const { user } = useAuth();
   const { accounts } = useAccount();
-  const { confirm, alert } = useConfirm();
+  const { confirm } = useConfirm();
   const { running, progress, startGeneration, stopGeneration } = useBatchGeneration();
   const [presets, setPresets] = useState<BatchPreset[]>([]);
   const [templates, setTemplates] = useState<VideoTemplate[]>([]);
@@ -148,55 +149,55 @@ const BatchGeneratorPage: React.FC = () => {
   };
 
   if (loading) {
+    // Keep the page frame while loading, so the header does not pop in and
+    // shove the content down once the presets arrive.
     return (
-      <div className="flex items-center justify-center h-full py-20">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-      </div>
+      <PageShell>
+        <PageHeader title="Автогенератор" description="Загружаем пресеты…" />
+        <SkeletonList rows={3} />
+      </PageShell>
     );
   }
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Автогенератор</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {activePresetsCount} пресетов, {totalVideos} видео за запуск
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
+    <PageShell>
+      <PageHeader
+        title="Автогенератор"
+        description={`${activePresetsCount} пресетов, ${totalVideos} видео за запуск`}
+        actions={
+          <>
+          <Button
             onClick={() => { setEditingPreset(null); setShowModal(true); }}
-            className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-gray-700 hover:bg-gray-50 rounded-xl text-sm font-medium transition-colors"
+            icon={<PlusIcon className="h-4 w-4" />}
           >
-            <PlusIcon className="w-4 h-4" />
             Пресет
-          </button>
+          </Button>
 
           {!running ? (
-            <button
+            <Button
+              variant="primary"
               onClick={handleRunAll}
               disabled={activePresetsCount === 0}
-              className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
+              icon={<BoltIcon className="h-5 w-5" />}
             >
-              <BoltIcon className="w-5 h-5" />
               Запустить все
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
+              variant="primary"
               onClick={stopGeneration}
-              className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-medium transition-colors shadow-lg"
+              className="bg-red-600 hover:bg-red-700"
+              icon={<StopIcon className="h-5 w-5" />}
             >
-              <StopIcon className="w-5 h-5" />
               Остановить
-            </button>
+            </Button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {(running || (progress && progress.overallProgress >= 100)) && progress && (
-        <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <div className="card mb-6 p-5 sm:p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="text-sm font-semibold text-gray-900">{progress.currentPreset}</p>
@@ -376,7 +377,7 @@ const BatchGeneratorPage: React.FC = () => {
           onClose={() => { setShowModal(false); setEditingPreset(null); }}
         />
       )}
-    </div>
+    </PageShell>
   );
 };
 
