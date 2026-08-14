@@ -175,7 +175,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
       {/* Header Info */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center">
             <ScissorsIcon className="w-4 h-4" />
           </div>
           <div>
@@ -183,7 +183,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
               Обрезка видео (Trimmer)
             </h4>
             <p className="text-[11px] text-gray-400">
-              Исходник: {formatTime(totalDuration)} • Выбрано: <span className="text-teal-300 font-bold">{formatTime(segmentDuration)}</span>
+              Исходник: {formatTime(totalDuration)} • Выбрано: <span className="text-brand-300 font-bold">{formatTime(segmentDuration)}</span>
             </p>
           </div>
         </div>
@@ -192,7 +192,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
         <div className="flex items-center gap-2">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
             segmentDuration <= 10
-              ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40'
+              ? 'bg-brand-500/20 text-brand-300 border border-brand-500/40'
               : segmentDuration <= 20
               ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
               : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
@@ -203,7 +203,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
           <button
             type="button"
             onClick={togglePlay}
-            className="px-3 py-1 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow"
+            className="px-3 py-1 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors shadow"
           >
             {isPlayingSegment ? (
               <>
@@ -246,7 +246,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
           {/* Selected Active Range Box */}
           <div
             onMouseDown={(e) => handleTimelineMouseDown(e, 'range')}
-            className="absolute top-0 bottom-0 border-y-2 border-teal-400 bg-teal-500/20 cursor-grab active:cursor-grabbing group transition-colors"
+            className="absolute top-0 bottom-0 border-y-2 border-brand-400 bg-brand-500/20 cursor-grab active:cursor-grabbing group transition-colors"
             style={{
               left: `${startPercent}%`,
               width: `${widthPercent}%`,
@@ -254,7 +254,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
           >
             {/* Center Drag Label */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <span className="text-[10px] font-bold text-teal-200 bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-sm shadow">
+              <span className="text-[10px] font-bold text-brand-200 bg-black/50 px-2 py-0.5 rounded-full backdrop-blur-sm shadow">
                 ↔ {formatTime(segmentDuration)}
               </span>
             </div>
@@ -263,7 +263,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
           {/* Left Trim Handle */}
           <div
             onMouseDown={(e) => handleTimelineMouseDown(e, 'start')}
-            className="absolute top-0 bottom-0 w-3.5 bg-teal-500 hover:bg-teal-400 rounded-l-md cursor-ew-resize flex items-center justify-center z-10 shadow-lg"
+            className="absolute top-0 bottom-0 w-3.5 bg-brand-500 hover:bg-brand-400 rounded-l-md cursor-ew-resize flex items-center justify-center z-10 shadow-lg"
             style={{ left: `calc(${startPercent}% - 3px)` }}
             title="Зажмите для изменения начала"
           >
@@ -273,7 +273,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
           {/* Right Trim Handle */}
           <div
             onMouseDown={(e) => handleTimelineMouseDown(e, 'end')}
-            className="absolute top-0 bottom-0 w-3.5 bg-teal-500 hover:bg-teal-400 rounded-r-md cursor-ew-resize flex items-center justify-center z-10 shadow-lg"
+            className="absolute top-0 bottom-0 w-3.5 bg-brand-500 hover:bg-brand-400 rounded-r-md cursor-ew-resize flex items-center justify-center z-10 shadow-lg"
             style={{ left: `calc(${endPercent}% - 11px)` }}
             title="Зажмите для изменения конца"
           >
@@ -292,8 +292,8 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
         {/* Time markers under timeline */}
         <div className="flex justify-between text-[10px] text-gray-500 font-mono mt-1 px-1">
           <span>0:00</span>
-          <span className="text-teal-400 font-bold">Старт: {formatTime(trimStart)}</span>
-          <span className="text-teal-400 font-bold">Финиш: {formatTime(trimEnd)}</span>
+          <span className="text-brand-400 font-bold">Старт: {formatTime(trimStart)}</span>
+          <span className="text-brand-400 font-bold">Финиш: {formatTime(trimEnd)}</span>
           <span>{formatTime(totalDuration)}</span>
         </div>
       </div>
@@ -301,7 +301,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
       {/* Quick Length Presets */}
       <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-gray-800">
         <span className="text-[11px] text-gray-400 mr-1 flex items-center gap-1">
-          <SparklesIcon className="w-3.5 h-3.5 text-teal-400" /> Быстрая длина:
+          <SparklesIcon className="w-3.5 h-3.5 text-brand-400" /> Быстрая длина:
         </span>
         {[
           { label: '5 сек', secs: 5 },
@@ -315,7 +315,7 @@ export const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
             onClick={() => applyPresetDuration(preset.secs)}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
               Math.abs(segmentDuration - preset.secs) < 0.3
-                ? 'bg-teal-500 text-slate-950 font-bold shadow'
+                ? 'bg-brand-500 text-gray-950 font-bold shadow'
                 : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
             }`}
           >

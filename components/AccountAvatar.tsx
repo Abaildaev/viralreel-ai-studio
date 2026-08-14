@@ -39,7 +39,7 @@ const AccountAvatar: React.FC<AccountAvatarProps> = ({ account, size = 'md', cla
   }
 
   return (
-    <div className={`${base} bg-teal-600 text-white font-semibold flex items-center justify-center`}>
+    <div className={`${base} bg-brand-600 text-white font-semibold flex items-center justify-center`}>
       {(account?.username?.charAt(0) || 'A').toUpperCase()}
     </div>
   );

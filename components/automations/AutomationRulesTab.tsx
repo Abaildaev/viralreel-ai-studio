@@ -28,12 +28,12 @@ const Metric: React.FC<{ label: string; value: string | number; icon: React.Reac
   value,
   icon,
 }) => (
-  <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs">
-    <div className="flex items-center justify-between text-slate-400 mb-2">
-      <span className="text-xs font-medium text-slate-500">{label}</span>
-      <span className="text-slate-400">{icon}</span>
+  <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs">
+    <div className="flex items-center justify-between text-gray-400 mb-2">
+      <span className="text-xs font-medium text-gray-500">{label}</span>
+      <span className="text-gray-400">{icon}</span>
     </div>
-    <div className="text-2xl font-bold text-slate-900 tracking-tight">{value}</div>
+    <div className="text-2xl font-bold text-gray-900 tracking-tight">{value}</div>
   </div>
 );
 
@@ -89,8 +89,8 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
       {/* Rules Section Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-slate-900">Ваши сценарии Comment-to-DM</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <h2 className="text-base font-bold text-gray-900">Ваши сценарии Comment-to-DM</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
             Комментарий под Reels ➔ публичный ответ ➔ отправка ссылки в Direct
           </p>
         </div>
@@ -98,7 +98,7 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
         <button
           type="button"
           onClick={onCreateNew}
-          className="px-3.5 py-2 bg-[#1E60FF] hover:bg-[#1551E5] text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
+          className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
         >
           <PlusIcon className="w-4 h-4" />
           Создать сценарий
@@ -107,20 +107,20 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
 
       {/* Rules Grid or Empty State */}
       {loading ? (
-        <div className="p-12 text-center text-xs text-slate-400">Загрузка сценариев...</div>
+        <div className="p-12 text-center text-xs text-gray-400">Загрузка сценариев...</div>
       ) : rules.length === 0 ? (
-        <div className="p-12 bg-white rounded-2xl border border-slate-200/80 text-center space-y-3 shadow-xs">
-          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#1E60FF] flex items-center justify-center mx-auto">
+        <div className="p-12 bg-white rounded-2xl border border-gray-200/80 text-center space-y-3 shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-blue-50 text-brand-600 flex items-center justify-center mx-auto">
             <BoltIcon className="w-6 h-6" />
           </div>
-          <h3 className="font-bold text-sm text-slate-900">Нет активных сценариев</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+          <h3 className="font-bold text-sm text-gray-900">Нет активных сценариев</h3>
+          <p className="text-xs text-gray-500 max-w-sm mx-auto">
             Создайте первое правило: когда пользователь напишет кодовое слово в комментариях к Reel, бот автоматически отправит ему лид-магнит в Direct.
           </p>
           <button
             type="button"
             onClick={onCreateNew}
-            className="px-4 py-2 bg-[#1E60FF] hover:bg-[#1551E5] text-white rounded-xl text-xs font-semibold shadow-xs"
+            className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow-xs"
           >
             Создать сценарий
           </button>
@@ -135,26 +135,26 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
             return (
               <div
                 key={rule.id}
-                className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between gap-4 transition-all hover:border-slate-300"
+                className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-xs flex flex-col justify-between gap-4 transition-all hover:border-gray-300"
               >
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-bold text-sm text-slate-900 truncate">
+                        <h3 className="font-bold text-sm text-gray-900 truncate">
                           {rule.title}
                         </h3>
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
                             rule.is_active
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                              : 'bg-gray-100 text-gray-500 border-gray-200'
                           }`}
                         >
                           {rule.is_active ? 'Активен' : 'Пауза'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">
                         {account ? `@${account.username}` : 'Все аккаунты'}
                       </p>
                     </div>
@@ -163,7 +163,7 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                       <button
                         type="button"
                         onClick={() => onEdit(rule)}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Редактировать"
                       >
                         <PencilIcon className="w-4 h-4" />
@@ -171,7 +171,7 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                       <button
                         type="button"
                         onClick={() => onDelete(rule)}
-                        className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         title="Удалить"
                       >
                         <TrashIcon className="w-4 h-4" />
@@ -181,11 +181,11 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
 
                   {/* Keywords Chips */}
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-[11px] text-slate-400">Ключевые слова:</span>
+                    <span className="text-[11px] text-gray-400">Ключевые слова:</span>
                     {keywords.map((kw, i) => (
                       <span
                         key={i}
-                        className="text-[11px] font-mono font-semibold bg-blue-50 text-[#1E60FF] border border-blue-100 px-2 py-0.5 rounded-md"
+                        className="text-[11px] font-mono font-semibold bg-blue-50 text-brand-600 border border-blue-100 px-2 py-0.5 rounded-md"
                       >
                         {kw}
                       </span>
@@ -193,20 +193,20 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                   </div>
 
                   {/* Reply Message Preview */}
-                  <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100 text-xs text-slate-700 line-clamp-2 leading-relaxed">
+                  <div className="bg-gray-50/80 p-3 rounded-xl border border-gray-100 text-xs text-gray-700 line-clamp-2 leading-relaxed">
                     «{rule.reply_text}»
                   </div>
                 </div>
 
                 {/* Card Footer with Stats & Toggle */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">
-                      <PaperAirplaneIcon className="w-3.5 h-3.5 text-slate-400" />
+                      <PaperAirplaneIcon className="w-3.5 h-3.5 text-gray-400" />
                       <b>{ruleStat?.sent_count || 0}</b> отправок
                     </span>
                     {rule.reply_delay_seconds > 0 && (
-                      <span className="flex items-center gap-1 text-slate-400 text-[11px]">
+                      <span className="flex items-center gap-1 text-gray-400 text-[11px]">
                         <ClockIcon className="w-3.5 h-3.5" />
                         {rule.reply_delay_seconds}с задержка
                       </span>
@@ -220,7 +220,7 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                       onChange={() => onToggleActive(rule)}
                       className="sr-only peer"
                     />
-                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#1E60FF]" />
+                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-600" />
                   </label>
                 </div>
               </div>

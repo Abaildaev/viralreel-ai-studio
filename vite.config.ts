@@ -5,7 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(() => {
     return {
       server: {
-        port: 3000,
+        // 3000 is what the README and the client setup guide tell people to
+        // open. PORT overrides it so tooling can start the server on a free
+        // port when 3000 is already taken.
+        port: Number(process.env.PORT) || 3000,
         host: '0.0.0.0',
       },
       plugins: [react()],

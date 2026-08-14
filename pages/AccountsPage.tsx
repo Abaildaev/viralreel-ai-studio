@@ -215,7 +215,7 @@ const AccountsPage: React.FC = () => {
       <div className="mb-6">
         <button
           onClick={() => { setShowAddForm(!showAddForm); setAccountPreview(null); setConnectError(''); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-medium transition-colors shadow-lg"
+          className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium transition-colors shadow-lg"
         >
           <PlusIcon className="w-5 h-5" />
           Добавить аккаунт
@@ -236,7 +236,7 @@ const AccountsPage: React.FC = () => {
                   value={accessToken}
                   onChange={(e) => { setAccessToken(e.target.value); setConnectError(''); }}
                   placeholder="EAAx... или IGAA..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 font-mono text-sm"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 font-mono text-sm"
                 />
               </div>
 
@@ -260,7 +260,7 @@ const AccountsPage: React.FC = () => {
               <div className="bg-gray-50 rounded-xl p-4 mb-6">
                 <p className="text-sm font-medium text-gray-700 mb-2">Как получить токен:</p>
                 <ol className="text-sm text-gray-500 space-y-1 list-decimal list-inside">
-                  <li>Зайдите в <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700">Meta for Developers</a></li>
+                  <li>Зайдите в <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:text-brand-700">Meta for Developers</a></li>
                   <li>Создайте приложение → Instagram Graph API</li>
                   <li>Скопируйте Long-Lived Access Token</li>
                 </ol>
@@ -270,7 +270,7 @@ const AccountsPage: React.FC = () => {
                 <button
                   onClick={handleCheckToken}
                   disabled={saving || !accessToken.trim()}
-                  className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="px-6 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
                 >
                   {saving ? (
                     <>
@@ -371,7 +371,7 @@ const AccountsPage: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : accounts.length === 0 ? (
         <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">

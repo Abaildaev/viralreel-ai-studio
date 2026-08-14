@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { generateViralHooks, generateViralTopic, generateViralContentFromFrames } from '../services/geminiService';
 import { ViralVariation, AppState, AudioFile, VideoTemplate, CtaType, LeadMagnetInfo, LeadMagnet } from '../types';
 import { assertMp4Video, renderVideoWithOverlay } from '../utils/videoRenderer';
+import { ensureRenderFontsLoaded } from '../utils/renderFonts';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useConfirm } from '../contexts/ModalContext';
@@ -46,6 +47,13 @@ export function useGenerator() {
       loadTemplates();
     }
   }, [user]);
+
+  // Warm the render-only webfonts while the user is still picking settings, so
+  // the first render does not stall waiting on the font CDN. The renderer awaits
+  // this too — calling it here only moves the cost off the critical path.
+  useEffect(() => {
+    ensureRenderFontsLoaded();
+  }, []);
 
   useEffect(() => {
     resolveLeadMagnet(allLeadMagnets, selectedAccount?.id ?? null);

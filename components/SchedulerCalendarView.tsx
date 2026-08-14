@@ -188,7 +188,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
           <h4 className="text-base font-bold text-gray-900 min-w-36">
             {MONTH_NAMES_RU[currentMonth]} {currentYear}
           </h4>
-          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-teal-100 text-teal-800">
+          <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-brand-100 text-brand-800">
             {totalMonthPosts} {totalMonthPosts === 1 ? 'пост' : totalMonthPosts < 5 ? 'поста' : 'постов'}
           </span>
         </div>
@@ -197,7 +197,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
           <button
             type="button"
             onClick={handleJumpToday}
-            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-teal-50 hover:text-teal-700 text-gray-700 border border-gray-200 shadow-sm transition-all"
+            className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-brand-50 hover:text-brand-700 text-gray-700 border border-gray-200 shadow-sm transition-all"
           >
             Сегодня
           </button>
@@ -247,8 +247,8 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
               className={`min-h-[105px] sm:min-h-[120px] rounded-2xl p-2 flex flex-col justify-between border transition-all cursor-pointer group ${
                 cell.isCurrentMonth
                   ? isSelected
-                    ? 'bg-teal-50/50 border-teal-500 ring-2 ring-teal-500/20 shadow-md'
-                    : 'bg-white border-gray-200 hover:border-teal-300 hover:shadow-md'
+                    ? 'bg-brand-50/50 border-brand-500 ring-2 ring-brand-500/20 shadow-md'
+                    : 'bg-white border-gray-200 hover:border-brand-300 hover:shadow-md'
                   : 'bg-gray-50/50 border-gray-100 text-gray-300 opacity-60'
               }`}
             >
@@ -257,7 +257,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                 <span
                   className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                     cell.isToday
-                      ? 'bg-teal-600 text-white shadow-sm'
+                      ? 'bg-brand-600 text-white shadow-sm'
                       : cell.isCurrentMonth
                       ? 'text-gray-800'
                       : 'text-gray-400'
@@ -267,7 +267,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                 </span>
 
                 {hasPosts && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-100 text-brand-700">
                     {cell.dayPosts.length}
                   </span>
                 )}
@@ -287,7 +287,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                         ? 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
                         : post.status === 'failed'
                         ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                        : 'bg-teal-50 text-teal-800 hover:bg-teal-100 border border-teal-200'
+                        : 'bg-brand-50 text-brand-800 hover:bg-brand-100 border border-brand-200'
                     }`}
                     title={`${formatPostTime(post.scheduled_at!)} - ${post.hook_text || 'Пост'}`}
                   >
@@ -297,7 +297,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                   </div>
                 ))}
                 {cell.dayPosts.length > 3 && (
-                  <div className="text-[9px] font-semibold text-teal-600 text-center">
+                  <div className="text-[9px] font-semibold text-brand-600 text-center">
                     + еще {cell.dayPosts.length - 3}
                   </div>
                 )}
@@ -309,10 +309,10 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
 
       {/* Selected Day Expanded Drawer */}
       {selectedDay && (
-        <div className="bg-gradient-to-r from-teal-50/80 to-cyan-50/80 border border-teal-200 rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-150">
+        <div className="bg-gradient-to-r from-brand-50/80 to-cyan-50/80 border border-brand-200 rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-150">
           <div className="flex items-center justify-between mb-3">
             <h5 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-              <CalendarDaysIcon className="w-4 h-4 text-teal-600" />
+              <CalendarDaysIcon className="w-4 h-4 text-brand-600" />
               Посты на {selectedDay} ({selectedDayPosts.length})
             </h5>
             <button
@@ -332,7 +332,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
               {selectedDayPosts.map((post) => (
                 <div
                   key={post.id}
-                  className="bg-white rounded-xl p-3 border border-teal-100 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow"
+                  className="bg-white rounded-xl p-3 border border-brand-100 shadow-sm flex items-center gap-3 hover:shadow-md transition-shadow"
                 >
                   <div
                     onClick={() => onPreviewPost(post)}
@@ -346,7 +346,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                         muted
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-900 text-teal-400">
+                      <div className="w-full h-full flex items-center justify-center bg-gray-900 text-brand-400">
                         <PlayIcon className="w-5 h-5 opacity-60" />
                       </div>
                     )}
@@ -355,7 +355,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                     </div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 text-xs font-bold text-teal-700">
+                    <div className="flex items-center gap-1 text-xs font-bold text-brand-700">
                       <ClockIcon className="w-3.5 h-3.5" />
                       {formatPostTime(post.scheduled_at!)}
                       <span className={`ml-auto text-[10px] px-1.5 py-0.2 rounded ${
@@ -363,7 +363,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                           ? 'bg-green-100 text-green-700'
                           : post.status === 'failed'
                           ? 'bg-red-100 text-red-700'
-                          : 'bg-teal-100 text-teal-700'
+                          : 'bg-brand-100 text-brand-700'
                       }`}>
                         {post.status === 'published' ? 'Опубликован' : post.status === 'failed' ? 'Ошибка' : 'В очереди'}
                       </span>
@@ -374,7 +374,7 @@ export const SchedulerCalendarView: React.FC<SchedulerCalendarViewProps> = ({
                     <div className="flex items-center gap-2 mt-2">
                       <button
                         onClick={() => onPreviewPost(post)}
-                        className="text-[11px] font-semibold text-teal-600 hover:text-teal-700 flex items-center gap-1"
+                        className="text-[11px] font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1"
                       >
                         <EyeIcon className="w-3 h-3" /> Просмотр
                       </button>

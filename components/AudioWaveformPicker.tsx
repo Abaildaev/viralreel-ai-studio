@@ -218,7 +218,7 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
       {/* Header Info */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center flex-shrink-0">
             <MusicalNoteIcon className="w-5 h-5" />
           </div>
           <div>
@@ -228,7 +228,7 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
             <div className="flex items-center gap-2 text-[11px] text-gray-400">
               <span>Длительность: {formatAudioTime(totalDuration)}</span>
               <span>•</span>
-              <span className="text-teal-300 font-bold flex items-center gap-1">
+              <span className="text-brand-300 font-bold flex items-center gap-1">
                 <SpeakerWaveIcon className="w-3.5 h-3.5" /> Старт: {formatAudioTime(startOffset)}
               </span>
             </div>
@@ -239,7 +239,7 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
         <button
           type="button"
           onClick={togglePlayback}
-          className="px-3 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+          className="px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
         >
           {isPlaying ? (
             <>
@@ -257,14 +257,14 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
       <div
         ref={containerRef}
         onClick={handleCanvasClick}
-        className="relative h-20 bg-gray-950/80 rounded-xl p-2 cursor-pointer border border-gray-800 hover:border-teal-500/50 transition-colors group select-none"
+        className="relative h-20 bg-gray-950/80 rounded-xl p-2 cursor-pointer border border-gray-800 hover:border-brand-500/50 transition-colors group select-none"
         title="Кликните на звуковую дорожку для выбора момента старта"
       >
         <canvas ref={canvasRef} className="w-full h-full block" />
 
         {/* Start Point Badge on hover / marker */}
         <div
-          className="absolute -top-3.5 -translate-x-1/2 bg-sky-500 text-slate-950 font-extrabold text-[9px] px-2 py-0.5 rounded-full shadow-lg pointer-events-none transition-all"
+          className="absolute -top-3.5 -translate-x-1/2 bg-sky-500 text-gray-950 font-extrabold text-[9px] px-2 py-0.5 rounded-full shadow-lg pointer-events-none transition-all"
           style={{
             left: `${totalDuration > 0 ? (startOffset / totalDuration) * 100 : 0}%`,
           }}
@@ -276,7 +276,7 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
       {/* Quick Jump Hot-spots */}
       <div className="flex flex-wrap items-center gap-1.5 mt-3 pt-2.5 border-t border-gray-800/80">
         <span className="text-[11px] text-gray-400 mr-1 flex items-center gap-1">
-          <SparklesIcon className="w-3.5 h-3.5 text-teal-400" /> Момент:
+          <SparklesIcon className="w-3.5 h-3.5 text-brand-400" /> Момент:
         </span>
         {[
           { label: '0:00 (Начало)', secs: 0 },
@@ -297,7 +297,7 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
             }}
             className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
               Math.abs(startOffset - preset.secs) < 1
-                ? 'bg-sky-500 text-slate-950 font-bold shadow'
+                ? 'bg-sky-500 text-gray-950 font-bold shadow'
                 : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
             }`}
           >

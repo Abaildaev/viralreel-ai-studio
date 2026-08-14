@@ -165,7 +165,7 @@ const SettingsPage: React.FC = () => {
       <div className="space-y-6">
         <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center">
               <SparklesIcon className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -183,7 +183,7 @@ const SettingsPage: React.FC = () => {
                   value={deepseekApiKey}
                   onChange={event => setDeepseekApiKey(event.target.value)}
                   placeholder="sk-..."
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50 font-mono text-sm"
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 font-mono text-sm"
                 />
                 <button
                   type="button"
@@ -194,7 +194,7 @@ const SettingsPage: React.FC = () => {
                 </button>
               </div>
               <div className="flex items-center justify-between mt-2">
-                <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-xs text-teal-600 hover:text-teal-700 font-medium">
+                <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer" className="text-xs text-brand-600 hover:text-brand-700 font-medium">
                   Получить API-ключ →
                 </a>
                 {deepseekApiKey && (
@@ -239,7 +239,7 @@ const SettingsPage: React.FC = () => {
 
         <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center">
               <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1">
@@ -248,19 +248,19 @@ const SettingsPage: React.FC = () => {
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" checked={tgActive} onChange={event => setTgActive(event.target.checked)} className="sr-only peer" />
-              <span className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-teal-500/50 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600" />
+              <span className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-brand-500/50 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-600" />
             </label>
           </div>
 
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Токен бота</label>
-              <input type="password" value={tgToken} onChange={event => setTgToken(event.target.value)} placeholder="123456789:ABCdefGHI..." className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50" />
+              <input type="password" value={tgToken} onChange={event => setTgToken(event.target.value)} placeholder="123456789:ABCdefGHI..." className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50" />
               <p className="text-xs text-gray-400 mt-1">Получите у @BotFather в Telegram</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Chat ID</label>
-              <input type="text" value={tgChatId} onChange={event => setTgChatId(event.target.value)} placeholder="@channelname или -1001234567890" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50" />
+              <input type="text" value={tgChatId} onChange={event => setTgChatId(event.target.value)} placeholder="@channelname или -1001234567890" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50" />
               <p className="text-xs text-gray-400 mt-1">Username канала или числовой ID чата</p>
             </div>
 
@@ -304,7 +304,7 @@ const SettingsPage: React.FC = () => {
           className={`w-full py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
             saved
               ? 'bg-green-500 text-white'
-              : 'bg-teal-600 hover:bg-teal-700 text-white shadow-lg'
+              : 'bg-brand-600 hover:bg-brand-700 text-white shadow-lg'
           }`}
         >
           {saving && <ArrowPathIcon className="w-5 h-5 animate-spin" />}
@@ -315,7 +315,7 @@ const SettingsPage: React.FC = () => {
         <section className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-600 flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center flex-shrink-0">
                 <DocumentTextIcon className="w-5 h-5 text-white" />
               </div>
               <div>
@@ -328,7 +328,7 @@ const SettingsPage: React.FC = () => {
             <a
               href="/CLIENT_AI_SETUP_PROMPT_RU.md"
               download="CLIENT_AI_SETUP_PROMPT_RU.md"
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold whitespace-nowrap"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold whitespace-nowrap"
             >
               <ArrowDownTrayIcon className="w-5 h-5" />
               Скачать файл

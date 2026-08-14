@@ -96,7 +96,7 @@ const AudioModal: React.FC<AudioModalProps> = ({
                       key={audio.id}
                       className={`rounded-2xl border transition-all overflow-hidden ${
                         isSelected
-                          ? 'border-teal-500 bg-teal-50/20 ring-2 ring-teal-500/20 shadow-md'
+                          ? 'border-brand-500 bg-brand-50/20 ring-2 ring-brand-500/20 shadow-md'
                           : 'border-gray-200 hover:border-gray-300 bg-white'
                       }`}
                     >
@@ -113,7 +113,7 @@ const AudioModal: React.FC<AudioModalProps> = ({
                         className="w-full flex items-center gap-3.5 p-3 text-left transition-colors"
                       >
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
-                          isSelected ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-600'
+                          isSelected ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-600'
                         }`}>
                           <MusicalNoteIcon className="w-5 h-5" />
                         </div>
@@ -125,7 +125,7 @@ const AudioModal: React.FC<AudioModalProps> = ({
                         </div>
                         <div className="flex items-center gap-1.5">
                           {isSelected ? (
-                            <span className="text-xs font-bold text-teal-700 bg-teal-100 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                            <span className="text-xs font-bold text-brand-700 bg-brand-100 px-2.5 py-1 rounded-lg flex items-center gap-1">
                               <CheckIcon className="w-3.5 h-3.5" /> Настроен
                             </span>
                           ) : (
@@ -149,12 +149,12 @@ const AudioModal: React.FC<AudioModalProps> = ({
 
                           <div className="mt-3 pt-3 border-t border-gray-800 flex items-center justify-between">
                             <span className="text-xs text-gray-400">
-                              Музыка начнется с <b className="text-teal-300 font-mono">{startOffset}с</b>
+                              Музыка начнется с <b className="text-brand-300 font-mono">{startOffset}с</b>
                             </span>
                             <button
                               type="button"
                               onClick={handleConfirmSelected}
-                              className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg active:scale-95"
+                              className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-lg active:scale-95"
                             >
                               <CheckIcon className="w-4 h-4" /> Применить и сохранить
                             </button>

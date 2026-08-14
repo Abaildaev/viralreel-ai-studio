@@ -315,7 +315,7 @@ const HistoryPage: React.FC = () => {
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-start justify-between mb-8">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-xl bg-teal-600 flex items-center justify-center shadow-lg">
+          <div className="w-14 h-14 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg">
             <VideoCameraIcon className="w-7 h-7 text-white" />
           </div>
           <div>
@@ -356,11 +356,11 @@ const HistoryPage: React.FC = () => {
           {selectedAccount && otherAccounts.length > 0 && movableCount > 0 && (
             <button
               onClick={handleOpenMoveModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white border border-teal-200 hover:bg-teal-50 text-teal-700 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white border border-brand-200 hover:bg-brand-50 text-brand-700 transition-colors shadow-sm"
             >
               <ArrowsRightLeftIcon className="w-4 h-4" />
               Перенести посты
-              <span className="bg-teal-100 text-teal-700 text-xs px-1.5 py-0.5 rounded-full font-semibold">
+              <span className="bg-brand-100 text-brand-700 text-xs px-1.5 py-0.5 rounded-full font-semibold">
                 {movableCount}
               </span>
             </button>
@@ -383,7 +383,7 @@ const HistoryPage: React.FC = () => {
             onClick={() => setFilter(card.key)}
             className={`relative p-4 rounded-xl border transition-all text-left ${card.color} ${
               filter === card.key
-                ? 'ring-2 ring-teal-500/40 border-teal-400 shadow-md'
+                ? 'ring-2 ring-brand-500/40 border-brand-400 shadow-md'
                 : 'hover:shadow-sm'
             }`}
           >
@@ -406,7 +406,7 @@ const HistoryPage: React.FC = () => {
 
       {isLoading && (
         <div className="text-center py-16">
-          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <span className="text-gray-500 text-sm">Загрузка...</span>
         </div>
       )}
@@ -490,7 +490,7 @@ const HistoryPage: React.FC = () => {
                         <button
                           onClick={() => handleRetry(post)}
                           disabled={retryingPostId === post.id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 rounded-lg transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 rounded-lg transition-colors"
                         >
                           {retryingPostId === post.id ? (
                             <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
@@ -547,7 +547,7 @@ const HistoryPage: React.FC = () => {
               <div>
                 <h3 className="font-semibold text-gray-900">Предпросмотр</h3>
                 {previewPost.hook_text && (
-                  <p className="text-xs text-teal-600 mt-0.5 line-clamp-1">{previewPost.hook_text}</p>
+                  <p className="text-xs text-brand-600 mt-0.5 line-clamp-1">{previewPost.hook_text}</p>
                 )}
               </div>
               <button
@@ -598,8 +598,8 @@ const HistoryPage: React.FC = () => {
           >
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-                  <ArrowsRightLeftIcon className="w-5 h-5 text-teal-600" />
+                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                  <ArrowsRightLeftIcon className="w-5 h-5 text-brand-600" />
                 </div>
                 <div>
                   <h3 className="font-semibold text-gray-900">Перенести посты на другой аккаунт</h3>
@@ -633,7 +633,7 @@ const HistoryPage: React.FC = () => {
                     key={account.id}
                     className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
                       moveTargetAccountId === account.id
-                        ? 'border-teal-400 bg-teal-50 ring-1 ring-teal-400/40'
+                        ? 'border-brand-400 bg-brand-50 ring-1 ring-brand-400/40'
                         : 'border-gray-200 hover:border-gray-300 bg-white'
                     }`}
                   >
@@ -643,7 +643,7 @@ const HistoryPage: React.FC = () => {
                       value={account.id}
                       checked={moveTargetAccountId === account.id}
                       onChange={() => setMoveTargetAccountId(account.id)}
-                      className="accent-teal-500"
+                      className="accent-brand-500"
                     />
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
@@ -675,7 +675,7 @@ const HistoryPage: React.FC = () => {
                 <button
                   onClick={handleMoveAllPosts}
                   disabled={isMoving || !moveTargetAccountId}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 text-white transition-colors"
                 >
                   {isMoving ? (
                     <ArrowPathIcon className="w-4 h-4 animate-spin" />

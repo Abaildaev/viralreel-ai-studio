@@ -576,7 +576,7 @@ const InstagramScheduler: React.FC = () => {
             <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div>
                 <h3 className="font-semibold text-gray-900">Предпросмотр</h3>
-                {previewPost.hook_text && <p className="text-xs text-teal-600 mt-0.5 line-clamp-1">{previewPost.hook_text}</p>}
+                {previewPost.hook_text && <p className="text-xs text-brand-600 mt-0.5 line-clamp-1">{previewPost.hook_text}</p>}
               </div>
               <button onClick={() => { setPreviewPost(null); setEditingCaption(null); }} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
                 <XMarkIcon className="w-5 h-5 text-gray-400" />
@@ -597,7 +597,7 @@ const InstagramScheduler: React.FC = () => {
                     onChange={(e) => setEditingCaption(e.target.value)}
                     maxLength={2200}
                     rows={6}
-                    className="w-full text-sm text-gray-700 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500 resize-none"
+                    className="w-full text-sm text-gray-700 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 resize-none"
                   />
                   <div className="flex items-center justify-between mt-1.5">
                     <span className={`text-xs ${editingCaption.length > 2100 ? 'text-red-500 font-medium' : editingCaption.length > 1800 ? 'text-amber-500' : 'text-gray-400'}`}>
@@ -619,7 +619,7 @@ const InstagramScheduler: React.FC = () => {
                           setEditingCaption(null);
                         }}
                         disabled={editingCaption.length > 2200}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 rounded-lg transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 rounded-lg transition-colors"
                       >
                         Сохранить
                       </button>
@@ -635,7 +635,7 @@ const InstagramScheduler: React.FC = () => {
                     </span>
                     <button
                       onClick={() => setEditingCaption(previewPost.caption || '')}
-                      className="text-xs text-teal-600 hover:text-teal-700 font-medium"
+                      className="text-xs text-brand-600 hover:text-brand-700 font-medium"
                     >
                       Редактировать
                     </button>
@@ -658,13 +658,13 @@ const InstagramScheduler: React.FC = () => {
                   onClick={() => setViewTab('queue')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                     viewTab === 'queue'
-                      ? 'bg-white text-teal-700 shadow-sm'
+                      ? 'bg-white text-brand-700 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  <QueueListIcon className="w-4 h-4 text-teal-600" />
+                  <QueueListIcon className="w-4 h-4 text-brand-600" />
                   <span>Очередь постов</span>
-                  <span className="px-1.5 py-0.2 text-[10px] bg-teal-50 text-teal-700 rounded-full font-bold">
+                  <span className="px-1.5 py-0.2 text-[10px] bg-brand-50 text-brand-700 rounded-full font-bold">
                     {allQueuePosts.length}
                   </span>
                 </button>
@@ -673,13 +673,13 @@ const InstagramScheduler: React.FC = () => {
                   onClick={() => setViewTab('calendar')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
                     viewTab === 'calendar'
-                      ? 'bg-white text-teal-700 shadow-sm'
+                      ? 'bg-white text-brand-700 shadow-sm'
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                 >
-                  <CalendarDaysIcon className="w-4 h-4 text-teal-600" />
+                  <CalendarDaysIcon className="w-4 h-4 text-brand-600" />
                   <span>Календарь на месяц</span>
-                  <span className="px-1.5 py-0.2 text-[10px] bg-teal-50 text-teal-700 rounded-full font-bold">
+                  <span className="px-1.5 py-0.2 text-[10px] bg-brand-50 text-brand-700 rounded-full font-bold">
                     {posts.filter(p => p.scheduled_at).length}
                   </span>
                 </button>
@@ -704,7 +704,7 @@ const InstagramScheduler: React.FC = () => {
                     Перемешать
                   </button>
                 )}
-                <button onClick={selectAll} className="text-sm text-teal-600 hover:text-teal-700 font-medium">
+                <button onClick={selectAll} className="text-sm text-brand-600 hover:text-brand-700 font-medium">
                   {selectedPostIds.length === allQueuePosts.length ? 'Снять' : 'Выбрать все'}
                 </button>
               </div>
@@ -740,11 +740,11 @@ const InstagramScheduler: React.FC = () => {
                         onClick={() => togglePostSelection(post.id)}
                         className={`relative cursor-grab active:cursor-grabbing rounded-xl overflow-hidden border-2 transition-all group ${
                           isOver
-                            ? 'border-teal-500 ring-4 ring-teal-400/30 scale-105 shadow-xl bg-teal-50/20'
+                            ? 'border-brand-500 ring-4 ring-brand-400/30 scale-105 shadow-xl bg-brand-50/20'
                             : isDragged
-                            ? 'opacity-40 border-dashed border-teal-400'
+                            ? 'opacity-40 border-dashed border-brand-400'
                             : selectedPostIds.includes(post.id)
-                            ? 'border-teal-500 ring-2 ring-teal-500/20'
+                            ? 'border-brand-500 ring-2 ring-brand-500/20'
                             : 'border-gray-200 hover:border-gray-300'
                         }`}
                         title="Кликните для выбора, перетащите мышкой для смены порядка в очереди"
@@ -758,12 +758,12 @@ const InstagramScheduler: React.FC = () => {
                         <div
                           className="absolute top-2 left-2 flex items-center gap-1 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded-md text-white text-[10px] font-bold opacity-70 group-hover:opacity-100 transition-opacity pointer-events-none"
                         >
-                          <Bars3Icon className="w-3 h-3 text-teal-300" />
+                          <Bars3Icon className="w-3 h-3 text-brand-300" />
                           <span>#{index + 1}</span>
                         </div>
 
                         {selectedPostIds.includes(post.id) && (
-                          <div className="absolute top-2 left-12 w-5 h-5 bg-teal-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-md">
+                          <div className="absolute top-2 left-12 w-5 h-5 bg-brand-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shadow-md">
                             ✓
                           </div>
                         )}
@@ -772,7 +772,7 @@ const InstagramScheduler: React.FC = () => {
                           <button
                             onClick={() => handlePublishNow(post)}
                             disabled={sendingPostId === post.id}
-                            className="p-1.5 bg-teal-600/80 hover:bg-teal-600 backdrop-blur-sm rounded-lg text-white transition-colors disabled:opacity-50"
+                            className="p-1.5 bg-brand-600/80 hover:bg-brand-600 backdrop-blur-sm rounded-lg text-white transition-colors disabled:opacity-50"
                             title="Опубликовать сейчас"
                           >
                             {sendingPostId === post.id ? (
@@ -821,8 +821,8 @@ const InstagramScheduler: React.FC = () => {
                     onClick={() => setActionPanel(actionPanel === 'schedule' ? null : 'schedule')}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                       actionPanel === 'schedule'
-                        ? 'bg-teal-600 text-white shadow-lg'
-                        : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
+                        ? 'bg-brand-600 text-white shadow-lg'
+                        : 'bg-brand-50 text-brand-700 hover:bg-brand-100 border border-brand-200'
                     }`}
                   >
                     <CalendarDaysIcon className="w-4 h-4" />
@@ -857,7 +857,7 @@ const InstagramScheduler: React.FC = () => {
                         onClick={() => setScheduleMode('slots')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           scheduleMode === 'slots'
-                            ? 'bg-teal-600 text-white shadow-sm'
+                            ? 'bg-brand-600 text-white shadow-sm'
                             : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                         }`}
                       >
@@ -867,7 +867,7 @@ const InstagramScheduler: React.FC = () => {
                         onClick={() => setScheduleMode('interval')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           scheduleMode === 'interval'
-                            ? 'bg-teal-600 text-white shadow-sm'
+                            ? 'bg-brand-600 text-white shadow-sm'
                             : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                         }`}
                       >
@@ -878,7 +878,7 @@ const InstagramScheduler: React.FC = () => {
                     <select
                       value={timezone}
                       onChange={(e) => changeTimezone(e.target.value)}
-                      className="bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      className="bg-white border border-gray-200 rounded-lg px-2.5 py-1 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-brand-500"
                     >
                       {TIMEZONE_OPTIONS.map(tz => (
                         <option key={tz.value} value={tz.value}>{tz.label}</option>
@@ -903,7 +903,7 @@ const InstagramScheduler: React.FC = () => {
                               onClick={() => toggleWeekday(day.value)}
                               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                 slotWeekdays.includes(day.value)
-                                  ? 'bg-teal-600 text-white shadow-sm'
+                                  ? 'bg-brand-600 text-white shadow-sm'
                                   : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                               }`}
                             >
@@ -922,7 +922,7 @@ const InstagramScheduler: React.FC = () => {
                               onClick={() => toggleSlotTime(t)}
                               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                 slotTimes.includes(t)
-                                  ? 'bg-teal-600 text-white shadow-sm'
+                                  ? 'bg-brand-600 text-white shadow-sm'
                                   : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                               }`}
                             >
@@ -964,8 +964,8 @@ const InstagramScheduler: React.FC = () => {
                               onClick={() => setIntervalMinutes(preset.value)}
                               className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                                 intervalMinutes === preset.value
-                                  ? 'bg-teal-600 text-white shadow-md'
-                                  : 'bg-white text-gray-600 border border-gray-200 hover:border-teal-300 hover:text-teal-700'
+                                  ? 'bg-brand-600 text-white shadow-md'
+                                  : 'bg-white text-gray-600 border border-gray-200 hover:border-brand-300 hover:text-brand-700'
                               }`}
                             >
                               {preset.label}
@@ -978,7 +978,7 @@ const InstagramScheduler: React.FC = () => {
                             value={intervalMinutes}
                             onChange={(e) => setIntervalMinutes(Math.max(1, Number(e.target.value)))}
                             min={1}
-                            className="w-20 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
+                            className="w-20 bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500"
                           />
                           <span className="text-xs text-gray-400">минут (свое значение)</span>
                         </div>
@@ -1005,7 +1005,7 @@ const InstagramScheduler: React.FC = () => {
                           const time = plannedTimes[i];
                           return (
                             <div key={id} className="flex items-center gap-3 px-3 py-2">
-                              <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              <div className="w-6 h-6 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold flex-shrink-0">
                                 {i + 1}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -1045,7 +1045,7 @@ const InstagramScheduler: React.FC = () => {
                   <button
                     onClick={handleScheduleSelected}
                     disabled={isScheduling || !selectedAccount || plannedTimes.length !== selectedPostIds.length}
-                    className="w-full px-5 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg disabled:shadow-none"
+                    className="w-full px-5 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg disabled:shadow-none"
                   >
                     {isScheduling ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <CalendarDaysIcon className="w-4 h-4" />}
                     Запланировать {selectedPostIds.length} постов
@@ -1105,7 +1105,7 @@ const InstagramScheduler: React.FC = () => {
 
       {isLoading && (
         <div className="text-center py-12">
-          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
           <span className="text-gray-500 text-sm">Загрузка...</span>
         </div>
       )}

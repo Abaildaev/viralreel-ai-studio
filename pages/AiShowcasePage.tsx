@@ -303,7 +303,7 @@ const AiShowcasePage: React.FC = () => {
                 onClick={() => setSelectedModel('all')}
                 className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
                   selectedModel === 'all'
-                    ? 'border-teal-500 bg-teal-50 text-teal-900 font-semibold shadow-sm'
+                    ? 'border-brand-500 bg-brand-50 text-brand-900 font-semibold shadow-sm'
                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
                 }`}
               >
@@ -322,7 +322,7 @@ const AiShowcasePage: React.FC = () => {
                   onClick={() => setCodeword(word)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                     codeword === word
-                      ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                      ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
                       : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -350,7 +350,7 @@ const AiShowcasePage: React.FC = () => {
             />
             <button
               onClick={() => gen.fileInputRef.current?.click()}
-              className="w-full border border-dashed border-gray-300 hover:border-teal-500 py-5 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-500 hover:text-teal-700 transition-colors"
+              className="w-full border border-dashed border-gray-300 hover:border-brand-500 py-5 rounded-xl flex flex-col items-center justify-center gap-1.5 text-gray-500 hover:text-brand-700 transition-colors"
             >
               <CloudArrowUpIcon className="w-6 h-6" />
               <span className="text-sm font-medium">Загрузить футаж 9:16</span>

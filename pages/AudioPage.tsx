@@ -236,7 +236,7 @@ const AudioPage: React.FC = () => {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors shadow-lg disabled:shadow-none flex-shrink-0"
+          className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors shadow-lg disabled:shadow-none flex-shrink-0"
         >
           {uploading ? (
             <>
@@ -258,7 +258,7 @@ const AudioPage: React.FC = () => {
               placeholder="Поиск по названию..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500"
+              className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
             />
             {search && (
               <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -271,7 +271,7 @@ const AudioPage: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : audioFiles.length === 0 ? (
         <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
@@ -295,7 +295,7 @@ const AudioPage: React.FC = () => {
               <div
                 key={audioFile.id}
                 className={`bg-white border rounded-2xl overflow-hidden transition-all shadow-sm ${
-                  isWaveformOpen ? 'border-teal-500 ring-2 ring-teal-500/20 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                  isWaveformOpen ? 'border-brand-500 ring-2 ring-brand-500/20 shadow-md' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <div className="p-4 flex items-center gap-4">
@@ -303,7 +303,7 @@ const AudioPage: React.FC = () => {
                     onClick={() => togglePlay(audioFile)}
                     className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
                       playingId === audioFile.id
-                        ? 'bg-teal-500 text-white shadow-md'
+                        ? 'bg-brand-500 text-white shadow-md'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                     }`}
                   >
@@ -323,16 +323,16 @@ const AudioPage: React.FC = () => {
                         onChange={(e) => setEditingName(e.target.value)}
                         onBlur={() => handleSaveRename(audioFile.id)}
                         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingId(null); }}
-                        className="font-medium text-gray-900 bg-gray-50 border border-teal-500 rounded-lg px-2 py-1 w-full outline-none text-sm"
+                        className="font-medium text-gray-900 bg-gray-50 border border-brand-500 rounded-lg px-2 py-1 w-full outline-none text-sm"
                       />
                     ) : (
                       <h3
-                        className="font-bold text-gray-900 truncate cursor-pointer group flex items-center gap-1.5 hover:text-teal-600 transition-colors text-sm"
+                        className="font-bold text-gray-900 truncate cursor-pointer group flex items-center gap-1.5 hover:text-brand-600 transition-colors text-sm"
                         onClick={() => handleStartRename(audioFile)}
                         title="Нажмите для редактирования"
                       >
                         {audioFile.name}
-                        <PencilIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-teal-700 flex-shrink-0" />
+                        <PencilIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-700 flex-shrink-0" />
                       </h3>
                     )}
                     <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
@@ -342,7 +342,7 @@ const AudioPage: React.FC = () => {
                       {currentOffset > 0 && (
                         <>
                           <span className="w-1 h-1 bg-gray-300 rounded-full" />
-                          <span className="text-teal-600 font-semibold flex items-center gap-1">
+                          <span className="text-brand-600 font-semibold flex items-center gap-1">
                             <SpeakerWaveIcon className="w-3 h-3" /> Старт: {currentOffset}с
                           </span>
                         </>
@@ -355,8 +355,8 @@ const AudioPage: React.FC = () => {
                     onClick={() => setExpandedWaveformId(isWaveformOpen ? null : audioFile.id)}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
                       isWaveformOpen
-                        ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                        : 'bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-700'
+                        ? 'bg-brand-50 text-brand-700 border border-brand-200'
+                        : 'bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700'
                     }`}
                   >
                     <SpeakerWaveIcon className="w-4 h-4" />

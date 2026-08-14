@@ -206,8 +206,8 @@ export default function AutomationsPage() {
       {/* Top Page Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Автоматизации & CRM</h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Автоматизации & CRM</h1>
+          <p className="text-xs text-gray-500 mt-1">
             Управляйте сценариями Comment-to-DM, обучайте ИИ-продавца и отслеживайте конверсии
           </p>
         </div>
@@ -216,7 +216,7 @@ export default function AutomationsPage() {
           <button
             type="button"
             onClick={handleCreateNew}
-            className="px-4 py-2.5 bg-[#1E60FF] hover:bg-[#1551E5] text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-all active:scale-95"
+            className="px-4 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-all active:scale-95"
           >
             <PlusIcon className="w-4 h-4" />
             Создать сценарий
@@ -225,14 +225,14 @@ export default function AutomationsPage() {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-1 p-1 bg-slate-100/90 rounded-2xl w-fit border border-slate-200/60 overflow-x-auto max-w-full">
+      <div className="flex items-center gap-1 p-1 bg-gray-100/90 rounded-2xl w-fit border border-gray-200/60 overflow-x-auto max-w-full">
         <button
           type="button"
           onClick={() => setActiveTab('rules')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'rules'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <BoltIcon className="w-4 h-4" />
@@ -244,13 +244,13 @@ export default function AutomationsPage() {
           onClick={() => setActiveTab('sales_agent')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'sales_agent'
-              ? 'bg-white text-[#1E60FF] shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'bg-white text-brand-600 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
           }`}
         >
-          <SparklesIcon className="w-4 h-4 text-[#1E60FF]" />
+          <SparklesIcon className="w-4 h-4 text-brand-600" />
           ИИ Продавец
-          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-blue-100/80 text-[#1E60FF]">
+          <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-blue-100/80 text-brand-600">
             AI
           </span>
         </button>
@@ -260,8 +260,8 @@ export default function AutomationsPage() {
           onClick={() => setActiveTab('analytics')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'analytics'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <ChartBarIcon className="w-4 h-4" />
@@ -273,8 +273,8 @@ export default function AutomationsPage() {
           onClick={() => setActiveTab('live')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'live'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <RadioIcon className="w-4 h-4" />
@@ -286,8 +286,8 @@ export default function AutomationsPage() {
           onClick={() => setActiveTab('tester')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
             activeTab === 'tester'
-              ? 'bg-white text-slate-900 shadow-xs'
-              : 'text-slate-500 hover:text-slate-900'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <BeakerIcon className="w-4 h-4" />
@@ -314,64 +314,64 @@ export default function AutomationsPage() {
         <div className="space-y-6">
           {salesAgentView === 'showcase' ? (
             /* ChatPlace style 4-point showcase screen */
-            <div className="bg-white rounded-3xl border border-slate-200/80 p-8 sm:p-12 shadow-xs text-center max-w-4xl mx-auto space-y-8 animate-in fade-in">
+            <div className="bg-white rounded-3xl border border-gray-200/80 p-8 sm:p-12 shadow-xs text-center max-w-4xl mx-auto space-y-8 animate-in fade-in">
               <div className="max-w-xl mx-auto space-y-3">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-[#1E60FF] bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-brand-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
                   Интерактивная песочница
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
                   ИИ-менеджер для продаж в Instagram Direct
                 </h2>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
                   Обучите персонального ИИ-ассистента на базе ваших товаров, услуг и цен. Тестируйте скрипты отработки возражений в реальном времени.
                 </p>
               </div>
 
               {/* 4 Points Grid with Blue Circle Icons */}
               <div className="grid sm:grid-cols-2 gap-4 text-left max-w-3xl mx-auto">
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#1E60FF] text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
+                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
                     ★
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">Отвечает 24/7</h4>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    <h4 className="font-bold text-xs text-gray-900">Отвечает 24/7</h4>
+                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
                       Не упускает ни одной заявки, мгновенно вовлекая клиента в диалог в любое время суток.
                     </p>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#1E60FF] text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
+                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
                     ⚙
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">Простая настройка</h4>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    <h4 className="font-bold text-xs text-gray-900">Простая настройка</h4>
+                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
                       Заполните базу знаний своими товарами, ссылками и ценами без сложного программирования.
                     </p>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#1E60FF] text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
+                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
                     👤
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">Общается как человек</h4>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    <h4 className="font-bold text-xs text-gray-900">Общается как человек</h4>
+                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
                       Задает квалифицирующие вопросы, шутит в тему и мягко отрабатывает любые возражения.
                     </p>
                   </div>
                 </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-full bg-[#1E60FF] text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
+                <div className="p-5 rounded-2xl bg-gray-50 border border-gray-200/60 flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-sm">
                     ⚡
                   </div>
                   <div>
-                    <h4 className="font-bold text-xs text-slate-900">Держит общение под контролем</h4>
-                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    <h4 className="font-bold text-xs text-gray-900">Держит общение под контролем</h4>
+                    <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">
                       Автоматически распознает стоп-слова и передает сложные диалоги живому оператору.
                     </p>
                   </div>
@@ -383,7 +383,7 @@ export default function AutomationsPage() {
                 <button
                   type="button"
                   onClick={() => setSalesAgentView('editor')}
-                  className="px-6 py-3 bg-[#1E60FF] hover:bg-[#1551E5] text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center gap-2 active:scale-95"
+                  className="px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all flex items-center gap-2 active:scale-95"
                 >
                   <SparklesIcon className="w-4 h-4" />
                   Открыть конфигуратор и симулятор
@@ -398,7 +398,7 @@ export default function AutomationsPage() {
                 <button
                   type="button"
                   onClick={() => setSalesAgentView('showcase')}
-                  className="text-xs font-semibold text-[#1E60FF] hover:underline flex items-center gap-1"
+                  className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1"
                 >
                   ← Назад к описанию возможностей
                 </button>

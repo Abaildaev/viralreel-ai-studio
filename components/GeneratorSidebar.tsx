@@ -83,7 +83,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
         ) : (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 hover:border-teal-500 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-100"
+            className="border-2 border-dashed border-gray-300 hover:border-brand-500 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-100"
           >
             <CloudArrowUpIcon className="w-10 h-10 text-gray-400 mb-2" />
             <span className="text-sm text-gray-600 font-medium">Загрузить видео</span>
@@ -104,7 +104,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
           <select
             value={selectedTemplateId}
             onChange={e => onTemplateSelect(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50 bg-white"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50 bg-white"
           >
             <option value="">— Не выбрано —</option>
             {templates.map(t => (
@@ -126,21 +126,21 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
           <div className="flex bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
             <button
               onClick={() => setActiveTab('topic')}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'topic' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'topic' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
             >
               <SwatchIcon className="w-3.5 h-3.5" />
               Тема
             </button>
             <button
               onClick={() => setActiveTab('reference')}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'reference' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'reference' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
             >
               <DocumentDuplicateIcon className="w-3.5 h-3.5" />
               Референс
             </button>
             <button
               onClick={() => setActiveTab('auto')}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auto' ? 'bg-teal-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
+              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auto' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
             >
               <FilmIcon className="w-3.5 h-3.5" />
               Авто
@@ -171,11 +171,11 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder={activeTab === 'topic' ? "Оставьте пустым — ИИ подберёт тему сам" : 'Вставьте заголовок сюда...'}
-                className="w-full bg-white border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 outline-none resize-none h-28 placeholder:text-gray-400"
+                className="w-full bg-white border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 outline-none resize-none h-28 placeholder:text-gray-400"
               />
             ) : (
               <div className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm">
-                <p className="flex items-center gap-2 text-teal-600 font-semibold mb-2">
+                <p className="flex items-center gap-2 text-brand-600 font-semibold mb-2">
                   <SparklesSolid className="w-4 h-4" />
                   ИИ Анализ видео
                 </p>
@@ -187,7 +187,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="Добавить контекст..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-900 outline-none focus:ring-1 focus:ring-teal-500"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-900 outline-none focus:ring-1 focus:ring-brand-500"
                 />
               </div>
             )}
@@ -199,7 +199,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
               <select
                 value={variationCount}
                 onChange={(e) => setVariationCount(Number(e.target.value))}
-                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-teal-500 outline-none"
+                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-brand-500 outline-none"
               >
                 {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
                   <option key={num} value={num}>{num}</option>
@@ -211,7 +211,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
               <select
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-teal-500 outline-none"
+                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-brand-500 outline-none"
               >
                 {toneOptions.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -223,7 +223,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
               <select
                 value={ctaType}
                 onChange={(e) => setCtaType(e.target.value as CtaType)}
-                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-teal-500 outline-none"
+                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-brand-500 outline-none"
               >
                 <option value="telegram">ТГ канал</option>
                 <option value="instagram">Подписка на Инсту</option>
@@ -249,7 +249,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
                   <select
                     value={selectedLeadMagnetId ?? ''}
                     onChange={(e) => onSelectLeadMagnet(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2 text-sm mt-1.5 focus:ring-teal-500 outline-none"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2 text-sm mt-1.5 focus:ring-brand-500 outline-none"
                   >
                     {available.map(lm => (
                       <option key={lm.id} value={lm.id}>
@@ -262,12 +262,12 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-between bg-teal-50 border border-teal-200/60 rounded-xl p-2.5 text-xs text-teal-800 mt-2">
+          <div className="flex items-center justify-between bg-brand-50 border border-brand-200/60 rounded-xl p-2.5 text-xs text-brand-800 mt-2">
             <span className="flex items-center gap-1.5 font-medium">
-              <SparklesIcon className="w-4 h-4 text-teal-600" />
+              <SparklesIcon className="w-4 h-4 text-brand-600" />
               ⚡ Авто-уникализация видео
             </span>
-            <span className="bg-teal-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="bg-brand-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
               Активна
             </span>
           </div>
@@ -278,7 +278,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
             className={`w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all mt-2 ${
               isGenerating
                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-lg'
+                : 'bg-brand-600 hover:bg-brand-700 text-white shadow-lg'
             }`}
           >
             {isGenerating ? (

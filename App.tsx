@@ -49,7 +49,7 @@ const MainApp: React.FC = () => {
       <button
         type="button"
         onClick={() => setCurrentView('automations')}
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-[#1E60FF] hover:bg-[#1551E5] text-white flex items-center justify-center shadow-lg shadow-[#1E60FF]/25 hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
+        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center shadow-lg shadow-brand-600/25 hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
         title="ИИ-Менеджер & Чат"
       >
         <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">

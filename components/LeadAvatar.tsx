@@ -23,7 +23,7 @@ export const LeadAvatar: React.FC<LeadAvatarProps> = ({
 
   return (
     <div
-      className={`rounded-full flex-shrink-0 flex items-center justify-center font-medium bg-slate-100 text-slate-600 border border-slate-200/80 select-none ${sizeClasses[size]} ${className}`}
+      className={`rounded-full flex-shrink-0 flex items-center justify-center font-medium bg-gray-100 text-gray-600 border border-gray-200/80 select-none ${sizeClasses[size]} ${className}`}
       title={`@${cleanName}`}
     >
       {initials}

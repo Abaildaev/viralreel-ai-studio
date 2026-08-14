@@ -266,7 +266,7 @@ const TemplatesPage: React.FC = () => {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors shadow-lg disabled:shadow-none flex-shrink-0"
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors shadow-lg disabled:shadow-none flex-shrink-0"
             >
               {uploading ? (
                 <>
@@ -289,7 +289,7 @@ const TemplatesPage: React.FC = () => {
                     placeholder="Поиск по названию..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
-                    className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-500/40 focus:border-teal-500"
+                    className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"
                   />
                   {search && (
                     <button onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -320,7 +320,7 @@ const TemplatesPage: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : templates.length === 0 ? (
         <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
@@ -387,16 +387,16 @@ const TemplatesPage: React.FC = () => {
                     onChange={(e) => setEditingName(e.target.value)}
                     onBlur={() => handleSaveRename(template.id)}
                     onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingId(null); }}
-                    className="text-sm font-medium text-gray-900 bg-gray-50 border border-teal-500 rounded-lg px-2 py-1 w-full outline-none mb-1"
+                    className="text-sm font-medium text-gray-900 bg-gray-50 border border-brand-500 rounded-lg px-2 py-1 w-full outline-none mb-1"
                   />
                 ) : (
                   <p
-                    className="text-sm font-medium text-gray-900 truncate mb-1 cursor-pointer group flex items-center gap-1 hover:text-teal-600 transition-colors"
+                    className="text-sm font-medium text-gray-900 truncate mb-1 cursor-pointer group flex items-center gap-1 hover:text-brand-600 transition-colors"
                     onClick={() => handleStartRename(template)}
                     title="Нажмите для редактирования"
                   >
                     {template.name}
-                    <PencilIcon className="w-3 h-3 text-gray-300 group-hover:text-teal-700 flex-shrink-0" />
+                    <PencilIcon className="w-3 h-3 text-gray-300 group-hover:text-brand-700 flex-shrink-0" />
                   </p>
                 )}
                 <p className="text-xs text-gray-400 mb-3">{formatSize(template.file_size)}</p>
@@ -406,7 +406,7 @@ const TemplatesPage: React.FC = () => {
                     onClick={() => toggleHasAudio(template)}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors flex items-center justify-center gap-1 ${
                       template.has_audio
-                        ? 'bg-teal-50 text-teal-700 border-teal-200'
+                        ? 'bg-brand-50 text-brand-700 border-brand-200'
                         : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                     }`}
                     title="Есть музыка в видео"

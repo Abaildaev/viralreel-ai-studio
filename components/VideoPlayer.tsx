@@ -206,7 +206,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
   const getContainerStyles = () => {
     let base = bgStyle === 'none' ? `p-1 rounded-xl transition-all duration-200` : `p-3 rounded-xl transition-all duration-200`;
-    const drag = isDraggingText ? 'ring-2 ring-teal-500/50' : 'hover:ring-1 hover:ring-white/20';
+    const drag = isDraggingText ? 'ring-2 ring-brand-500/50' : 'hover:ring-1 hover:ring-white/20';
     const op = bgOpacity / 100;
     const styles: React.CSSProperties = {};
 
@@ -332,7 +332,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         }}
         className={`absolute top-3 left-3 z-40 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-lg ${
           safeZonesActive
-            ? 'bg-cyan-500 text-slate-950 border-cyan-300 ring-2 ring-cyan-400/40 font-bold'
+            ? 'bg-cyan-500 text-gray-950 border-cyan-300 ring-2 ring-cyan-400/40 font-bold'
             : 'bg-black/60 hover:bg-black/80 text-white/90 border-white/20'
         }`}
         title="Показать / скрыть безопасные зоны Instagram Reels"
@@ -456,7 +456,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           title="Зажмите и перетащите для смены позиции"
         >
           {isDraggingText && (
-            <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-cyan-500 text-slate-950 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-lg pointer-events-none flex items-center gap-1 animate-pulse">
+            <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-cyan-500 text-gray-950 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-lg pointer-events-none flex items-center gap-1 animate-pulse">
               <span>🖐️ {Math.round(posX)}%, {Math.round(posY)}%</span>
             </div>
           )}
@@ -661,7 +661,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 
       {showCarouselBait && (
         <div
-          className={`absolute left-0 right-0 z-20 cursor-move ${isDraggingBait ? 'ring-2 ring-teal-500/50' : ''}`}
+          className={`absolute left-0 right-0 z-20 cursor-move ${isDraggingBait ? 'ring-2 ring-brand-500/50' : ''}`}
           style={{ top: `${carouselBaitPosY}%`, transform: 'translateY(-50%)' }}
           onMouseDown={handleBaitMouseDown}
           onTouchStart={handleBaitTouchStart}

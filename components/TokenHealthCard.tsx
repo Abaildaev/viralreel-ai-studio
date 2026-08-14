@@ -42,7 +42,7 @@ export const TokenHealthCard: React.FC<TokenHealthCardProps> = ({
           ? 'bg-red-50/70 border-red-200'
           : isWarning
           ? 'bg-amber-50/70 border-amber-200'
-          : 'bg-gradient-to-r from-emerald-50/80 to-teal-50/50 border-emerald-200/80'
+          : 'bg-gradient-to-r from-emerald-50/80 to-brand-50/50 border-emerald-200/80'
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
@@ -110,7 +110,7 @@ export const TokenHealthCard: React.FC<TokenHealthCardProps> = ({
                 ? 'bg-red-600 hover:bg-red-500 shadow-red-500/30 animate-bounce'
                 : isWarning
                 ? 'bg-amber-600 hover:bg-amber-500'
-                : 'bg-teal-600 hover:bg-teal-500'
+                : 'bg-brand-600 hover:bg-brand-500'
             }`}
           >
             <KeyIcon className="w-3.5 h-3.5" />
@@ -127,7 +127,7 @@ export const TokenHealthCard: React.FC<TokenHealthCardProps> = ({
               ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
               : isWarning
               ? 'bg-amber-500'
-              : 'bg-gradient-to-r from-teal-500 to-emerald-500'
+              : 'bg-gradient-to-r from-brand-500 to-emerald-500'
           }`}
           style={{ width: `${healthPercent}%` }}
         />

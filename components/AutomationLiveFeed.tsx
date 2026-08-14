@@ -137,21 +137,21 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
   });
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/70 shadow-xs overflow-hidden flex flex-col">
+    <div className="bg-white rounded-2xl border border-gray-200/70 shadow-xs overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="p-4 border-b border-slate-100 bg-slate-50/40 flex flex-wrap items-center justify-between gap-3">
+      <div className="p-4 border-b border-gray-100 bg-gray-50/40 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className={`w-2 h-2 rounded-full ${isLiveActive ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+          <span className={`w-2 h-2 rounded-full ${isLiveActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-slate-900 text-sm">
+              <h3 className="font-semibold text-gray-900 text-sm">
                 Лента активности
               </h3>
-              <span className="text-[11px] text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">
+              <span className="text-[11px] text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded">
                 Realtime
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-gray-400">
               {isLiveActive ? 'Отслеживание комментариев и сообщений' : 'Подключение...'}
             </p>
           </div>
@@ -159,15 +159,15 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
 
         {/* Filter Chips & Refresh */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-medium">
+          <div className="flex items-center bg-gray-100 p-0.5 rounded-xl text-xs font-medium">
             {(['all', 'sent', 'received', 'failed'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={`px-2.5 py-1 rounded-lg transition-all ${
                   statusFilter === s
-                    ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-white text-gray-900 shadow-xs font-semibold'
+                    : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
                 {s === 'all'
@@ -184,7 +184,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
           {onRefresh && (
             <button
               onClick={onRefresh}
-              className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+              className="p-1.5 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
               title="Обновить"
             >
               <ArrowPathIcon className="w-4 h-4" />
@@ -194,20 +194,20 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
       </div>
 
       {/* Search Bar */}
-      <div className="p-3 border-b border-slate-100 bg-white">
+      <div className="p-3 border-b border-gray-100 bg-white">
         <div className="relative">
-          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             placeholder="Поиск по @username или кодовому слову..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-8 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-slate-400"
+            className="w-full pl-8 pr-8 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-gray-400"
           />
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
               <XMarkIcon className="w-4 h-4" />
             </button>
@@ -216,12 +216,12 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
       </div>
 
       {/* Live Stream List */}
-      <div className="max-h-[480px] overflow-y-auto divide-y divide-slate-100">
+      <div className="max-h-[480px] overflow-y-auto divide-y divide-gray-100">
         {filteredEvents.length === 0 ? (
           <div className="text-center py-12 px-4">
-            <ChatBubbleLeftRightIcon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs font-medium text-slate-600">Нет входящей активности</p>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <ChatBubbleLeftRightIcon className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-xs font-medium text-gray-600">Нет входящей активности</p>
+            <p className="text-xs text-gray-400 mt-0.5">
               События появятся здесь в реальном времени при комментариях пользователей
             </p>
           </div>
@@ -235,8 +235,8 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
               <div
                 key={evt.id}
                 onClick={() => setSelectedLead(evt)}
-                className={`p-3.5 hover:bg-slate-50/80 cursor-pointer transition-colors flex items-start gap-3 ${
-                  isFlash ? 'bg-slate-100/70' : ''
+                className={`p-3.5 hover:bg-gray-50/80 cursor-pointer transition-colors flex items-start gap-3 ${
+                  isFlash ? 'bg-gray-100/70' : ''
                 }`}
               >
                 <LeadAvatar username={evt.commenter_username} size="md" />
@@ -244,26 +244,26 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-900 text-xs">
+                      <span className="font-semibold text-gray-900 text-xs">
                         @{evt.commenter_username || 'инкогнито'}
                       </span>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-gray-400">
                         • {evt.trigger_type === 'comment' ? 'комментарий' : 'direct'}
                       </span>
                     </div>
 
-                    <span className="text-[11px] text-slate-400 whitespace-nowrap">
+                    <span className="text-[11px] text-gray-400 whitespace-nowrap">
                       {timeAgo(evt.created_at)}
                     </span>
                   </div>
 
                   <div className="mt-1 flex items-center gap-1.5">
-                    <span className="text-xs text-slate-700 bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded truncate max-w-sm">
+                    <span className="text-xs text-gray-700 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded truncate max-w-sm">
                       «{evt.incoming_text}»
                     </span>
 
                     {evt.lead_magnets?.codeword && (
-                      <span className="text-[11px] font-medium bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded flex-shrink-0">
+                      <span className="text-[11px] font-medium bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">
                         {evt.lead_magnets.codeword}
                       </span>
                     )}
@@ -279,7 +279,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
                         Ошибка: {evt.error_message || 'Неизвестно'}
                       </span>
                     ) : (
-                      <span className="text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                      <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
                         В процессе...
                       </span>
                     )}
@@ -294,21 +294,21 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
       {/* Mini Lead Drawer */}
       {selectedLead && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedLead(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-slate-200"
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden border border-gray-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+            <div className="p-5 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <LeadAvatar username={selectedLead.commenter_username} size="lg" />
                 <div>
-                  <h3 className="font-semibold text-sm text-slate-900">
+                  <h3 className="font-semibold text-sm text-gray-900">
                     @{selectedLead.commenter_username || 'инкогнито'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-gray-400">
                     {new Date(selectedLead.created_at).toLocaleString('ru-RU')}
                   </p>
                 </div>
@@ -316,28 +316,28 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
 
               <button
                 onClick={() => setSelectedLead(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 transition-colors"
+                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 transition-colors"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 space-y-3.5 text-xs text-slate-700">
-              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/60">
-                <span className="text-[11px] text-slate-400 block mb-1">
+            <div className="p-5 space-y-3.5 text-xs text-gray-700">
+              <div className="bg-gray-50 rounded-xl p-3 border border-gray-200/60">
+                <span className="text-[11px] text-gray-400 block mb-1">
                   Входящий запрос
                 </span>
-                <p className="font-medium text-slate-900">
+                <p className="font-medium text-gray-900">
                   «{selectedLead.incoming_text}»
                 </p>
               </div>
 
               {selectedLead.lead_magnets && (
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200/60">
-                  <span className="text-[11px] text-slate-400 block mb-1">
+                <div className="bg-gray-50 rounded-xl p-3 border border-gray-200/60">
+                  <span className="text-[11px] text-gray-400 block mb-1">
                     Отправленный лид-магнит
                   </span>
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium text-gray-900">
                     {selectedLead.lead_magnets.title}
                   </p>
                 </div>
@@ -348,7 +348,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
                   href={`https://instagram.com/${selectedLead.commenter_username}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-medium rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-2 bg-gray-900 hover:bg-gray-800 text-white font-medium rounded-xl flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
                   Открыть профиль @{selectedLead.commenter_username}

@@ -379,7 +379,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Например: Психология, аккаунт 1"
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500"
             />
           </div>
 
@@ -388,7 +388,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
             <select
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
             >
               <option value="">Без привязки</option>
               {accounts.map((a) => (
@@ -441,7 +441,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 }}
                 className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
                   presetType === 'ai_showcase'
-                    ? 'bg-white text-teal-700 shadow-sm font-semibold'
+                    ? 'bg-white text-brand-700 shadow-sm font-semibold'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -449,7 +449,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               </button>
             </div>
             {presetType === 'ai_showcase' && (
-              <p className="text-xs text-teal-600 mt-1.5 font-medium">✨ Автогенерация Reels с плашками нейросетей (Claude, ChatGPT, Gemini) и вирусными ИИ-хуками.</p>
+              <p className="text-xs text-brand-600 mt-1.5 font-medium">✨ Автогенерация Reels с плашками нейросетей (Claude, ChatGPT, Gemini) и вирусными ИИ-хуками.</p>
             )}
           </div>
 
@@ -464,7 +464,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 onChange={(e) => setTopicInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTopic())}
                 placeholder="Введите тему и нажмите Enter"
-                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50"
+                className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
               />
               <button
                 onClick={addTopic}
@@ -478,7 +478,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 {topics.map((t, i) => (
                   <span
                     key={i}
-                    className="inline-flex items-center gap-1.5 bg-teal-50 text-teal-700 text-xs font-medium px-3 py-1.5 rounded-lg border border-teal-200"
+                    className="inline-flex items-center gap-1.5 bg-brand-50 text-brand-700 text-xs font-medium px-3 py-1.5 rounded-lg border border-brand-200"
                   >
                     {t}
                     <button onClick={() => removeTopic(i)} className="hover:text-red-500">
@@ -496,7 +496,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               <select
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
               >
                 {toneOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
@@ -508,7 +508,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               <select
                 value={ctaType}
                 onChange={(e) => setCtaType(e.target.value as CtaType)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
               >
                 <option value="telegram">ТГ канал</option>
                 <option value="instagram">Подписка на Инсту</option>
@@ -529,7 +529,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                   key={opt.value}
                   className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
                     audioMode === opt.value
-                      ? 'border-teal-500 bg-teal-50'
+                      ? 'border-brand-500 bg-brand-50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -539,7 +539,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                     value={opt.value}
                     checked={audioMode === opt.value}
                     onChange={() => setAudioMode(opt.value)}
-                    className="accent-teal-600"
+                    className="accent-brand-600"
                   />
                   <div>
                     <p className="text-sm font-medium text-gray-900">{opt.label}</p>
@@ -553,7 +553,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               <select
                 value={audioFileId}
                 onChange={(e) => setAudioFileId(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50 mt-2"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50 mt-2"
               >
                 <option value="">Выберите трек</option>
                 {audioFiles.map((a) => (
@@ -571,7 +571,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               <select
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
               >
                 {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>{n}</option>
@@ -588,7 +588,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 onChange={(e) => setIntervalMin(Number(e.target.value))}
                 min={30}
                 step={30}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-teal-500/50"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
               />
             </div>
           </div>
@@ -616,7 +616,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                               setStyle({ ...style, bgStyle: 'none' });
                             }
                           }}
-                          className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${style.bgStyle !== 'quote-white' && style.bgStyle !== 'bank-transfer' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${style.bgStyle !== 'quote-white' && style.bgStyle !== 'bank-transfer' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                           Стандарт
                         </button>
@@ -624,7 +624,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           onClick={() => {
                             setStyle({ ...style, bgStyle: 'quote-white', fontSize: 13, showCarouselBait: false });
                           }}
-                          className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${style.bgStyle === 'quote-white' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${style.bgStyle === 'quote-white' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                           Цитата
                         </button>
@@ -632,7 +632,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           onClick={() => {
                             setStyle({ ...style, bgStyle: 'bank-transfer', fontSize: 13, fontWeight: '400', textShadow: false, showCarouselBait: false, posY: 35, textAlign: 'center' });
                           }}
-                          className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${style.bgStyle === 'bank-transfer' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${style.bgStyle === 'bank-transfer' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                         >
                           Банк
                         </button>
@@ -647,7 +647,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                             onClick={() => setStyle({ ...style, posY: opt.posY })}
                             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-medium transition-all ${
                               style.posY === opt.posY
-                                ? 'bg-teal-600 text-white shadow-sm'
+                                ? 'bg-brand-600 text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                             }`}
                           >
@@ -671,7 +671,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                             onClick={() => setStyle({ ...style, textAlign: opt.value })}
                             className={`flex-1 flex items-center justify-center py-2 rounded-md transition-all ${
                               style.textAlign === opt.value
-                                ? 'bg-teal-600 text-white shadow-sm'
+                                ? 'bg-brand-600 text-white shadow-sm'
                                 : 'text-gray-500 hover:text-gray-700'
                             }`}
                           >
@@ -756,7 +756,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           max="100"
                           value={style.bgOpacity}
                           onChange={(e) => setStyle({ ...style, bgOpacity: Number(e.target.value) })}
-                          className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                          className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
                         />
                       </div>
                     )}
@@ -767,7 +767,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           type="checkbox"
                           checked={style.textShadow}
                           onChange={(e) => setStyle({ ...style, textShadow: e.target.checked })}
-                          className="accent-teal-600 rounded"
+                          className="accent-brand-600 rounded"
                         />
                         Тень текста
                       </label>
@@ -776,7 +776,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           type="checkbox"
                           checked={style.showCarouselBait}
                           onChange={(e) => setStyle({ ...style, showCarouselBait: e.target.checked })}
-                          className="accent-teal-600 rounded"
+                          className="accent-brand-600 rounded"
                         />
                         Байт (17px)
                       </label>
@@ -799,7 +799,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
           <button
             onClick={handleSave}
             disabled={presetType === 'standard' && topics.length === 0}
-            className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white disabled:text-gray-500 text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
+            className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white disabled:text-gray-500 text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
           >
             {preset ? 'Сохранить' : 'Создать'}
           </button>

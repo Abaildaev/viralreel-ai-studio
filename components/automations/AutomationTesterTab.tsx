@@ -104,15 +104,15 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
   const quickChips = ['ГАЙД', 'скиньте гайд', 'Хочу схему', 'Сколько стоит?', 'МАТЕРИАЛ'];
 
   return (
-    <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-5 max-w-4xl mx-auto">
+    <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-xs space-y-5 max-w-4xl mx-auto">
       {/* Informational Header */}
-      <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/60 flex items-start gap-3">
-        <BeakerIcon className="w-5 h-5 text-[#1E60FF] flex-shrink-0 mt-0.5" />
+      <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-200/60 flex items-start gap-3">
+        <BeakerIcon className="w-5 h-5 text-brand-600 flex-shrink-0 mt-0.5" />
         <div>
-          <h3 className="text-xs font-semibold text-slate-900">
+          <h3 className="text-xs font-semibold text-gray-900">
             Тестер логики триггеров (Интерактивная песочница)
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+          <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
             Введите текст комментария или сообщения, чтобы проверить, какое правило сработает и какой ответ отправит бот.
           </p>
         </div>
@@ -120,13 +120,13 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Instagram аккаунт
           </label>
           <select
             value={selectedAccountId}
             onChange={(e) => setSelectedAccountId(e.target.value)}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-brand-600 font-medium"
           >
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -137,7 +137,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Тип входящего события
           </label>
           <div className="flex gap-2">
@@ -146,8 +146,8 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
               onClick={() => setTestTrigger('comment')}
               className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition-all ${
                 testTrigger === 'comment'
-                  ? 'bg-blue-50 border-blue-200 text-[#1E60FF]'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  ? 'bg-blue-50 border-blue-200 text-brand-600'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
             >
               💬 Комментарий под Reel
@@ -157,8 +157,8 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
               onClick={() => setTestTrigger('dm')}
               className={`flex-1 py-2 text-xs font-semibold rounded-xl border transition-all ${
                 testTrigger === 'dm'
-                  ? 'bg-blue-50 border-blue-200 text-[#1E60FF]'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                  ? 'bg-blue-50 border-blue-200 text-brand-600'
+                  : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
               }`}
             >
               ✉️ Сообщение в Direct
@@ -169,7 +169,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
 
       {/* Input Text & Quick Chips */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1.5">
+        <label className="block text-xs font-medium text-gray-600 mb-1.5">
           Тестовый текст сообщения
         </label>
         <div className="flex gap-2">
@@ -178,7 +178,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
             value={testText}
             onChange={(e) => setTestText(e.target.value)}
             placeholder="Например: Отправьте мне гайд пожалуйста!"
-            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-[#1E60FF]"
+            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs outline-none focus:border-brand-600"
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleRunTest();
             }}
@@ -187,7 +187,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
             type="button"
             onClick={handleRunTest}
             disabled={!testText.trim() || testing}
-            className="px-5 py-2.5 bg-[#1E60FF] hover:bg-[#1551E5] disabled:bg-slate-200 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
+            className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-all"
           >
             {testing ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <SparklesIcon className="w-4 h-4" />}
             Проверить
@@ -196,7 +196,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
 
         {/* Quick Test Chips */}
         <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-          <span className="text-[11px] text-slate-400">Быстрый тест:</span>
+          <span className="text-[11px] text-gray-400">Быстрый тест:</span>
           {quickChips.map((chip, idx) => (
             <button
               key={idx}
@@ -205,7 +205,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
                 setTestText(chip);
                 evaluateTrigger(chip, testTrigger);
               }}
-              className="text-[11px] font-mono px-2 py-0.5 bg-slate-100 hover:bg-blue-50 hover:text-[#1E60FF] text-slate-600 rounded-md transition-colors border border-slate-200/60"
+              className="text-[11px] font-mono px-2 py-0.5 bg-gray-100 hover:bg-blue-50 hover:text-brand-600 text-gray-600 rounded-md transition-colors border border-gray-200/60"
             >
               «{chip}»
             </button>
@@ -215,8 +215,8 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
 
       {/* Result Visualizer */}
       {testResult && (
-        <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3 animate-in fade-in">
-          <span className="text-xs font-semibold text-slate-500">Результат симуляции:</span>
+        <div className="p-4 bg-gray-50/80 rounded-xl border border-gray-200 space-y-3 animate-in fade-in">
+          <span className="text-xs font-semibold text-gray-500">Результат симуляции:</span>
 
           {testResult.matched ? (
             <div className="space-y-2.5">
@@ -229,24 +229,24 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
                 </p>
               </div>
 
-              <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                <span className="text-[11px] text-slate-400 block font-medium">
+              <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
+                <span className="text-[11px] text-gray-400 block font-medium">
                   Сообщение в Instagram Direct:
                 </span>
-                <p className="text-xs text-slate-700 whitespace-pre-line bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <p className="text-xs text-gray-700 whitespace-pre-line bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                   {testResult.matched.direct_text}
                 </p>
 
                 {testResult.matched.public_reply && testTrigger === 'comment' && (
-                  <div className="pt-2 border-t border-slate-100 text-xs text-slate-600 flex items-center gap-1.5">
-                    <span className="text-slate-400">Публичный ответ под постом:</span>
+                  <div className="pt-2 border-t border-gray-100 text-xs text-gray-600 flex items-center gap-1.5">
+                    <span className="text-gray-400">Публичный ответ под постом:</span>
                     <span>«{testResult.matched.public_reply}»</span>
                   </div>
                 )}
               </div>
             </div>
           ) : (
-            <div className="p-3 bg-slate-100 rounded-xl text-xs text-slate-700">
+            <div className="p-3 bg-gray-100 rounded-xl text-xs text-gray-700">
               Ни одно активное правило не совпало с фразой «{testText}».
             </div>
           )}

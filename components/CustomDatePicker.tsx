@@ -249,12 +249,12 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm font-medium text-left flex items-center justify-between transition-all shadow-sm ${
           isOpen
-            ? 'border-teal-500 ring-2 ring-teal-500/20 text-gray-900'
-            : 'border-gray-200 hover:border-teal-400 text-gray-800'
+            ? 'border-brand-500 ring-2 ring-brand-500/20 text-gray-900'
+            : 'border-gray-200 hover:border-brand-400 text-gray-800'
         }`}
       >
         <div className="flex items-center gap-2.5 truncate">
-          <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center flex-shrink-0">
             <CalendarDaysIcon className="w-4 h-4" />
           </div>
           <span className="truncate">{formattedDisplayValue}</span>
@@ -273,21 +273,21 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             <button
               type="button"
               onClick={selectToday}
-              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-700 transition-colors whitespace-nowrap"
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700 transition-colors whitespace-nowrap"
             >
               Сегодня
             </button>
             <button
               type="button"
               onClick={selectTomorrow}
-              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-700 transition-colors whitespace-nowrap"
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700 transition-colors whitespace-nowrap"
             >
               Завтра
             </button>
             <button
               type="button"
               onClick={selectNextMonday}
-              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-700 transition-colors whitespace-nowrap"
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700 transition-colors whitespace-nowrap"
             >
               С понедельника
             </button>
@@ -355,7 +355,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                   <button
                     key={key}
                     type="button"
-                    className="h-8 text-xs font-bold bg-teal-600 text-white rounded-xl shadow-sm flex items-center justify-center scale-105 transition-transform"
+                    className="h-8 text-xs font-bold bg-brand-600 text-white rounded-xl shadow-sm flex items-center justify-center scale-105 transition-transform"
                   >
                     {item.day}
                   </button>
@@ -369,15 +369,15 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                   onClick={() => handleSelectDay(item.year, item.month, item.day)}
                   className={`h-8 text-xs font-medium rounded-xl flex items-center justify-center transition-all relative ${
                     item.isToday
-                      ? 'text-teal-700 bg-teal-50 font-bold border border-teal-200'
+                      ? 'text-brand-700 bg-brand-50 font-bold border border-brand-200'
                       : item.isPast
                       ? 'text-gray-400 hover:bg-gray-50'
-                      : 'text-gray-800 hover:bg-teal-50 hover:text-teal-700'
+                      : 'text-gray-800 hover:bg-brand-50 hover:text-brand-700'
                   }`}
                 >
                   {item.day}
                   {item.isToday && (
-                    <span className="absolute bottom-1 w-1 h-1 rounded-full bg-teal-600" />
+                    <span className="absolute bottom-1 w-1 h-1 rounded-full bg-brand-600" />
                   )}
                 </button>
               );

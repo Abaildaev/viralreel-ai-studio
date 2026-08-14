@@ -150,7 +150,7 @@ const BatchGeneratorPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full py-20">
-        <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -178,7 +178,7 @@ const BatchGeneratorPage: React.FC = () => {
             <button
               onClick={handleRunAll}
               disabled={activePresetsCount === 0}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
             >
               <BoltIcon className="w-5 h-5" />
               Запустить все
@@ -202,14 +202,14 @@ const BatchGeneratorPage: React.FC = () => {
               <p className="text-sm font-semibold text-gray-900">{progress.currentPreset}</p>
               <p className="text-xs text-gray-500">{progress.currentStep}</p>
             </div>
-            <span className="text-sm font-mono text-teal-600">
+            <span className="text-sm font-mono text-brand-600">
               {progress.completed} / {progress.total}
             </span>
           </div>
 
           <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
             <div
-              className="bg-teal-600 h-full rounded-full transition-all duration-500"
+              className="bg-brand-600 h-full rounded-full transition-all duration-500"
               style={{ width: `${progress.overallProgress}%` }}
             />
           </div>
@@ -256,7 +256,7 @@ const BatchGeneratorPage: React.FC = () => {
           </p>
           <button
             onClick={() => { setEditingPreset(null); setShowModal(true); }}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-medium transition-colors shadow-lg"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-sm font-medium transition-colors shadow-lg"
           >
             <PlusIcon className="w-5 h-5" />
             Создать пресет
@@ -288,7 +288,7 @@ const BatchGeneratorPage: React.FC = () => {
                       {preset.is_active ? 'Активен' : 'Отключен'}
                     </span>
                     {preset.text_style?.presetType === 'ai_showcase' && (
-                      <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full border border-teal-200 font-semibold flex items-center gap-1">
+                      <span className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full border border-brand-200 font-semibold flex items-center gap-1">
                         ✨ AI Showcase
                       </span>
                     )}
@@ -298,7 +298,7 @@ const BatchGeneratorPage: React.FC = () => {
                     {(preset.topics || []).map((t, i) => (
                       <span
                         key={i}
-                        className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-100"
+                        className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-md border border-brand-100"
                       >
                         {t}
                       </span>
@@ -333,7 +333,7 @@ const BatchGeneratorPage: React.FC = () => {
                   <button
                     onClick={() => handleRunSingle(preset)}
                     disabled={running || getAccountTemplateCount(preset.instagram_account_id) === 0}
-                    className="p-2 rounded-lg text-teal-600 hover:bg-teal-50 disabled:opacity-30 transition-colors"
+                    className="p-2 rounded-lg text-brand-600 hover:bg-brand-50 disabled:opacity-30 transition-colors"
                     title="Запустить"
                   >
                     <PlayIcon className="w-5 h-5" />

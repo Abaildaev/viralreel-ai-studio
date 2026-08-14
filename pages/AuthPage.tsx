@@ -133,7 +133,7 @@ const AuthPage: React.FC = () => {
                 disabled={loading}
                 className="btn btn-secondary btn-lg w-full"
               >
-                <SparklesIcon className="w-4 h-4 text-teal-600" />
+                <SparklesIcon className="w-4 h-4 text-brand-600" />
                 Демо-вход в один клик
               </button>
             )}

@@ -67,12 +67,12 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full bg-white border rounded-xl px-4 py-2.5 text-sm font-medium text-left flex items-center justify-between transition-all shadow-sm ${
           isOpen
-            ? 'border-teal-500 ring-2 ring-teal-500/20 text-gray-900'
-            : 'border-gray-200 hover:border-teal-400 text-gray-800'
+            ? 'border-brand-500 ring-2 ring-brand-500/20 text-gray-900'
+            : 'border-gray-200 hover:border-brand-400 text-gray-800'
         }`}
       >
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center flex-shrink-0">
             <ClockIcon className="w-4 h-4" />
           </div>
           <span className="font-semibold text-gray-900">{value || '12:00'}</span>
@@ -96,8 +96,8 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
                   onClick={() => handleSelectPreset(preset)}
                   className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                     value === preset
-                      ? 'bg-teal-600 text-white font-bold'
-                      : 'bg-gray-100 text-gray-700 hover:bg-teal-50 hover:text-teal-700'
+                      ? 'bg-brand-600 text-white font-bold'
+                      : 'bg-gray-100 text-gray-700 hover:bg-brand-50 hover:text-brand-700'
                   }`}
                 >
                   {preset}
@@ -121,7 +121,7 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
                     onClick={() => handleSelectHour(h)}
                     className={`w-full py-1.5 px-2 text-xs font-medium rounded-lg text-center transition-colors ${
                       currentHour === h
-                        ? 'bg-teal-600 text-white font-bold shadow-sm'
+                        ? 'bg-brand-600 text-white font-bold shadow-sm'
                         : 'text-gray-700 hover:bg-white'
                     }`}
                   >
@@ -144,7 +144,7 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
                     onClick={() => handleSelectMinute(m)}
                     className={`w-full py-1.5 px-2 text-xs font-medium rounded-lg text-center transition-colors ${
                       currentMinute === m
-                        ? 'bg-teal-600 text-white font-bold shadow-sm'
+                        ? 'bg-brand-600 text-white font-bold shadow-sm'
                         : 'text-gray-700 hover:bg-white'
                     }`}
                   >
@@ -160,7 +160,7 @@ export const CustomTimePicker: React.FC<CustomTimePickerProps> = ({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold transition-colors"
             >
               Готово
             </button>

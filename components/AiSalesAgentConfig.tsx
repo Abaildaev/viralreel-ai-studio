@@ -87,14 +87,14 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
   return (
     <div className="space-y-6">
       {/* Top Banner Status & Activity Switch */}
-      <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="p-5 bg-white rounded-2xl border border-gray-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${config.isEnabled ? 'bg-[#1E60FF]/10 text-[#1E60FF]' : 'bg-slate-100 text-slate-400'}`}>
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${config.isEnabled ? 'bg-brand-600/10 text-brand-600' : 'bg-gray-100 text-gray-400'}`}>
             <SparklesIcon className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-sm text-slate-900">
+              <h3 className="font-semibold text-sm text-gray-900">
                 ИИ-Менеджер (Интерактивная песочница)
               </h3>
               <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md">
@@ -106,14 +106,14 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               Настройка базы знаний, тарифов и тестирование диалогов в реальном времени перед интеграцией с Webhook
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">
+          <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-lg">
             Тестовый режим (DeepSeek)
           </span>
         </div>
@@ -121,22 +121,22 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
 
       {/* Sandbox informational notice */}
       <div className="p-3.5 bg-blue-50/60 border border-blue-100 rounded-xl flex items-start gap-2.5 text-xs text-blue-900">
-        <SparklesIcon className="w-4 h-4 text-[#1E60FF] flex-shrink-0 mt-0.5" />
+        <SparklesIcon className="w-4 h-4 text-brand-600 flex-shrink-0 mt-0.5" />
         <p className="leading-relaxed">
           <b>Как это работает:</b> Слева настройте продукты, цены и скрипты возражений. Справа в интерактивном симуляторе Direct проверяйте, как нейросеть отрабатывает сомнения клиентов и доводит до продажи.
         </p>
       </div>
 
       {/* 1. Persona & Tone */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
-        <h4 className="font-semibold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
-          <UserCircleIcon className="w-4 h-4 text-[#1E60FF]" />
+      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-xs space-y-4">
+        <h4 className="font-semibold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-2">
+          <UserCircleIcon className="w-4 h-4 text-brand-600" />
           Личность и роль ИИ-менеджера
         </h4>
 
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Имя ИИ-менеджера
             </label>
             <input
@@ -144,18 +144,18 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
               value={config.agentName}
               onChange={(e) => handleUpdate({ agentName: e.target.value })}
               placeholder="Например: Алина или Алекс"
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600 font-medium"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">
+            <label className="block text-xs font-medium text-gray-600 mb-1.5">
               Стиль общения (Tone of Voice)
             </label>
             <select
               value={config.tone}
               onChange={(e) => handleUpdate({ tone: e.target.value as SalesAgentTone })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600 font-medium"
             >
               <option value="friendly_expert">✨ Дружелюбный эксперт (на «ты», легко и тепло)</option>
               <option value="energetic_mentor">🚀 Энергичный наставник (мотивация и действия)</option>
@@ -166,13 +166,13 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Главная цель диалога в Direct
           </label>
           <select
             value={config.goal}
             onChange={(e) => handleUpdate({ goal: e.target.value as SalesAgentGoal })}
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600 font-medium"
           >
             <option value="consultation">📅 Запись на аудит / бесплатную консультацию</option>
             <option value="direct_sale">💳 Прямая продажа курса / тарифа по ссылке</option>
@@ -182,7 +182,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Целевое действие (куда направлять готового клиента)
           </label>
           <input
@@ -190,12 +190,12 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
             value={config.targetActionPrompt}
             onChange={(e) => handleUpdate({ targetActionPrompt: e.target.value })}
             placeholder="Например: Предложи записаться на разбор в Telegram: @username"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF]"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Описание бизнеса и позиционирования
           </label>
           <textarea
@@ -203,20 +203,20 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
             value={config.businessDescription}
             onChange={(e) => handleUpdate({ businessDescription: e.target.value })}
             placeholder="Чем занимается ваш бизнес, для кого продукт и какие результаты даете..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] resize-none"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600 resize-none"
           />
         </div>
       </div>
 
       {/* 2. Products & Pricing Knowledge Base */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="font-semibold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <ShoppingBagIcon className="w-4 h-4 text-[#1E60FF]" />
+            <h4 className="font-semibold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <ShoppingBagIcon className="w-4 h-4 text-brand-600" />
               Продукты, тарифы и цены ({config.products.length})
             </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-gray-400 mt-0.5">
               ИИ будет отвечать на вопросы о ценах строго на основе этой базы
             </p>
           </div>
@@ -224,7 +224,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
           <button
             type="button"
             onClick={() => setShowAddProduct(!showAddProduct)}
-            className="px-3.5 py-2 bg-[#1E60FF]/10 hover:bg-[#1E60FF]/20 text-[#1E60FF] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-brand-600/10 hover:bg-brand-600/20 text-brand-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             Добавить тариф
@@ -233,21 +233,21 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
 
         {/* Add Product Form */}
         {showAddProduct && (
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 animate-in fade-in">
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 animate-in fade-in">
             <div className="grid sm:grid-cols-2 gap-3">
               <input
                 type="text"
                 value={newProduct.name}
                 onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
                 placeholder="Название тарифа (например: Базовый)"
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none"
+                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none"
               />
               <input
                 type="text"
                 value={newProduct.price}
                 onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
                 placeholder="Цена (например: 19 900 ₽ или 4 900 ₽/мес)"
-                className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none"
+                className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none"
               />
             </div>
             <input
@@ -255,13 +255,13 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
               value={newProduct.description}
               onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
               placeholder="Краткое описание (что входит в тариф)"
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none"
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none"
             />
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setShowAddProduct(false)}
-                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700"
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700"
               >
                 Отмена
               </button>
@@ -269,7 +269,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
                 type="button"
                 onClick={handleAddProduct}
                 disabled={!newProduct.name || !newProduct.price}
-                className="px-4 py-2 bg-[#1E60FF] hover:bg-[#1551E5] disabled:bg-slate-200 text-white rounded-xl text-xs font-semibold shadow-xs"
+                className="px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white rounded-xl text-xs font-semibold shadow-xs"
               >
                 Сохранить продукт
               </button>
@@ -282,22 +282,22 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
           {config.products.map((p) => (
             <div
               key={p.id}
-              className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-start justify-between gap-3"
+              className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-200/70 flex items-start justify-between gap-3"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-xs text-slate-900">{p.name}</span>
+                  <span className="font-semibold text-xs text-gray-900">{p.name}</span>
                   <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
                     {p.price}
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">{p.description}</p>
+                <p className="text-xs text-gray-500 mt-1">{p.description}</p>
               </div>
 
               <button
                 type="button"
                 onClick={() => handleDeleteProduct(p.id)}
-                className="text-slate-400 hover:text-red-600 p-1 transition-colors"
+                className="text-gray-400 hover:text-red-600 p-1 transition-colors"
                 title="Удалить"
               >
                 <TrashIcon className="w-4 h-4" />
@@ -308,14 +308,14 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
       </div>
 
       {/* 3. Objection Handling Scripts */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="font-semibold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
-              <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-[#1E60FF]" />
+            <h4 className="font-semibold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-2">
+              <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-brand-600" />
               Отработка возражений ({config.objections.length})
             </h4>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-gray-400 mt-0.5">
               Скрипты ответов на частые сомнения клиентов («дорого», «нет времени», «я подумаю»)
             </p>
           </div>
@@ -323,7 +323,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
           <button
             type="button"
             onClick={() => setShowAddObjection(!showAddObjection)}
-            className="px-3.5 py-2 bg-[#1E60FF]/10 hover:bg-[#1E60FF]/20 text-[#1E60FF] rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
+            className="px-3.5 py-2 bg-brand-600/10 hover:bg-brand-600/20 text-brand-600 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors"
           >
             <PlusIcon className="w-3.5 h-3.5" />
             Добавить возражение
@@ -332,26 +332,26 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
 
         {/* Add Objection Form */}
         {showAddObjection && (
-          <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3 animate-in fade-in">
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 animate-in fade-in">
             <input
               type="text"
               value={newObjection.objection}
               onChange={(e) => setNewObjection({ ...newObjection, objection: e.target.value })}
               placeholder="Возражение (например: «Мне кажется, это не сработает в моей нише»)"
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none"
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none"
             />
             <textarea
               rows={2}
               value={newObjection.suggestedAnswer}
               onChange={(e) => setNewObjection({ ...newObjection, suggestedAnswer: e.target.value })}
               placeholder="Как отвечать (аргумент, кейс или вопрос)"
-              className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none resize-none"
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none resize-none"
             />
             <div className="flex gap-2 justify-end">
               <button
                 type="button"
                 onClick={() => setShowAddObjection(false)}
-                className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700"
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700"
               >
                 Отмена
               </button>
@@ -359,7 +359,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
                 type="button"
                 onClick={handleAddObjection}
                 disabled={!newObjection.objection || !newObjection.suggestedAnswer}
-                className="px-4 py-2 bg-[#1E60FF] hover:bg-[#1551E5] disabled:bg-slate-200 text-white rounded-xl text-xs font-semibold shadow-xs"
+                className="px-4 py-2 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white rounded-xl text-xs font-semibold shadow-xs"
               >
                 Сохранить скрипт
               </button>
@@ -372,13 +372,13 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
           {config.objections.map((o) => (
             <div
               key={o.id}
-              className="p-3.5 bg-slate-50/70 rounded-xl border border-slate-200/70 flex items-start justify-between gap-3"
+              className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-200/70 flex items-start justify-between gap-3"
             >
               <div className="min-w-0 flex-1">
-                <span className="font-semibold text-xs text-slate-900 block">
+                <span className="font-semibold text-xs text-gray-900 block">
                   «{o.objection}»
                 </span>
-                <p className="text-xs text-slate-600 mt-1 bg-white p-2.5 rounded-lg border border-slate-200/60 leading-relaxed">
+                <p className="text-xs text-gray-600 mt-1 bg-white p-2.5 rounded-lg border border-gray-200/60 leading-relaxed">
                   {o.suggestedAnswer}
                 </p>
               </div>
@@ -386,7 +386,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
               <button
                 type="button"
                 onClick={() => handleDeleteObjection(o.id)}
-                className="text-slate-400 hover:text-red-600 p-1 transition-colors"
+                className="text-gray-400 hover:text-red-600 p-1 transition-colors"
                 title="Удалить"
               >
                 <TrashIcon className="w-4 h-4" />
@@ -397,14 +397,14 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
       </div>
 
       {/* 4. Guardrails & Human Handoff */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
-        <h4 className="font-semibold text-xs text-slate-900 uppercase tracking-wider flex items-center gap-2">
-          <ShieldCheckIcon className="w-4 h-4 text-[#1E60FF]" />
+      <div className="bg-white rounded-2xl p-6 border border-gray-200/80 shadow-xs space-y-4">
+        <h4 className="font-semibold text-xs text-gray-900 uppercase tracking-wider flex items-center gap-2">
+          <ShieldCheckIcon className="w-4 h-4 text-brand-600" />
           Защита и переключение на живого человека (Human Handoff)
         </h4>
 
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1.5">
+          <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Стоп-слова для вызова оператора (через запятую)
           </label>
           <input
@@ -415,9 +415,9 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
                 handoffKeywords: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
               })
             }
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600 font-medium"
           />
-          <p className="text-[11px] text-slate-400 mt-1">
+          <p className="text-[11px] text-gray-400 mt-1">
             Если клиент напишет одно из этих слов, бот передаст диалог менеджеру и уведомит вас
           </p>
         </div>

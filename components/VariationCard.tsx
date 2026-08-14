@@ -125,7 +125,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
               onClick={() => switchTab('trim')}
               className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
                 currentTab === 'trim'
-                  ? 'bg-white text-teal-700 shadow-sm font-bold'
+                  ? 'bg-white text-brand-700 shadow-sm font-bold'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
@@ -140,7 +140,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                 value={variation.hookText}
                 onChange={(e) => onUpdateStyle(variation.id, 'hookText', e.target.value)}
                 rows={2}
-                className="w-full bg-white text-gray-900 text-xs rounded-xl p-2.5 outline-none border border-gray-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 resize-none font-medium"
+                className="w-full bg-white text-gray-900 text-xs rounded-xl p-2.5 outline-none border border-gray-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 resize-none font-medium"
                 placeholder="Заголовок на видео..."
               />
 
@@ -150,7 +150,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     onUpdateStyle(variation.id, 'bgStyle', 'none');
                     onUpdateStyle(variation.id, 'aiModel', 'none');
                   }}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'none' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'none' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Обычный
                 </button>
@@ -162,7 +162,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     onUpdateStyle(variation.id, 'posY', 35);
                     onUpdateStyle(variation.id, 'textAlign', 'center');
                   }}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'quote-white' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'quote-white' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Цитата
                 </button>
@@ -174,7 +174,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     onUpdateStyle(variation.id, 'posY', 35);
                     onUpdateStyle(variation.id, 'textAlign', 'center');
                   }}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'bank-transfer' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'bank-transfer' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   Банк
                 </button>
@@ -188,7 +188,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                       onUpdateStyle(variation.id, 'aiModel', 'claude');
                     }
                   }}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'ai-showcase' ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`flex-1 py-1.5 text-xs font-medium rounded transition-all ${variation.bgStyle === 'ai-showcase' ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                 >
                   AI
                 </button>
@@ -202,7 +202,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                         <button
                           key={opt.id}
                           onClick={() => onUpdateStyle(variation.id, 'bgStyle', opt.id)}
-                          className={`p-1.5 rounded transition-all ${variation.bgStyle === opt.id ? 'bg-teal-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
+                          className={`p-1.5 rounded transition-all ${variation.bgStyle === opt.id ? 'bg-brand-600 text-white shadow' : 'text-gray-500 hover:text-gray-700'}`}
                           title={opt.label}
                         >
                           {opt.icon}
@@ -219,7 +219,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                           max="100"
                           value={variation.bgOpacity}
                           onChange={(e) => onUpdateStyle(variation.id, 'bgOpacity', Number(e.target.value))}
-                          className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                          className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
                         />
                       </div>
                     )}
@@ -241,7 +241,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                         onClick={() => onUpdateStyle(variation.id, 'showCarouselBait', !variation.showCarouselBait)}
                         className={`px-2 py-1.5 rounded text-xs font-medium border transition-colors ${
                           variation.showCarouselBait
-                            ? 'bg-teal-600 text-white border-teal-600'
+                            ? 'bg-brand-600 text-white border-brand-600'
                             : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'
                         }`}
                       >
@@ -252,7 +252,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     <select
                       value={variation.font}
                       onChange={(e) => onUpdateStyle(variation.id, 'font', e.target.value)}
-                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 flex-1 min-w-[90px]"
+                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1 min-w-[90px]"
                     >
                       {fontOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                     </select>
@@ -262,7 +262,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     <select
                       value={variation.fontWeight}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontWeight', e.target.value)}
-                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 flex-1"
+                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1"
                     >
                       {fontWeightOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -271,7 +271,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     <select
                       value={variation.fontSize}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontSize', Number(e.target.value))}
-                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 w-16 text-center"
+                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 w-16 text-center"
                     >
                       {fontSizeOptions.map(size => <option key={size} value={size}>{size}px</option>)}
                     </select>
@@ -279,13 +279,13 @@ const VariationCard: React.FC<VariationCardProps> = ({
 
                   <div className="flex items-center justify-between gap-2 border-t border-gray-200 pt-2">
                     <div className="flex bg-white rounded-lg p-0.5 border border-gray-200">
-                      <button onClick={() => onUpdateStyle(variation.id, 'textAlign', 'left')} className={`p-1.5 rounded ${variation.textAlign === 'left' ? 'bg-teal-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                      <button onClick={() => onUpdateStyle(variation.id, 'textAlign', 'left')} className={`p-1.5 rounded ${variation.textAlign === 'left' ? 'bg-brand-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
                         <Bars3BottomLeftIcon className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => onUpdateStyle(variation.id, 'textAlign', 'center')} className={`p-1.5 rounded ${variation.textAlign === 'center' ? 'bg-teal-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                      <button onClick={() => onUpdateStyle(variation.id, 'textAlign', 'center')} className={`p-1.5 rounded ${variation.textAlign === 'center' ? 'bg-brand-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
                         <Bars3Icon className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => onUpdateStyle(variation.id, 'textAlign', 'right')} className={`p-1.5 rounded ${variation.textAlign === 'right' ? 'bg-teal-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                      <button onClick={() => onUpdateStyle(variation.id, 'textAlign', 'right')} className={`p-1.5 rounded ${variation.textAlign === 'right' ? 'bg-brand-600 text-white' : 'text-gray-500 hover:text-gray-700'}`}>
                         <Bars3BottomRightIcon className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -309,7 +309,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                       <select
                         value={variation.aiModel || 'claude'}
                         onChange={(e) => onUpdateStyle(variation.id, 'aiModel', e.target.value)}
-                        className="flex-1 bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 font-medium"
+                        className="flex-1 bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 font-medium"
                       >
                         <option value="claude">Claude (Anthropic) 🟠</option>
                         <option value="chatgpt">ChatGPT (OpenAI) 🟢</option>
@@ -327,7 +327,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                       max="15"
                       value={variation.textRotation || 0}
                       onChange={(e) => onUpdateStyle(variation.id, 'textRotation', Number(e.target.value))}
-                      className="flex-1 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                      className="flex-1 h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
                     />
                   </div>
                 </>
@@ -343,7 +343,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                         value={variation.bankAmount || '1 777 807,23 ₽'}
                         onChange={(e) => onUpdateStyle(variation.id, 'bankAmount', e.target.value)}
                         placeholder="1 777 807,23 ₽"
-                        className="flex-1 bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500"
+                        className="flex-1 bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500"
                       />
                     </div>
                   )}
@@ -351,7 +351,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     <select
                       value={variation.font}
                       onChange={(e) => onUpdateStyle(variation.id, 'font', e.target.value)}
-                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 flex-1 min-w-[90px]"
+                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1 min-w-[90px]"
                     >
                       {fontOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                     </select>
@@ -361,7 +361,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     <select
                       value={variation.fontWeight}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontWeight', e.target.value)}
-                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 flex-1"
+                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1"
                     >
                       {fontWeightOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -370,7 +370,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     <select
                       value={variation.fontSize}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontSize', Number(e.target.value))}
-                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-teal-500 w-16 text-center"
+                      className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 w-16 text-center"
                     >
                       {fontSizeOptions.map(size => <option key={size} value={size}>{size}px</option>)}
                     </select>
@@ -394,7 +394,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                   step="0.05"
                   value={variation.videoScale}
                   onChange={(e) => onUpdateStyle(variation.id, 'videoScale', Number(e.target.value))}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
                 />
               </div>
 
@@ -409,7 +409,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                   max="50"
                   value={variation.videoPanX}
                   onChange={(e) => onUpdateStyle(variation.id, 'videoPanX', Number(e.target.value))}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
                 />
               </div>
 
@@ -424,7 +424,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                   max="50"
                   value={variation.videoPanY}
                   onChange={(e) => onUpdateStyle(variation.id, 'videoPanY', Number(e.target.value))}
-                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                  className="w-full h-1 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-500"
                 />
               </div>
 
@@ -482,7 +482,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
               <button
                 onClick={() => onSave(variation.id)}
                 disabled={savingId === variation.id}
-                className="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white font-medium shadow-lg disabled:shadow-none transition-all flex items-center justify-center gap-1.5 text-sm"
+                className="py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white font-medium shadow-lg disabled:shadow-none transition-all flex items-center justify-center gap-1.5 text-sm"
               >
                 {savingId === variation.id ? (
                   <ArrowPathIcon className="w-4 h-4 animate-spin" />

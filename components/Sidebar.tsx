@@ -139,20 +139,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`bg-white border-r border-slate-200/90 flex flex-col h-screen sticky top-0 transition-all duration-200 z-30 shadow-xs select-none ${
+      className={`bg-white border-r border-gray-200/90 flex flex-col h-screen sticky top-0 transition-all duration-200 z-30 shadow-xs select-none ${
         collapsed ? 'w-[70px]' : 'w-64'
       }`}
     >
       {/* Top Workspace Header & Collapse Toggle */}
-      <div className="p-3.5 border-b border-slate-100 flex items-center justify-between gap-2">
+      <div className="p-3.5 border-b border-gray-100 flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-9 h-9 rounded-2xl bg-[#93C5FD] text-[#1E3A8A] font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs">
+          <div className="w-9 h-9 rounded-2xl bg-brand-300 text-brand-900 font-bold text-xs flex items-center justify-center flex-shrink-0 shadow-xs">
             ПА
           </div>
           {!collapsed && (
             <div className="min-w-0 transition-opacity">
-              <p className="text-xs font-bold text-slate-900 truncate">ViralReel Studio</p>
-              <p className="text-[10px] text-slate-400 truncate">ChatPlace Edition</p>
+              <p className="text-xs font-bold text-gray-900 truncate">ViralReel Studio</p>
+              <p className="text-[10px] text-gray-400 truncate">ChatPlace Edition</p>
             </div>
           )}
         </div>
@@ -160,7 +160,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           type="button"
           onClick={toggleCollapsed}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors flex-shrink-0"
+          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors flex-shrink-0"
           title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
         >
           {collapsed ? (
@@ -183,12 +183,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 collapsed ? 'justify-center px-0' : 'px-3'
               } ${
                 isActive
-                  ? 'bg-[#1E60FF] text-white font-semibold shadow-xs shadow-[#1E60FF]/20'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
+                  ? 'bg-brand-600 text-white font-semibold shadow-xs shadow-brand-600/20'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 font-medium'
               }`}
               title={collapsed ? item.label : undefined}
             >
-              <span className={`flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-400'}`}>
+              <span className={`flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`}>
                 {isActive ? item.iconActive : item.icon}
               </span>
 
@@ -211,15 +211,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Bottom User Profile */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/50">
+      <div className="p-3 border-t border-gray-100 bg-gray-50/50">
         <div className={`flex items-center justify-between gap-2 ${collapsed ? 'justify-center' : ''}`}>
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-full bg-[#93C5FD] text-[#1E3A8A] flex items-center justify-center text-xs font-bold flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-brand-300 text-brand-900 flex items-center justify-center text-xs font-bold flex-shrink-0">
               {userEmail ? userEmail.slice(0, 1).toUpperCase() : 'E'}
             </div>
             {!collapsed && (
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-800 truncate">
+                <p className="text-xs font-semibold text-gray-800 truncate">
                   {userEmail || 'Пользователь'}
                 </p>
                 <p className="text-[10px] text-emerald-600 font-medium">● В сети</p>
@@ -230,7 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!collapsed && (
             <button
               onClick={onSignOut}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
               title="Выйти"
             >
               <ArrowRightOnRectangleIcon className="w-4 h-4" />

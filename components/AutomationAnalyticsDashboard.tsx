@@ -180,64 +180,64 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
     <div className="space-y-6">
       {/* 4 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Всего комментариев</span>
-            <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-gray-500">Всего комментариев</span>
+            <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-semibold text-slate-900 mt-2">{totalTriggers}</p>
-          <p className="text-xs text-slate-400 mt-1">{totalComments} под Reels • {totalDMs} direct</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-2">{totalTriggers}</p>
+          <p className="text-xs text-gray-400 mt-1">{totalComments} под Reels • {totalDMs} direct</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Доставлено в Direct</span>
-            <EnvelopeIcon className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-gray-500">Доставлено в Direct</span>
+            <EnvelopeIcon className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-semibold text-slate-900 mt-2">{sentDMs}</p>
-          <p className="text-xs text-slate-400 mt-1">Мгновенная отправка</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-2">{sentDMs}</p>
+          <p className="text-xs text-gray-400 mt-1">Мгновенная отправка</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Конверсия доставки</span>
-            <ArrowTrendingUpIcon className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-gray-500">Конверсия доставки</span>
+            <ArrowTrendingUpIcon className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-semibold text-slate-900 mt-2">{deliveryRate}%</p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-2xl font-semibold text-gray-900 mt-2">{deliveryRate}%</p>
+          <p className="text-xs text-gray-400 mt-1">
             {failedDMs === 0 ? 'Без сбоев' : `${failedDMs} ошибок`}
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Активных воронок</span>
-            <FunnelIcon className="w-4 h-4 text-slate-400" />
+            <span className="text-xs font-medium text-gray-500">Активных воронок</span>
+            <FunnelIcon className="w-4 h-4 text-gray-400" />
           </div>
-          <p className="text-2xl font-semibold text-slate-900 mt-2">{rules.filter((r) => r.is_active).length}</p>
-          <p className="text-xs text-slate-400 mt-1">Comment-to-DM</p>
+          <p className="text-2xl font-semibold text-gray-900 mt-2">{rules.filter((r) => r.is_active).length}</p>
+          <p className="text-xs text-gray-400 mt-1">Comment-to-DM</p>
         </div>
       </div>
 
       {/* Main Chart Section */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200/70 shadow-xs">
+      <div className="bg-white rounded-2xl p-6 border border-gray-200/70 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-gray-900">
               Динамика комментариев и доставок
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               Количество полученных триггеров и отправленных материалов
             </p>
           </div>
 
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-medium">
+          <div className="flex items-center bg-gray-100 p-0.5 rounded-xl text-xs font-medium">
             {(['7d', '14d', '30d'] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setTimeRange(r)}
                 className={`px-3 py-1.5 rounded-lg transition-all ${
-                  timeRange === r ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-500 hover:text-slate-800'
+                  timeRange === r ? 'bg-white text-gray-900 shadow-xs font-semibold' : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
                 {r === '7d' ? '7 дней' : r === '14d' ? '14 дней' : '30 дней'}
@@ -247,43 +247,43 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
         </div>
 
         {/* Bar Chart */}
-        <div className="h-40 flex items-end justify-between gap-2 pt-4 border-b border-slate-100 px-2 select-none">
+        <div className="h-40 flex items-end justify-between gap-2 pt-4 border-b border-gray-100 px-2 select-none">
           {chartData.map((d, i) => {
             const commentHeight = (d.comments / maxChartVal) * 100;
             const dmHeight = (d.dms / maxChartVal) * 100;
 
             return (
               <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
-                <div className="absolute -top-9 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] py-1 px-2 rounded pointer-events-none z-10 whitespace-nowrap shadow-sm">
+                <div className="absolute -top-9 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[10px] py-1 px-2 rounded pointer-events-none z-10 whitespace-nowrap shadow-sm">
                   {d.dateLabel}: {d.comments} коммент. / {d.dms} direct
                 </div>
 
                 <div className="w-full flex items-end justify-center gap-1 h-28">
                   <div
-                    className="w-3 bg-slate-200 group-hover:bg-slate-300 rounded-t transition-all"
+                    className="w-3 bg-gray-200 group-hover:bg-gray-300 rounded-t transition-all"
                     style={{ height: `${Math.max(4, commentHeight)}%` }}
                   />
                   <div
-                    className="w-3 bg-slate-800 group-hover:bg-slate-700 rounded-t transition-all"
+                    className="w-3 bg-gray-800 group-hover:bg-gray-700 rounded-t transition-all"
                     style={{ height: `${Math.max(4, dmHeight)}%` }}
                   />
                 </div>
 
-                <span className="text-[10px] text-slate-400 font-normal mt-1">{d.dateLabel}</span>
+                <span className="text-[10px] text-gray-400 font-normal mt-1">{d.dateLabel}</span>
               </div>
             );
           })}
         </div>
 
         {/* Legend */}
-        <div className="flex items-center justify-end gap-5 mt-3.5 text-xs text-slate-500">
+        <div className="flex items-center justify-end gap-5 mt-3.5 text-xs text-gray-500">
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded bg-slate-200" />
+            <span className="w-2.5 h-2.5 rounded bg-gray-200" />
             <span>Комментарии</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded bg-slate-800" />
-            <span className="text-slate-800 font-medium">Direct отправлено</span>
+            <span className="w-2.5 h-2.5 rounded bg-gray-800" />
+            <span className="text-gray-800 font-medium">Direct отправлено</span>
           </div>
         </div>
       </div>
@@ -291,34 +291,34 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       {/* Two Columns: Codewords & Top Reels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Codewords Conversion Leaderboard */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs flex flex-col">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs flex flex-col">
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-gray-900">
               Кодовые слова
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Конверсия по ключевым фразам</p>
+            <p className="text-xs text-gray-400 mt-0.5">Конверсия по ключевым фразам</p>
           </div>
 
           <div className="flex-1 space-y-2">
             {codewordStats.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-400">Нет данных</div>
+              <div className="text-center py-8 text-xs text-gray-400">Нет данных</div>
             ) : (
               codewordStats.slice(0, 5).map((item, idx) => (
-                <div key={idx} className="p-3 bg-slate-50/70 hover:bg-slate-100/70 rounded-xl border border-slate-200/60 flex items-center justify-between gap-3 transition-colors">
+                <div key={idx} className="p-3 bg-gray-50/70 hover:bg-gray-100/70 rounded-xl border border-gray-200/60 flex items-center justify-between gap-3 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-5 h-5 rounded-md bg-white border border-slate-200 text-slate-600 font-medium text-[11px] flex items-center justify-center flex-shrink-0">
+                    <span className="w-5 h-5 rounded-md bg-white border border-gray-200 text-gray-600 font-medium text-[11px] flex items-center justify-center flex-shrink-0">
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-900 truncate">
+                      <p className="text-xs font-semibold text-gray-900 truncate">
                         {item.codeword}
                       </p>
-                      <p className="text-[11px] text-slate-500 truncate">{item.title}</p>
+                      <p className="text-[11px] text-gray-500 truncate">{item.title}</p>
                     </div>
                   </div>
 
                   <div className="text-right flex-shrink-0">
-                    <span className="text-xs font-medium text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-medium text-gray-700 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
                       {item.sentCount} лидов ({item.conversionRate}%)
                     </span>
                   </div>
@@ -329,34 +329,34 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
         </div>
 
         {/* Top Reels Leaderboard */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/70 shadow-xs flex flex-col">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs flex flex-col">
           <div className="mb-4">
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-sm font-semibold text-gray-900">
               Топ Reels по лидам
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Публикации с наибольшим откликом</p>
+            <p className="text-xs text-gray-400 mt-0.5">Публикации с наибольшим откликом</p>
           </div>
 
           <div className="flex-1 space-y-2">
             {mediaStats.length === 0 ? (
-              <div className="text-center py-8 text-xs text-slate-400">
+              <div className="text-center py-8 text-xs text-gray-400">
                 Лиды будут сгруппированы по ID роликов
               </div>
             ) : (
               mediaStats.map((item, idx) => (
-                <div key={idx} className="p-3 bg-slate-50/70 hover:bg-slate-100/70 rounded-xl border border-slate-200/60 flex items-center justify-between gap-3 transition-colors">
+                <div key={idx} className="p-3 bg-gray-50/70 hover:bg-gray-100/70 rounded-xl border border-gray-200/60 flex items-center justify-between gap-3 transition-colors">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-5 h-5 rounded-md bg-white border border-slate-200 text-slate-600 font-medium text-[11px] flex items-center justify-center flex-shrink-0">
+                    <span className="w-5 h-5 rounded-md bg-white border border-gray-200 text-gray-600 font-medium text-[11px] flex items-center justify-center flex-shrink-0">
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-xs font-semibold text-slate-900 truncate">Reel ID: {item.mediaId}</p>
-                      <p className="text-[11px] text-slate-400">{new Date(item.lastTrigger).toLocaleDateString('ru-RU')}</p>
+                      <p className="text-xs font-semibold text-gray-900 truncate">Reel ID: {item.mediaId}</p>
+                      <p className="text-[11px] text-gray-400">{new Date(item.lastTrigger).toLocaleDateString('ru-RU')}</p>
                     </div>
                   </div>
 
                   <div className="text-right flex-shrink-0">
-                    <span className="text-xs font-medium text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded-md">
+                    <span className="text-xs font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
                       {item.leadsCount} лидов
                     </span>
                   </div>
@@ -368,13 +368,13 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       </div>
 
       {/* Leads CRM Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-xs overflow-hidden">
-        <div className="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/40">
+      <div className="bg-white rounded-2xl border border-gray-200/70 shadow-xs overflow-hidden">
+        <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 bg-gray-50/40">
           <div>
-            <h3 className="font-semibold text-sm text-slate-900">
+            <h3 className="font-semibold text-sm text-gray-900">
               База контактов (CRM)
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-gray-500 mt-0.5">
               Пользователи, оставившие комментарий с кодовым словом
             </p>
           </div>
@@ -382,23 +382,23 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
           {/* Search, Filter & CSV Export */}
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative">
-              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 placeholder="Поиск по @username..."
                 value={crmSearch}
                 onChange={(e) => setCrmSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-slate-400 bg-white"
+                className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-gray-400 bg-white"
               />
             </div>
 
-            <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-medium">
+            <div className="flex items-center bg-gray-100 p-0.5 rounded-xl text-xs font-medium">
               {(['all', 'sent', 'failed'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setCrmStatusFilter(s)}
                   className={`px-2.5 py-1 rounded-lg transition-all ${
-                    crmStatusFilter === s ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-500 hover:text-slate-800'
+                    crmStatusFilter === s ? 'bg-white text-gray-900 shadow-xs font-semibold' : 'text-gray-500 hover:text-gray-800'
                   }`}
                 >
                   {s === 'all' ? 'Все' : s === 'sent' ? 'Доставлено' : 'Ошибки'}
@@ -408,7 +408,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
 
             <button
               onClick={handleExportCSV}
-              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs"
+              className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs"
             >
               <ArrowDownTrayIcon className="w-3.5 h-3.5" />
               Экспорт CSV
@@ -419,7 +419,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
         {/* Clean CRM Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/70 text-slate-400 font-medium border-b border-slate-100">
+            <thead className="bg-gray-50/70 text-gray-400 font-medium border-b border-gray-100">
               <tr>
                 <th className="px-5 py-3">Пользователь</th>
                 <th className="px-4 py-3">Кодовое слово</th>
@@ -429,10 +429,10 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                 <th className="px-5 py-3 text-right">Действия</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
+            <tbody className="divide-y divide-gray-100 text-gray-700">
               {crmLeads.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-slate-400">
+                  <td colSpan={6} className="text-center py-10 text-gray-400">
                     Лиды не найдены
                   </td>
                 </tr>
@@ -444,16 +444,16 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                     <tr
                       key={lead.id}
                       onClick={() => setSelectedLeadModal(lead)}
-                      className="hover:bg-slate-50/80 cursor-pointer transition-colors"
+                      className="hover:bg-gray-50/80 cursor-pointer transition-colors"
                     >
                       {/* User Profile Column */}
                       <td className="px-5 py-3.5 flex items-center gap-2.5">
                         <LeadAvatar username={username} size="sm" />
                         <div>
-                          <span className="font-semibold text-slate-900 text-xs">
+                          <span className="font-semibold text-gray-900 text-xs">
                             @{username}
                           </span>
-                          <span className="text-[11px] text-slate-400 ml-1.5">
+                          <span className="text-[11px] text-gray-400 ml-1.5">
                             {lead.trigger_type === 'comment' ? 'комментарий' : 'direct'}
                           </span>
                         </div>
@@ -461,13 +461,13 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
 
                       {/* Codeword */}
                       <td className="px-4 py-3.5">
-                        <span className="inline-block bg-slate-100 text-slate-700 font-medium px-2 py-0.5 rounded text-[11px] border border-slate-200/60">
+                        <span className="inline-block bg-gray-100 text-gray-700 font-medium px-2 py-0.5 rounded text-[11px] border border-gray-200/60">
                           {lead.lead_magnets?.codeword || '—'}
                         </span>
                       </td>
 
                       {/* Comment text */}
-                      <td className="px-4 py-3.5 max-w-xs truncate text-slate-600">
+                      <td className="px-4 py-3.5 max-w-xs truncate text-gray-600">
                         «{lead.incoming_text}»
                       </td>
 
@@ -478,7 +478,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
                             : lead.status === 'failed' || lead.dm_status === 'failed'
                             ? 'bg-red-50 text-red-700 border border-red-200/60'
-                            : 'bg-slate-100 text-slate-600 border border-slate-200/60'
+                            : 'bg-gray-100 text-gray-600 border border-gray-200/60'
                         }`}>
                           {lead.status === 'sent' || lead.dm_status === 'sent' ? (
                             'Доставлено'
@@ -491,7 +491,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                       </td>
 
                       {/* Date */}
-                      <td className="px-4 py-3.5 text-slate-400 whitespace-nowrap text-[11px]">
+                      <td className="px-4 py-3.5 text-gray-400 whitespace-nowrap text-[11px]">
                         {new Date(lead.created_at).toLocaleString('ru-RU', {
                           day: 'numeric',
                           month: 'short',
@@ -505,7 +505,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                         <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setSelectedLeadModal(lead)}
-                            className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-medium transition-colors"
+                            className="px-2.5 py-1 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-lg text-xs font-medium transition-colors"
                           >
                             Диалог
                           </button>
@@ -515,7 +515,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                               href={`https://instagram.com/${username}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                              className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                               title="Открыть в Instagram"
                             >
                               <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />

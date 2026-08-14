@@ -150,7 +150,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       );
     }
     return (
-      <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center flex-shrink-0">
+      <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center flex-shrink-0">
         <QuestionMarkCircleIcon className="w-6 h-6" />
       </div>
     );
@@ -169,7 +169,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (variant === 'warning' || variant === 'error') {
       return 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-200';
     }
-    return 'bg-teal-600 hover:bg-teal-700 text-white shadow-teal-200';
+    return 'bg-brand-600 hover:bg-brand-700 text-white shadow-brand-200';
   };
 
   return (
