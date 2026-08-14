@@ -15,6 +15,7 @@ import {
   ShieldCheckIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import { Button, EmptyState, PageHeader, PageShell, SkeletonList } from '../components/ui';
 
 interface AccountPreview {
   ig_user_id: string;
@@ -203,24 +204,31 @@ const AccountsPage: React.FC = () => {
     setConnectStep('');
   };
 
-  return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Instagram аккаунты</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Подключите аккаунты для автоматической публикации Reels
-        </p>
-      </div>
+  const openAddForm = () => {
+    setShowAddForm(true);
+    setAccountPreview(null);
+    setConnectError('');
+  };
 
-      <div className="mb-6">
-        <button
-          onClick={() => { setShowAddForm(!showAddForm); setAccountPreview(null); setConnectError(''); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium transition-colors shadow-lg"
-        >
-          <PlusIcon className="w-5 h-5" />
-          Добавить аккаунт
-        </button>
-      </div>
+  return (
+    <PageShell>
+      <PageHeader
+        title="Instagram аккаунты"
+        description="Подключите аккаунты для автоматической публикации Reels"
+        actions={
+          <Button
+            variant="primary"
+            onClick={() => {
+              setShowAddForm(!showAddForm);
+              setAccountPreview(null);
+              setConnectError('');
+            }}
+            icon={<PlusIcon className="h-5 w-5" />}
+          >
+            Добавить аккаунт
+          </Button>
+        }
+      />
 
       {showAddForm && (
         <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
@@ -370,15 +378,18 @@ const AccountsPage: React.FC = () => {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-        </div>
+        <SkeletonList rows={3} />
       ) : accounts.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
-          <UserCircleIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-500 mb-2">Нет подключенных аккаунтов</h3>
-          <p className="text-sm text-gray-400">Добавьте Instagram аккаунт для начала публикации</p>
-        </div>
+        <EmptyState
+          icon={<UserCircleIcon className="h-6 w-6" />}
+          title="Нет подключенных аккаунтов"
+          description="Подключите Instagram Professional account, чтобы публиковать Reels и запускать автоворонки."
+          action={
+            <Button variant="primary" onClick={openAddForm} icon={<PlusIcon className="h-5 w-5" />}>
+              Добавить аккаунт
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-4">
           {accounts.map((account) => (
@@ -494,7 +505,7 @@ const AccountsPage: React.FC = () => {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 };
 

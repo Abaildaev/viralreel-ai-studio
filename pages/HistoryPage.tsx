@@ -21,13 +21,21 @@ import {
   ArrowsRightLeftIcon,
   ArrowsUpDownIcon,
 } from '@heroicons/react/24/outline';
+import {
+  Button,
+  Callout,
+  EmptyState,
+  PageHeader,
+  PageShell,
+  SkeletonList,
+} from '../components/ui';
 
 type StatusFilter = 'all' | 'published' | 'publishing' | 'pending' | 'failed' | 'draft';
 
 const HistoryPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccount, accounts } = useAccount();
-  const { confirm, alert } = useConfirm();
+  const { confirm, toast } = useConfirm();
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>('all');
@@ -85,19 +93,11 @@ const HistoryPage: React.FC = () => {
 
   const handleRetry = async (post: ScheduledPost) => {
     if (!selectedAccount) {
-      await alert({
-        title: 'Внимание',
-        message: 'Выберите аккаунт в боковом меню',
-        variant: 'warning',
-      });
+      toast({ message: 'Выберите аккаунт в боковом меню', tone: 'warning' });
       return;
     }
     if (!selectedAccount.ig_user_id) {
-      await alert({
-        title: 'Ошибка аккаунта',
-        message: 'Проверьте настройки аккаунта: не найден Instagram User ID.',
-        variant: 'error',
-      });
+      toast({ message: 'Проверьте настройки аккаунта: не найден Instagram User ID.', tone: 'error' });
       return;
     }
     setRetryingPostId(post.id);
@@ -119,31 +119,15 @@ const HistoryPage: React.FC = () => {
       if (result.error) {
         const err: string = result.error;
         if (err.includes('access token') || err.includes('OAuthException') || err.includes('token')) {
-          await alert({
-            title: 'Ошибка токена',
-            message: 'Невалидный или истёкший Access Token. Перейдите в раздел "Аккаунты" и обновите токен.',
-            variant: 'error',
-          });
+          toast({ message: 'Невалидный или истёкший Access Token. Перейдите в раздел "Аккаунты" и обновите токен.', tone: 'error' });
         } else if (err.includes('rate limit') || err.includes('spam')) {
-          await alert({
-            title: 'Лимит Instagram',
-            message: 'Превышен лимит публикаций Instagram. Подождите несколько минут и попробуйте снова.',
-            variant: 'warning',
-          });
+          toast({ message: 'Превышен лимит публикаций Instagram. Подождите несколько минут и попробуйте снова.', tone: 'warning' });
         } else {
-          await alert({
-            title: 'Ошибка публикации',
-            message: `Ошибка публикации: ${err}`,
-            variant: 'error',
-          });
+          toast({ message: `Ошибка публикации: ${err}`, tone: 'error' });
         }
       }
     } catch (e: any) {
-      await alert({
-        title: 'Ошибка',
-        message: `Ошибка: ${e.message}`,
-        variant: 'error',
-      });
+      toast({ message: `Ошибка: ${e.message}`, tone: 'error' });
     } finally {
       setRetryingPostId(null);
       await fetchPosts();
@@ -153,11 +137,7 @@ const HistoryPage: React.FC = () => {
   const handleOpenMoveModal = async () => {
     const otherAccounts = accounts.filter(a => a.id !== selectedAccount?.id);
     if (otherAccounts.length === 0) {
-      await alert({
-        title: 'Нет аккаунтов',
-        message: 'Нет других аккаунтов для переноса. Добавьте аккаунт в разделе "Аккаунты".',
-        variant: 'info',
-      });
+      toast({ message: 'Нет других аккаунтов для переноса. Добавьте аккаунт в разделе "Аккаунты".', tone: 'info' });
       return;
     }
     setMoveTargetAccountId(otherAccounts[0].id);
@@ -168,11 +148,7 @@ const HistoryPage: React.FC = () => {
     if (!moveTargetAccountId || !user) return;
     const movablePosts = posts.filter(p => p.status === 'pending' || p.status === 'draft');
     if (movablePosts.length === 0) {
-      await alert({
-        title: 'Нет постов',
-        message: 'Нет постов для переноса (только черновики и посты в очереди можно переносить).',
-        variant: 'info',
-      });
+      toast({ message: 'Нет постов для переноса (только черновики и посты в очереди можно переносить).', tone: 'info' });
       setShowMoveModal(false);
       return;
     }
@@ -196,11 +172,7 @@ const HistoryPage: React.FC = () => {
     setShowMoveModal(false);
 
     if (error) {
-      await alert({
-        title: 'Ошибка переноса',
-        message: `Ошибка переноса: ${error.message}`,
-        variant: 'error',
-      });
+      toast({ message: `Ошибка переноса: ${error.message}`, tone: 'error' });
     } else {
       await fetchPosts();
     }
@@ -210,11 +182,7 @@ const HistoryPage: React.FC = () => {
     if (!user) return;
     const queuedPosts = posts.filter(p => p.status === 'pending' || p.status === 'draft');
     if (queuedPosts.length < 2) {
-      await alert({
-        title: 'Недостаточно постов',
-        message: 'Нужно минимум 2 поста в очереди для перемешивания.',
-        variant: 'info',
-      });
+      toast({ message: 'Нужно минимум 2 поста в очереди для перемешивания.', tone: 'info' });
       return;
     }
     const ok = await confirm({
@@ -312,30 +280,19 @@ const HistoryPage: React.FC = () => {
   const otherAccounts = accounts.filter(a => a.id !== selectedAccount?.id);
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <div className="flex items-start justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-xl bg-brand-600 flex items-center justify-center shadow-lg">
-            <VideoCameraIcon className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
-              История публикаций
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Все автоматические публикации с их статусами
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
-          <button
+    <PageShell>
+      <PageHeader
+        title="История публикаций"
+        description="Все автоматические публикации с их статусами"
+        actions={
+          <>
+          <Button
             onClick={fetchPosts}
-            disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 transition-colors shadow-sm"
+            loading={isLoading}
+            icon={<ArrowPathIcon className="h-4 w-4" />}
           >
-            <ArrowPathIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             Обновить
-          </button>
+          </Button>
           {movableCount >= 2 && (
             <button
               onClick={handleShuffleQueue}
@@ -365,18 +322,22 @@ const HistoryPage: React.FC = () => {
               </span>
             </button>
           )}
-          <button
+          <Button
+            variant="danger"
             onClick={handleClearOld}
-            disabled={isClearing || (stats.published + stats.failed) === 0}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white border border-red-200 hover:bg-red-50 text-red-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={isClearing}
+            disabled={stats.published + stats.failed === 0}
+            icon={<TrashIcon className="h-4 w-4" />}
           >
-            <TrashIcon className="w-4 h-4" />
             Очистить старые
-          </button>
-        </div>
-      </div>
+          </Button>
+          </>
+        }
+      />
 
-      <div className="grid grid-cols-5 gap-3 mb-6">
+      {/* Stat tiles double as the status filter, so they wrap rather than
+          squeeze into five unreadable columns on a narrow screen. */}
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {statCards.map((card) => (
           <button
             key={card.key}
@@ -393,36 +354,32 @@ const HistoryPage: React.FC = () => {
         ))}
       </div>
 
-      <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-        <SignalIcon className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-blue-800">О будущих публикациях</p>
-          <p className="text-xs text-blue-600 mt-0.5 leading-relaxed">
-            Публикации создаются автоматически <strong>точно в назначенное время</strong> согласно вашему расписанию.
-            Они не создаются заранее -- система запускается каждую минуту и проверяет, есть ли расписания на текущую минуту.
-          </p>
-        </div>
-      </div>
+      <Callout tone="info" icon={<SignalIcon className="h-4 w-4" />} className="mb-5">
+        <p className="font-medium">О будущих публикациях</p>
+        <p className="mt-0.5 text-xs leading-relaxed">
+          Публикации создаются автоматически <strong>точно в назначенное время</strong> согласно
+          вашему расписанию. Они не создаются заранее — система запускается каждую минуту и
+          проверяет, есть ли расписания на текущую минуту.
+        </p>
+      </Callout>
 
-      {isLoading && (
-        <div className="text-center py-16">
-          <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <span className="text-gray-500 text-sm">Загрузка...</span>
-        </div>
-      )}
+      {isLoading && <SkeletonList rows={4} />}
 
       {!isLoading && filteredPosts.length === 0 && (
-        <div className="text-center py-16 bg-white border border-gray-200 rounded-xl">
-          <VideoCameraIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-500 mb-2">
-            {filter === 'all' ? 'Нет публикаций' : 'Нет постов с таким статусом'}
-          </h3>
-          <p className="text-sm text-gray-400">
-            {filter === 'all'
-              ? 'Здесь будут отображаться все ваши публикации'
-              : 'Попробуйте выбрать другой фильтр'}
-          </p>
-        </div>
+        <EmptyState
+          icon={<VideoCameraIcon className="h-6 w-6" />}
+          title={filter === 'all' ? 'Нет публикаций' : 'Нет постов с таким статусом'}
+          description={
+            filter === 'all'
+              ? 'Сюда попадают все ролики, отправленные в планировщик — с текущим статусом публикации.'
+              : 'Ни один пост не находится в этом статусе. Попробуйте другой фильтр.'
+          }
+          action={
+            filter === 'all' ? undefined : (
+              <Button onClick={() => setFilter('all')}>Показать все</Button>
+            )
+          }
+        />
       )}
 
       {!isLoading && filteredPosts.length > 0 && (
@@ -689,7 +646,7 @@ const HistoryPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 };
 

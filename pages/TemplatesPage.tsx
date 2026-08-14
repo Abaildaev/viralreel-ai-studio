@@ -33,7 +33,7 @@ function sanitizeFileName(name: string): string {
 const TemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccount } = useAccount();
-  const { confirm, alert } = useConfirm();
+  const { confirm, toast } = useConfirm();
   const [templates, setTemplates] = useState<VideoTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -86,11 +86,7 @@ const TemplatesPage: React.FC = () => {
     if (!files || files.length === 0 || !user) return;
 
     if (!selectedAccount) {
-      await alert({
-        title: 'Внимание',
-        message: 'Сначала выберите аккаунт в боковом меню',
-        variant: 'warning',
-      });
+      toast({ message: 'Сначала выберите аккаунт в боковом меню', tone: 'warning' });
       return;
     }
 
@@ -127,11 +123,7 @@ const TemplatesPage: React.FC = () => {
 
         if (insertError) throw insertError;
       } catch (error: any) {
-        await alert({
-          title: 'Ошибка загрузки файла',
-          message: `${file.name}: ${error.message}`,
-          variant: 'error',
-        });
+        toast({ message: `${file.name}: ${error.message}`, tone: 'error' });
       }
     }
 
@@ -156,11 +148,7 @@ const TemplatesPage: React.FC = () => {
       await supabase.from('video_templates').delete().eq('id', template.id);
       await loadTemplates();
     } catch (error: any) {
-      await alert({
-        title: 'Ошибка удаления',
-        message: error.message,
-        variant: 'error',
-      });
+      toast({ message: `Не удалось удалить подложку: ${error.message}`, tone: 'error' });
     }
   };
 
@@ -202,11 +190,7 @@ const TemplatesPage: React.FC = () => {
     const { error } = await supabase.from('video_templates').update({ name: trimmed }).eq('id', id);
     if (error) {
       console.error('Rename error:', error);
-      await alert({
-        title: 'Ошибка переименования',
-        message: error.message,
-        variant: 'error',
-      });
+      toast({ message: `Не удалось переименовать: ${error.message}`, tone: 'error' });
     } else {
       setTemplates(prev => prev.map(t => t.id === id ? { ...t, name: trimmed } : t));
     }
