@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { InstagramAccount } from '../types';
 import { useAuth } from './AuthContext';
 
@@ -36,7 +36,7 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
       const res = await Promise.race([
         supabase
           .from('instagram_accounts')
-          .select('*')
+          .select(INSTAGRAM_ACCOUNT_COLUMNS)
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
         timeoutPromise,

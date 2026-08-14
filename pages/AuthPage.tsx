@@ -49,60 +49,55 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-teal-500/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-cyan-500/5 rounded-full blur-3xl" />
-      </div>
-
-      <div className="w-full max-w-md relative">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
-              <SparklesIcon className="w-7 h-7 text-white" />
-            </div>
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <div className="inline-flex w-10 h-10 rounded-xl bg-gray-900 items-center justify-center mb-4">
+            <SparklesIcon className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">ViralReel</h1>
-          <p className="text-gray-500">
-            {isSignUp ? 'Создание аккаунта' : 'С возвращением'}
+          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+            {isSignUp ? 'Создать аккаунт' : 'Вход в ViralReel'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1.5">
+            AI-студия для Instagram Reels
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-xl shadow-gray-200/50">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="card p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-2 text-red-600 text-sm">
-                <ExclamationCircleIcon className="w-5 h-5 shrink-0" />
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-red-700 text-sm">
+                <ExclamationCircleIcon className="w-4 h-4 shrink-0 mt-0.5" />
                 {error}
               </div>
             )}
 
             {successMsg && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2 text-emerald-700 text-sm">
-                <SparklesIcon className="w-5 h-5 shrink-0" />
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 flex items-start gap-2 text-green-700 text-sm">
+                <SparklesIcon className="w-4 h-4 shrink-0 mt-0.5" />
                 {successMsg}
               </div>
             )}
 
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Email</label>
+              <label className="label">Email</label>
               <div className="relative">
-                <EnvelopeIcon className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <EnvelopeIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="ваш@email.com"
                   required
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-12 pr-4 py-3.5 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 outline-none transition-all"
+                  className="field pl-9"
                 />
               </div>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-gray-700 block mb-2">Пароль</label>
+              <label className="label">Пароль</label>
               <div className="relative">
-                <LockClosedIcon className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                <LockClosedIcon className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="password"
                   value={password}
@@ -110,24 +105,20 @@ const AuthPage: React.FC = () => {
                   placeholder="Минимум 6 символов"
                   required
                   minLength={6}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-12 pr-4 py-3.5 text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 outline-none transition-all"
+                  className="field pl-9"
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 text-white font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20 disabled:shadow-none"
-            >
+            <button type="submit" disabled={loading} className="btn btn-primary btn-lg w-full">
               {loading ? (
                 <>
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                  Обработка...
+                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  Обработка…
                 </>
               ) : isSignUp ? (
                 <>
-                  <UserPlusIcon className="w-5 h-5" />
+                  <UserPlusIcon className="w-4 h-4" />
                   Зарегистрироваться
                 </>
               ) : (
@@ -135,29 +126,20 @@ const AuthPage: React.FC = () => {
               )}
             </button>
 
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-400">или</span>
-              </div>
-            </div>
-
-            {(import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_MODE === 'true') && (
+            {import.meta.env.VITE_ENABLE_DEMO_MODE === 'true' && (
               <button
                 type="button"
                 onClick={handleDemoLogin}
                 disabled={loading}
-                className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-all flex items-center justify-center gap-2 border border-slate-200"
+                className="btn btn-secondary btn-lg w-full"
               >
                 <SparklesIcon className="w-4 h-4 text-teal-600" />
-                ⚡ Демо-вход в 1 клик
+                Демо-вход в один клик
               </button>
             )}
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-5 pt-4 border-t border-gray-100 text-center">
             <button
               type="button"
               onClick={() => {
@@ -165,18 +147,12 @@ const AuthPage: React.FC = () => {
                 setError('');
                 setSuccessMsg('');
               }}
-              className="text-sm font-medium text-teal-600 hover:text-teal-700 transition-colors"
+              className="text-sm text-gray-500 hover:text-gray-900 transition-colors"
             >
-              {isSignUp
-                ? 'Уже есть аккаунт? Войти'
-                : 'Нет аккаунта? Зарегистрироваться'}
+              {isSignUp ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
             </button>
           </div>
         </div>
-
-        <p className="text-center text-gray-400 text-xs mt-6">
-          AI-студия для создания контента Instagram Reels
-        </p>
       </div>
     </div>
   );

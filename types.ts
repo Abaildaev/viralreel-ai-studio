@@ -6,15 +6,21 @@ export type BgStyle = 'none' | 'glass' | 'solid-black' | 'solid-white' | 'quote-
 export type FontWeight = '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 export type CtaType = 'codeword' | 'telegram' | 'instagram';
 
+/**
+ * Shape returned to the browser. `access_token` is intentionally missing — the
+ * database does not grant it to the `authenticated` role, only Edge Functions
+ * running with the service role can read it.
+ */
 export interface InstagramAccount {
   id: string;
   user_id: string;
   account_name: string;
   username: string;
   ig_user_id: string;
-  access_token: string;
   profile_picture_url: string;
   is_active: boolean;
+  webhook_subscribed_at?: string | null;
+  webhook_error?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -77,7 +83,7 @@ export enum AppState {
   PREVIEW = 'PREVIEW',
 }
 
-export type AppView = 'generator' | 'scheduler' | 'accounts' | 'audio' | 'settings' | 'templates' | 'batch' | 'history' | 'budget' | 'aishowcase';
+export type AppView = 'generator' | 'scheduler' | 'accounts' | 'automations' | 'audio' | 'settings' | 'templates' | 'batch' | 'history' | 'budget' | 'aishowcase';
 
 export type AudioMode = 'from_video' | 'random' | 'specific';
 
@@ -154,6 +160,18 @@ export interface LeadMagnet {
   title: string;
   description: string;
   codeword: string;
+  keywords: string[];
+  reply_text: string;
+  response_url: string;
+  button_text: string;
+  match_mode: 'exact' | 'contains';
+  trigger_dm: boolean;
+  trigger_comments: boolean;
+  public_reply_enabled: boolean;
+  public_reply_variants: string[];
+  media_scope: 'all' | 'selected';
+  media_ids: string[];
+  repeat_delay_hours: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;

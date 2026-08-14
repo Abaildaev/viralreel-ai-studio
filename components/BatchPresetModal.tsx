@@ -359,7 +359,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
@@ -799,7 +799,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
           <button
             onClick={handleSave}
             disabled={presetType === 'standard' && topics.length === 0}
-            className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:bg-gray-200 text-white disabled:text-gray-500 text-sm font-medium transition-colors shadow-lg shadow-teal-600/20 disabled:shadow-none"
+            className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white disabled:text-gray-500 text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
           >
             {preset ? 'Сохранить' : 'Создать'}
           </button>

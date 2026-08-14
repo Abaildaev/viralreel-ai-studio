@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { secretEquals } from "./crypto.ts";
 
 export async function getAuthenticatedUser(req: Request) {
   const authorization = req.headers.get("Authorization");
@@ -25,8 +26,6 @@ export function createAdminClient() {
   return createClient(supabaseUrl, serviceRoleKey);
 }
 
-export function hasValidCronSecret(req: Request): boolean {
-  const expected = Deno.env.get("CRON_SECRET");
-  const provided = req.headers.get("X-Cron-Secret");
-  return Boolean(expected && provided && provided === expected);
+export function hasValidCronSecret(req: Request): Promise<boolean> {
+  return secretEquals(req.headers.get("X-Cron-Secret"), Deno.env.get("CRON_SECRET"));
 }

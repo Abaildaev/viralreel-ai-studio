@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { getAuthenticatedHeaders, supabase } from '../lib/supabase';
+import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { ScheduledPost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
+import { useSignedUrls } from '../hooks/useSignedUrl';
 import {
   CalendarDaysIcon,
   TrashIcon,
@@ -100,7 +101,7 @@ const InstagramScheduler: React.FC = () => {
     if (!user) return;
     let query = supabase
       .from('scheduled_posts')
-      .select('*, instagram_accounts(*)')
+      .select(`*, instagram_accounts(${INSTAGRAM_ACCOUNT_COLUMNS})`)
       .eq('user_id', user.id);
     if (selectedAccount) {
       query = query.eq('instagram_account_id', selectedAccount.id);
@@ -286,11 +287,10 @@ const InstagramScheduler: React.FC = () => {
 
   const allQueuePosts = posts;
 
-  const getVideoUrl = (path: string | null) => {
-    if (!path) return '';
-    const { data } = supabase.storage.from('reels').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  // The reels bucket is private — previews need short-lived signed URLs.
+  const videoUrls = useSignedUrls('reels', posts.map(post => post.video_path));
+
+  const getVideoUrl = (path: string | null) => (path ? videoUrls[path] : undefined);
 
   const VideoThumb: React.FC<{ path: string | null; isActive: boolean }> = ({ path, isActive }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -298,7 +298,7 @@ const InstagramScheduler: React.FC = () => {
     const url = getVideoUrl(path);
 
     const handleMouseEnter = () => {
-      if (!path) return;
+      if (!path || !url) return;
       if (!loaded && videoRef.current) {
         videoRef.current.src = url;
         setLoaded(true);
@@ -400,22 +400,22 @@ const InstagramScheduler: React.FC = () => {
         </div>
       </div>
 
-      <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
-        <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse flex-shrink-0" />
+      <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+        <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-emerald-800">Авто-публикация активна</p>
-          <p className="text-xs text-emerald-600 mt-0.5">
+          <p className="text-sm font-medium text-green-800">Авто-публикация активна</p>
+          <p className="text-xs text-green-600 mt-0.5">
             Запланированные посты публикуются автоматически по расписанию (серверный cron каждую минуту)
           </p>
         </div>
-        <CalendarDaysIcon className="w-5 h-5 text-emerald-500" />
+        <CalendarDaysIcon className="w-5 h-5 text-green-500" />
       </div>
 
 
 
       {previewPost && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setPreviewPost(null); setEditingCaption(null); }}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div>
                 <h3 className="font-semibold text-gray-900">Предпросмотр</h3>
@@ -462,7 +462,7 @@ const InstagramScheduler: React.FC = () => {
                           setEditingCaption(null);
                         }}
                         disabled={editingCaption.length > 2200}
-                        className="px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 rounded-lg transition-colors"
+                        className="px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 rounded-lg transition-colors"
                       >
                         Сохранить
                       </button>
@@ -491,7 +491,7 @@ const InstagramScheduler: React.FC = () => {
       )}
 
       {allQueuePosts.length > 0 && (
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-6 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <QueueListIcon className="w-5 h-5 text-teal-600" />
@@ -593,7 +593,7 @@ const InstagramScheduler: React.FC = () => {
                     onClick={() => setActionPanel(actionPanel === 'schedule' ? null : 'schedule')}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                       actionPanel === 'schedule'
-                        ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20'
+                        ? 'bg-teal-600 text-white shadow-lg'
                         : 'bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200'
                     }`}
                   >
@@ -609,7 +609,7 @@ const InstagramScheduler: React.FC = () => {
                       }}
                       className={`px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
                         actionPanel === 'move'
-                          ? 'bg-gray-700 text-white shadow-lg shadow-gray-700/20'
+                          ? 'bg-gray-700 text-white shadow-lg'
                           : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
                       }`}
                     >
@@ -711,7 +711,7 @@ const InstagramScheduler: React.FC = () => {
                   <button
                     onClick={handleScheduleSelected}
                     disabled={isScheduling || !selectedAccount}
-                    className="w-full px-5 py-3 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20 disabled:shadow-none"
+                    className="w-full px-5 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white text-sm font-semibold transition-all flex items-center justify-center gap-2 shadow-lg disabled:shadow-none"
                   >
                     {isScheduling ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <CalendarDaysIcon className="w-4 h-4" />}
                     Запланировать {selectedPostIds.length} постов
@@ -742,7 +742,7 @@ const InstagramScheduler: React.FC = () => {
                           onChange={() => setMoveTargetAccountId(account.id)}
                           className="accent-gray-700"
                         />
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center flex-shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
                           <span className="text-white text-xs font-bold">
                             {(account.account_name || account.username).charAt(0).toUpperCase()}
                           </span>
@@ -757,7 +757,7 @@ const InstagramScheduler: React.FC = () => {
                   <button
                     onClick={handleMoveSelected}
                     disabled={isMoving || !moveTargetAccountId}
-                    className="w-full px-5 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:bg-gray-300 text-white text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg shadow-gray-700/20 disabled:shadow-none"
+                    className="w-full px-5 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-600 disabled:bg-gray-300 text-white text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-lg disabled:shadow-none"
                   >
                     {isMoving ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : <ArrowsRightLeftIcon className="w-4 h-4" />}
                     {isMoving ? 'Переносим...' : `Перенести ${selectedPostIds.length} постов`}
@@ -777,7 +777,7 @@ const InstagramScheduler: React.FC = () => {
       )}
 
       {!isLoading && allQueuePosts.length === 0 && (
-        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-2xl">
+        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
           <CalendarDaysIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-500 mb-2">Нет постов</h3>
           <p className="text-sm text-gray-400">

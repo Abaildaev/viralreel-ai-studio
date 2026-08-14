@@ -16,6 +16,7 @@ import {
   BoltIcon,
   ClockIcon,
   CurrencyDollarIcon,
+  ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline';
 import {
   SparklesIcon as SparklesSolid,
@@ -27,6 +28,7 @@ import {
   BoltIcon as BoltSolid,
   ClockIcon as ClockSolid,
   CurrencyDollarIcon as CurrencyDollarSolid,
+  ChatBubbleLeftRightIcon as ChatBubbleLeftRightSolid,
 } from '@heroicons/react/24/solid';
 
 interface SidebarProps {
@@ -57,9 +59,9 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
     },
     {
       id: 'aishowcase',
-      label: '✨ AI Showcase',
-      icon: <SparklesIcon className="w-5 h-5 text-amber-500" />,
-      iconActive: <SparklesSolid className="w-5 h-5 text-amber-500" />,
+      label: 'AI Showcase',
+      icon: <SparklesIcon className="w-5 h-5" />,
+      iconActive: <SparklesSolid className="w-5 h-5" />,
     },
     {
       id: 'scheduler',
@@ -78,6 +80,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
       label: 'Автогенератор',
       icon: <BoltIcon className="w-5 h-5" />,
       iconActive: <BoltSolid className="w-5 h-5" />,
+    },
+    {
+      id: 'automations',
+      label: 'Лид-магниты',
+      icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />,
+      iconActive: <ChatBubbleLeftRightSolid className="w-5 h-5" />,
     },
     {
       id: 'history',
@@ -111,107 +119,92 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
   };
 
   return (
-    <div className={`${collapsed ? 'w-20' : 'w-72'} bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 transition-all duration-300`}>
-      <div className="p-4 border-b border-gray-100">
-        <div className="flex items-center justify-between mb-4">
+    <div className={`${collapsed ? 'w-20' : 'w-64'} bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 transition-all duration-200`}>
+      <div className="p-3 border-b border-gray-100">
+        <div className="flex items-center justify-between mb-3 h-7">
           {!collapsed && (
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-              Текущий профиль
+            <span className="text-2xs font-semibold text-gray-400 uppercase tracking-wider pl-1">
+              Профиль
             </span>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-400 hover:text-gray-600"
+            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors text-gray-400 hover:text-gray-600"
+            title={collapsed ? 'Развернуть меню' : 'Свернуть меню'}
           >
             <ChevronLeftIcon className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
           </button>
         </div>
 
         {loading ? (
-          <div className="h-16 bg-gray-100 rounded-xl animate-pulse" />
+          <div className="h-14 bg-gray-100 rounded-lg animate-pulse" />
         ) : accounts.length === 0 ? (
           <button
             onClick={() => onViewChange('accounts')}
-            className={`w-full p-3 border-2 border-dashed border-gray-200 rounded-xl hover:border-teal-500 hover:bg-teal-50 transition-colors ${collapsed ? 'px-2' : ''}`}
+            className={`w-full p-3 border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-teal-500 hover:text-teal-700 hover:bg-teal-50/60 transition-colors ${collapsed ? 'px-2' : ''}`}
           >
-            {collapsed ? (
-              <div className="w-8 h-8 mx-auto rounded-lg bg-gray-100 flex items-center justify-center text-gray-400">
-                +
-              </div>
-            ) : (
-              <span className="text-sm text-gray-500">+ Добавить аккаунт</span>
-            )}
+            <span className="text-sm">{collapsed ? '+' : '+ Добавить аккаунт'}</span>
           </button>
         ) : (
           <div className="relative">
             <button
               onClick={() => !collapsed && setShowAccountDropdown(!showAccountDropdown)}
-              className={`w-full flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl hover:border-gray-300 transition-colors ${collapsed ? 'justify-center px-2' : ''}`}
+              className={`w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-gray-50 transition-colors ${collapsed ? 'justify-center' : ''}`}
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-500/20 flex-shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-base flex-shrink-0">
                 {selectedAccount?.username?.charAt(0).toUpperCase() || 'A'}
               </div>
               {!collapsed && (
                 <>
                   <div className="flex-1 text-left min-w-0">
-                    <p className="font-semibold text-gray-900 truncate">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
                       @{selectedAccount?.username || 'Выберите'}
                     </p>
                     <div className="flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-green-500" />
-                      <span className="text-xs text-green-600">Активен</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                      <span className="text-2xs text-gray-500">Активен</span>
                     </div>
                   </div>
-                  <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${showAccountDropdown ? 'rotate-180' : ''}`} />
+                  <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${showAccountDropdown ? 'rotate-180' : ''}`} />
                 </>
               )}
             </button>
 
             {showAccountDropdown && !collapsed && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                <div className="p-2 border-b border-gray-100">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-2">
-                    Быстрое переключение
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="px-3 pt-2.5 pb-1.5">
+                  <span className="text-2xs font-semibold text-gray-400 uppercase tracking-wider">
+                    Переключить аккаунт
                   </span>
                 </div>
-                <div className="max-h-64 overflow-y-auto p-2">
-                  {accounts.map((account) => (
-                    <button
-                      key={account.id}
-                      onClick={() => handleSelectAccount(account)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-colors ${
-                        selectedAccount?.id === account.id
-                          ? 'bg-gray-900 text-white'
-                          : 'hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-lg flex-shrink-0 ${
-                        selectedAccount?.id === account.id
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20'
-                      }`}>
-                        {account.username.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 text-left min-w-0">
-                        <p className={`font-semibold truncate ${selectedAccount?.id === account.id ? 'text-white' : 'text-gray-900'}`}>
-                          @{account.username}
-                        </p>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-2 h-2 rounded-full ${account.is_active ? 'bg-green-500' : 'bg-gray-400'}`} />
-                          <span className={`text-xs ${
-                            selectedAccount?.id === account.id
-                              ? (account.is_active ? 'text-green-300' : 'text-gray-400')
-                              : (account.is_active ? 'text-green-600' : 'text-gray-400')
-                          }`}>
+                <div className="max-h-64 overflow-y-auto p-1.5">
+                  {accounts.map((account) => {
+                    const isSelected = selectedAccount?.id === account.id;
+                    return (
+                      <button
+                        key={account.id}
+                        onClick={() => handleSelectAccount(account)}
+                        className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-colors ${
+                          isSelected ? 'bg-teal-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold text-white flex-shrink-0 ${
+                          isSelected ? 'bg-teal-600' : 'bg-gray-400'
+                        }`}>
+                          {account.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 text-left min-w-0">
+                          <p className={`text-sm font-medium truncate ${isSelected ? 'text-teal-900' : 'text-gray-900'}`}>
+                            @{account.username}
+                          </p>
+                          <span className="text-2xs text-gray-500">
                             {account.is_active ? 'Активен' : 'Отключен'}
                           </span>
                         </div>
-                      </div>
-                      {selectedAccount?.id === account.id && (
-                        <CheckIcon className="w-5 h-5 text-white flex-shrink-0" />
-                      )}
-                    </button>
-                  ))}
+                        {isSelected && <CheckIcon className="w-4 h-4 text-teal-600 flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -219,51 +212,49 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
         )}
       </div>
 
-      {!collapsed && (
-        <div className="p-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
-              <SparklesSolid className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">ViralReel</h1>
-              <p className="text-xs text-gray-500">AI Контент Студия</p>
-            </div>
+      <div className={`px-3 pt-4 pb-2 ${collapsed ? 'flex justify-center' : ''}`}>
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center flex-shrink-0">
+            <SparklesSolid className="w-4 h-4 text-white" />
           </div>
+          {!collapsed && (
+            <div className="min-w-0">
+              <h1 className="text-sm font-semibold text-gray-900 leading-tight">ViralReel</h1>
+              <p className="text-2xs text-gray-400 leading-tight">AI Контент Студия</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
-      <nav className="flex-1 px-3 py-4">
-        <div className="space-y-1">
+      <nav className="flex-1 overflow-y-auto px-2 py-2">
+        <div className="space-y-0.5">
           {navItems.map((item) => {
             const isActive = currentView === item.id;
             return (
               <button
                 key={item.id}
                 onClick={() => onViewChange(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive
-                    ? 'bg-teal-50 text-teal-700 shadow-sm'
+                    ? 'bg-teal-50 text-teal-800'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 } ${collapsed ? 'justify-center px-2' : ''}`}
                 title={collapsed ? item.label : undefined}
               >
-                <span className={`relative ${isActive ? 'text-teal-600' : ''}`}>
+                <span className={`relative flex-shrink-0 ${isActive ? 'text-teal-600' : 'text-gray-400'}`}>
                   {isActive ? item.iconActive : item.icon}
                   {item.id === 'batch' && batchRunning && collapsed && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-teal-500 animate-pulse" />
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-teal-500 animate-pulse" />
                   )}
                 </span>
                 {!collapsed && (
                   <>
-                    {item.label}
-                    {item.id === 'batch' && batchRunning && batchProgress ? (
-                      <span className="ml-auto text-[10px] font-mono text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded-md">
+                    <span className="truncate">{item.label}</span>
+                    {item.id === 'batch' && batchRunning && batchProgress && (
+                      <span className="ml-auto tabular text-2xs font-medium text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded-md">
                         {batchProgress.completed}/{batchProgress.total}
                       </span>
-                    ) : isActive ? (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-teal-500" />
-                    ) : null}
+                    )}
                   </>
                 )}
               </button>
@@ -272,22 +263,22 @@ const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange, userEmail,
         </div>
       </nav>
 
-      <div className="p-4 border-t border-gray-100">
-        <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? 'justify-center px-0' : ''}`}>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-sm font-bold text-gray-600 flex-shrink-0">
+      <div className="p-3 border-t border-gray-100">
+        <div className={`flex items-center gap-2.5 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-semibold text-gray-600 flex-shrink-0">
             {userEmail.charAt(0).toUpperCase()}
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{userEmail}</p>
+              <p className="text-xs text-gray-600 truncate">{userEmail}</p>
             </div>
           )}
           <button
             onClick={onSignOut}
-            className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+            className="p-1.5 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
             title="Выйти"
           >
-            <ArrowRightOnRectangleIcon className="w-5 h-5" />
+            <ArrowRightOnRectangleIcon className="w-4 h-4" />
           </button>
         </div>
       </div>

@@ -44,7 +44,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
 }) => {
   return (
     <div
-      className={`bg-white border rounded-2xl overflow-hidden transition-all duration-300 flex flex-col shadow-sm
+      className={`bg-white border rounded-xl overflow-hidden transition-all duration-300 flex flex-col shadow-sm
         ${variation.status === 'sent' ? 'border-green-300 opacity-60' : 'border-gray-200 hover:border-gray-300 hover:shadow-md'}`}
     >
       <div className="relative">
@@ -447,7 +447,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
               <button
                 onClick={() => onSave(variation.id)}
                 disabled={savingId === variation.id}
-                className="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:bg-gray-200 text-white font-medium shadow-lg shadow-teal-600/20 disabled:shadow-none transition-all flex items-center justify-center gap-1.5 text-sm"
+                className="py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white font-medium shadow-lg disabled:shadow-none transition-all flex items-center justify-center gap-1.5 text-sm"
               >
                 {savingId === variation.id ? (
                   <ArrowPathIcon className="w-4 h-4 animate-spin" />

@@ -12,8 +12,8 @@ const AppWithAuth: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <ArrowPathIcon className="w-8 h-8 text-cyan-500 animate-spin" />
+      <div className="min-h-screen bg-canvas flex items-center justify-center">
+        <ArrowPathIcon className="w-7 h-7 text-teal-600 animate-spin" />
       </div>
     );
   }

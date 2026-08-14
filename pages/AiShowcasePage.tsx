@@ -220,24 +220,22 @@ const AiShowcasePage: React.FC = () => {
   const activeAiModel: AiModelType = selectedModel === 'all' ? 'claude' : selectedModel;
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-6 rounded-3xl text-white shadow-xl">
-        <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-500/20 text-teal-300 text-xs font-semibold border border-teal-500/30">
-            <ShieldCheckIcon className="w-4 h-4 text-green-400" /> Умный автоподбор логотипов по смыслу
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">✨ AI Showcase (Claude, ChatGPT, Gemini)</h1>
-          <p className="text-slate-300 text-xs max-w-2xl">
-            Каждый запуск создаёт уникальные тексты через DeepSeek и распределяет их по белым плашкам, белому тексту с эмодзи, Figma + AI-композициям и тёмным карточкам.
-          </p>
+    <div className="p-8 max-w-6xl mx-auto space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">AI Showcase</h1>
+        <p className="text-sm text-gray-500 mt-1 max-w-2xl">
+          Каждый запуск создаёт уникальные тексты через DeepSeek и распределяет их по белым плашкам,
+          белому тексту с эмодзи, Figma + AI-композициям и тёмным карточкам.
+        </p>
+        <div className="badge badge-success mt-3">
+          <ShieldCheckIcon className="w-3.5 h-3.5" /> Автоподбор логотипов по смыслу
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Control Panel */}
         <div className="lg:col-span-6 space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-3">
             <label htmlFor="showcase-topic" className="block text-sm font-semibold text-gray-900">
               1. Тема или ниша
             </label>
@@ -255,7 +253,7 @@ const AiShowcasePage: React.FC = () => {
           </div>
 
           {/* AI Model Brand Selector */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
             <label className="block text-sm font-semibold text-gray-900">
               2. Выберите Нейросеть (режим логотипа)
             </label>
@@ -304,7 +302,7 @@ const AiShowcasePage: React.FC = () => {
                 onClick={() => setSelectedModel('none')}
                 className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
                   selectedModel === 'none'
-                    ? 'border-slate-700 bg-slate-100 text-slate-900 font-semibold shadow-sm'
+                    ? 'border-gray-700 bg-gray-100 text-gray-900 font-semibold shadow-sm'
                     : 'border-gray-200 hover:border-gray-300 text-gray-600'
                 }`}
               >
@@ -328,7 +326,7 @@ const AiShowcasePage: React.FC = () => {
           </div>
 
           {/* Codeword Selector for ManyChat / Direct */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
             <label className="block text-sm font-semibold text-gray-900 flex items-center gap-2">
               <ChatBubbleBottomCenterTextIcon className="w-5 h-5 text-teal-600" />
               3. Кодовое слово (для ManyChat / ЛС)
@@ -366,7 +364,7 @@ const AiShowcasePage: React.FC = () => {
           </div>
 
           {/* Video Footage Selection */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
             <label className="block text-sm font-semibold text-gray-900">
               4. Видео-футаж сайта или интерфейса
             </label>
@@ -382,7 +380,7 @@ const AiShowcasePage: React.FC = () => {
             />
             <button
               onClick={() => gen.fileInputRef.current?.click()}
-              className="w-full border-2 border-dashed border-gray-300 hover:border-teal-500 p-6 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-teal-600 transition-all bg-gray-50/50"
+              className="w-full border-2 border-dashed border-gray-300 hover:border-teal-500 p-6 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-teal-600 transition-all bg-gray-50/50"
             >
               <CloudArrowUpIcon className="w-8 h-8" />
               <span className="text-sm font-medium">Загрузить видео футажа сайта (9:16)</span>
@@ -390,7 +388,7 @@ const AiShowcasePage: React.FC = () => {
           </div>
 
           {/* Quantity Selector & One-click Generation */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
             <label className="block text-sm font-semibold text-gray-900">
               5. Количество роликов для генерации
             </label>
@@ -408,7 +406,7 @@ const AiShowcasePage: React.FC = () => {
             <button
               onClick={handleGenerateAiHooks}
               disabled={gen.isGenerating}
-              className="w-full py-3.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20 transition-all disabled:bg-gray-300"
+              className="w-full py-3.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold flex items-center justify-center gap-2 shadow-lg transition-all disabled:bg-gray-300"
             >
               {gen.isGenerating ? (
                 <>
@@ -447,7 +445,7 @@ const AiShowcasePage: React.FC = () => {
               onReset={gen.handleReset}
             />
           ) : (
-            <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold text-gray-900">Предпросмотр формата</h2>
                 <span className="text-xs text-teal-600 font-semibold bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
@@ -455,7 +453,7 @@ const AiShowcasePage: React.FC = () => {
                 </span>
               </div>
 
-              <div className="w-full max-w-xs mx-auto aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl">
+              <div className="w-full max-w-xs mx-auto aspect-[9/16] rounded-xl overflow-hidden shadow-2xl">
                 <VideoPlayer
                   src={gen.videoUrl || AI_SHOWCASE_DEMO_VIDEO_URL}
                   hookText={"POV: $10K website — Figma + Claude"}

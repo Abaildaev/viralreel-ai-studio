@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, hasValidCronSecret } from "../_shared/auth.ts";
+import { notifyUser } from "../_shared/telegram.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,37 +8,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-async function sendTelegramMessage(supabase: any, userId: string, message: string) {
-  try {
-    const { data: tgStatus } = await supabase
-      .from("telegram_settings")
-      .select("bot_token, chat_id, is_active")
-      .eq("user_id", userId)
-      .maybeSingle();
-
-    if (tgStatus && tgStatus.is_active && tgStatus.bot_token && tgStatus.chat_id) {
-      await fetch(`https://api.telegram.org/bot${tgStatus.bot_token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: tgStatus.chat_id,
-          text: message,
-          parse_mode: "HTML",
-        }),
-      });
-    }
-  } catch (err) {
-    console.error("Failed to send Telegram message", err);
-  }
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    if (!hasValidCronSecret(req)) {
+    if (!await hasValidCronSecret(req)) {
       return new Response(JSON.stringify({ error: "Cron authentication required" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -63,7 +40,7 @@ Deno.serve(async (req: Request) => {
     for (const acc of (expiringAccounts || [])) {
       const daysLeft = Math.ceil((new Date(acc.token_expires_at).getTime() - now.getTime()) / (1000 * 3600 * 24));
       
-      await sendTelegramMessage(
+      await notifyUser(
         supabase,
         acc.user_id,
         `⚠️ <b>Внимание! Истекает токен Instagram</b>\n\nАккаунт: @${acc.username}\nОсталось дней: <b>${daysLeft}</b>\n\nПожалуйста, переподключите аккаунт в приложении, иначе автопубликация скоро перестанет работать!`
@@ -79,7 +56,7 @@ Deno.serve(async (req: Request) => {
       .lte("token_expires_at", now.toISOString());
 
     for (const acc of (expiredAccounts || [])) {
-      await sendTelegramMessage(
+      await notifyUser(
         supabase,
         acc.user_id,
         `🔥 <b>Токен Instagram истёк!</b>\n\nАккаунт: @${acc.username} отключен.\nАвтопубликация не работает. Срочно переподключите аккаунт в приложении!`

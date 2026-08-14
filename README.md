@@ -73,12 +73,21 @@ npm run dev
 - Ключ DeepSeek вводится пользователем в разделе «Настройки» — он не хранится в репозитории.
 - Для публикации нужно подключить собственный Instagram Professional account и настроить приложение Meta.
 - До подключения Meta можно пользоваться генерацией, рендером, черновиками и планировщиком.
+- Для передачи проекта новому клиенту приложите к новой ИИ-сессии файл [`public/CLIENT_AI_SETUP_PROMPT_RU.md`](public/CLIENT_AI_SETUP_PROMPT_RU.md). Он требует создать отдельные клиентские Supabase и Meta App и не переносит секреты текущего владельца.
 
 ## Проверка проекта
 
 ```bash
 npm test
 npm test --prefix video-renderer
+```
+
+`npm test` — это проверка типов, сверка `supabase/full_schema.sql` с миграциями и сборка.
+
+`supabase/full_schema.sql` генерируется из `supabase/migrations/` и нужен только для ручного bootstrap через SQL Editor, когда недоступен CLI. Руками его не правят — после добавления миграции выполните:
+
+```bash
+npm run schema:build
 ```
 
 ## Лицензия

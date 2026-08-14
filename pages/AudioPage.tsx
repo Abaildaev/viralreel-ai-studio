@@ -187,10 +187,10 @@ const AudioPage: React.FC = () => {
   );
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Аудио библиотека</h1>
-        <p className="text-gray-500">
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Аудио библиотека</h1>
+        <p className="text-sm text-gray-500 mt-1">
           Загрузите аудио для добавления к видео
         </p>
       </div>
@@ -206,7 +206,7 @@ const AudioPage: React.FC = () => {
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors shadow-lg shadow-teal-600/20 disabled:shadow-none flex-shrink-0"
+          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors shadow-lg disabled:shadow-none flex-shrink-0"
         >
           {uploading ? (
             <>
@@ -244,13 +244,13 @@ const AudioPage: React.FC = () => {
           <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : audioFiles.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-2xl">
+        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
           <MusicalNoteIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-500 mb-2">Нет аудио файлов</h3>
           <p className="text-sm text-gray-400">Загрузите аудио для использования в видео</p>
         </div>
       ) : filteredAudioFiles.length === 0 ? (
-        <div className="text-center py-16 bg-gray-50 border border-gray-200 rounded-2xl">
+        <div className="text-center py-16 bg-gray-50 border border-gray-200 rounded-xl">
           <MagnifyingGlassIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <h3 className="text-base font-medium text-gray-500 mb-1">Ничего не найдено</h3>
           <p className="text-sm text-gray-400">Попробуйте другой запрос</p>
@@ -295,7 +295,7 @@ const AudioPage: React.FC = () => {
                     title="Нажмите для редактирования"
                   >
                     {audioFile.name}
-                    <PencilIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-teal-500 flex-shrink-0" />
+                    <PencilIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-teal-700 flex-shrink-0" />
                   </h3>
                 )}
                 <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">

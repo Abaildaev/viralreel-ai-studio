@@ -366,7 +366,7 @@ export default function BudgetReelsPage() {
       {renderGroup('green', 'ПОТРЕБНОСТИ', [
         { name: 'Аренда', percent: '35%', value: `${formatMoney((currentVal * 35) / 100)} ₽`, icon: Home, iconColor: 'text-green-700' },
         { name: 'Продукты', percent: '15%', value: `${formatMoney((currentVal * 15) / 100)} ₽`, icon: ShoppingCart, iconColor: 'text-gray-500' },
-        { name: 'Коммун услуги', percent: '5%', value: `${formatMoney((currentVal * 5) / 100)} ₽`, icon: Zap, iconColor: 'text-yellow-500' },
+        { name: 'Коммун услуги', percent: '5%', value: `${formatMoney((currentVal * 5) / 100)} ₽`, icon: Zap, iconColor: 'text-amber-500' },
         { name: 'Связь', percent: '3%', value: `${formatMoney((currentVal * 3) / 100)} ₽`, icon: Phone, iconColor: 'text-gray-600' },
         { name: 'Транспорт', percent: '5%', value: `${formatMoney((currentVal * 5) / 100)} ₽`, icon: Car, iconColor: 'text-red-600' },
         { name: 'Гигиена', percent: '3%', value: `${formatMoney((currentVal * 3) / 100)} ₽`, icon: Droplet, iconColor: 'text-blue-500' },
@@ -381,7 +381,7 @@ export default function BudgetReelsPage() {
       <div className="h-1"></div>
       {renderGroup('yellow', 'ИНВЕСТИЦИИ', [
         { name: 'Инвестиции', percent: '5%', value: `${formatMoney((currentVal * 5) / 100)} ₽`, icon: TrendingUp, iconColor: 'text-red-500' },
-        { name: 'Резервный фонд', percent: '5%', value: `${formatMoney((currentVal * 5) / 100)} ₽`, icon: Wallet, iconColor: 'text-orange-500' },
+        { name: 'Резервный фонд', percent: '5%', value: `${formatMoney((currentVal * 5) / 100)} ₽`, icon: Wallet, iconColor: 'text-amber-500' },
       ])}
       <div className="h-1"></div>
       {renderGroup('gray', 'ИТОГО', [
@@ -396,8 +396,8 @@ export default function BudgetReelsPage() {
     <div className="p-8 max-w-5xl mx-auto">
       {/* ЗАГОЛОВОК */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Бюджет Reels</h1>
-        <p className="text-gray-500">
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Бюджет Reels</h1>
+        <p className="text-sm text-gray-500 mt-1">
           Генерация видео с калькулятором бюджета. Формат 9:16.
         </p>
       </div>
@@ -452,7 +452,7 @@ export default function BudgetReelsPage() {
               className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium transition-all ${
                 disabled
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-white border border-gray-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm'
+                  : 'bg-white border border-gray-200 text-teal-600 hover:bg-teal-50 hover:border-teal-200 shadow-sm'
               }`}
             >
               <PlayCircle size={18} />
@@ -464,7 +464,7 @@ export default function BudgetReelsPage() {
               className={`flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-medium transition-all ${
                 disabled
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-600/20'
+                  : 'bg-teal-600 text-white hover:bg-teal-700 shadow-lg'
               }`}
             >
               <Download size={18} />
@@ -476,7 +476,7 @@ export default function BudgetReelsPage() {
         {/* === ПРАВАЯ КОЛОНКА: НАСТРОЙКИ ПАКЕТНОЙ ГЕНЕРАЦИИ === */}
         <div className="flex-1 space-y-6">
           {/* Блок настроек */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
               <BoltIcon className="w-5 h-5 text-teal-600" />
               Пакетная генерация
@@ -559,7 +559,7 @@ export default function BudgetReelsPage() {
               <button
                 onClick={startBatchGeneration}
                 disabled={disabled || !user}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-semibold transition-colors shadow-lg shadow-teal-600/20 disabled:shadow-none"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-semibold transition-colors shadow-lg disabled:shadow-none"
               >
                 <BoltIcon className="w-5 h-5" />
                 Сгенерировать {batchCount} видео
@@ -567,7 +567,7 @@ export default function BudgetReelsPage() {
             ) : (
               <button
                 onClick={stopBatch}
-                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-semibold transition-colors shadow-lg shadow-red-600/20"
+                className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-semibold transition-colors shadow-lg"
               >
                 <StopIcon className="w-5 h-5" />
                 Остановить
@@ -577,7 +577,7 @@ export default function BudgetReelsPage() {
 
           {/* Прогресс */}
           {batchProgress && (batchRunning || batchDone) && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-sm font-semibold text-gray-900">{batchProgress.step}</p>
@@ -589,7 +589,7 @@ export default function BudgetReelsPage() {
 
               <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-teal-500 to-cyan-500 h-full rounded-full transition-all duration-500"
+                  className="bg-teal-600 h-full rounded-full transition-all duration-500"
                   style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
                 />
               </div>

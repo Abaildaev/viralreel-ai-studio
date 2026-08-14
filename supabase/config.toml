@@ -36,3 +36,23 @@ verify_jwt = true
 [functions.auto-publish]
 enabled = true
 verify_jwt = false
+
+[functions.instagram-webhook]
+enabled = true
+verify_jwt = false
+
+[functions.subscribe-instagram-webhooks]
+enabled = true
+verify_jwt = true
+
+[functions.connect-instagram-account]
+enabled = true
+verify_jwt = true
+
+[functions.list-instagram-media]
+enabled = true
+verify_jwt = true
+
+[functions.meta-legal]
+enabled = true
+verify_jwt = false

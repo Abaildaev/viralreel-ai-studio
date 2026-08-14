@@ -71,7 +71,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
         <p className="text-sm text-gray-500">Создавайте вирусные хуки с помощью ИИ</p>
       </div>
 
-      <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 mb-5">
+      <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 mb-5">
         <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Фоновое видео</h3>
         {videoUrl ? (
           <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
@@ -120,7 +120,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
       </div>
 
       {videoUrl && (
-        <div className="bg-gray-50 rounded-2xl p-5 border border-gray-200 flex flex-col gap-4">
+        <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 flex flex-col gap-4">
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Стратегия контента</h3>
 
           <div className="flex bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
@@ -278,7 +278,7 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
             className={`w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all mt-2 ${
               isGenerating
                 ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-teal-600 hover:bg-teal-500 text-white shadow-lg shadow-teal-600/20'
+                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-lg'
             }`}
           >
             {isGenerating ? (

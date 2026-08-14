@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuthenticatedHeaders, supabase } from '../lib/supabase';
+import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { InstagramAccount } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
@@ -9,8 +9,6 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   UserCircleIcon,
-  EyeIcon,
-  EyeSlashIcon,
   ShieldCheckIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
@@ -31,7 +29,6 @@ const AccountsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showTokenId, setShowTokenId] = useState<string | null>(null);
   const [verifyingId, setVerifyingId] = useState<string | null>(null);
   const [verificationResults, setVerificationResults] = useState<Record<string, { valid: boolean; error?: string; info?: any }>>({});
 
@@ -52,7 +49,7 @@ const AccountsPage: React.FC = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('instagram_accounts')
-      .select('*')
+      .select(INSTAGRAM_ACCOUNT_COLUMNS)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
@@ -64,50 +61,17 @@ const AccountsPage: React.FC = () => {
   };
 
   const fetchAccountInfo = async (token: string): Promise<AccountPreview | null> => {
-    // Try Instagram token (IGAA...)
-    if (token.startsWith('IGAA')) {
-      const res = await fetch(
-        `https://graph.instagram.com/me?fields=id,username,name,profile_picture_url,followers_count,media_count&access_token=${token}`
-      );
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-      return {
-        ig_user_id: data.id,
-        username: data.username || data.name || data.id,
-        name: data.name || data.username || '',
-        profile_picture_url: data.profile_picture_url || '',
-        followers_count: data.followers_count,
-        media_count: data.media_count,
-      };
-    }
-
-    // Try Facebook token (EAA...) — get linked Instagram account
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v25.0/me/accounts?fields=id,name,instagram_business_account&access_token=${token}`
+    const response = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/connect-instagram-account`,
+      {
+        method: 'POST',
+        headers: await getAuthenticatedHeaders(),
+        body: JSON.stringify({ access_token: token, mode: 'inspect' }),
+      },
     );
-    const pagesData = await pagesRes.json();
-    if (pagesData.error) throw new Error(pagesData.error.message);
-
-    const pages = pagesData.data || [];
-    for (const page of pages) {
-      if (page.instagram_business_account) {
-        const igRes = await fetch(
-          `https://graph.facebook.com/v25.0/${page.instagram_business_account.id}?fields=id,username,name,profile_picture_url,followers_count,media_count&access_token=${token}`
-        );
-        const igData = await igRes.json();
-        if (igData.error) throw new Error(igData.error.message);
-        return {
-          ig_user_id: igData.id,
-          username: igData.username || igData.name || igData.id,
-          name: igData.name || igData.username || '',
-          profile_picture_url: igData.profile_picture_url || '',
-          followers_count: igData.followers_count,
-          media_count: igData.media_count,
-        };
-      }
-    }
-
-    throw new Error('Не найден привязанный Instagram аккаунт. Убедитесь что Facebook Page связана с Instagram Business/Creator аккаунтом.');
+    const data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || 'Не удалось проверить аккаунт');
+    return data.account_info as AccountPreview;
   };
 
   const handleCheckToken = async () => {
@@ -138,24 +102,22 @@ const AccountsPage: React.FC = () => {
     setConnectStep('Сохраняю аккаунт...');
 
     try {
-      const { error } = await supabase
-        .from('instagram_accounts')
-        .insert({
-          user_id: user.id,
-          account_name: accountPreview.name || `@${accountPreview.username}`,
-          username: accountPreview.username,
-          ig_user_id: accountPreview.ig_user_id,
-          access_token: accessToken.trim(),
-          profile_picture_url: accountPreview.profile_picture_url,
-        });
-
-      if (error) throw error;
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/connect-instagram-account`,
+        {
+          method: 'POST',
+          headers: await getAuthenticatedHeaders(),
+          body: JSON.stringify({ access_token: accessToken.trim(), mode: 'connect' }),
+        },
+      );
+      const result = await response.json();
+      if (!response.ok || result.error) throw new Error(result.error || 'Не удалось сохранить аккаунт');
 
       setAccessToken('');
       setShowAddForm(false);
       setConnectStep('');
       setAccountPreview(null);
-      loadAccounts();
+      await loadAccounts();
     } catch (err: any) {
       setConnectError(err.message || 'Ошибка сохранения');
       setConnectStep('');
@@ -191,26 +153,20 @@ const AccountsPage: React.FC = () => {
   const verifyToken = async (account: InstagramAccount) => {
     setVerifyingId(account.id);
     try {
+      // The token never reaches the browser: the function looks it up by
+      // account id and refreshes the stored avatar itself.
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-instagram-token`,
         {
           method: 'POST',
           headers: await getAuthenticatedHeaders(),
-          body: JSON.stringify({
-            ig_user_id: account.ig_user_id,
-            access_token: account.access_token,
-          }),
+          body: JSON.stringify({ account_id: account.id }),
         }
       );
 
       const result = await response.json();
 
-      // Update profile picture if available and different
       if (result.valid && result.account_info?.profile_picture_url) {
-        await supabase
-          .from('instagram_accounts')
-          .update({ profile_picture_url: result.account_info.profile_picture_url })
-          .eq('id', account.id);
         loadAccounts();
       }
 
@@ -237,10 +193,10 @@ const AccountsPage: React.FC = () => {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-8 max-w-5xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Instagram аккаунты</h1>
-        <p className="text-gray-500">
+        <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Instagram аккаунты</h1>
+        <p className="text-sm text-gray-500 mt-1">
           Подключите аккаунты для автоматической публикации Reels
         </p>
       </div>
@@ -248,7 +204,7 @@ const AccountsPage: React.FC = () => {
       <div className="mb-6">
         <button
           onClick={() => { setShowAddForm(!showAddForm); setAccountPreview(null); setConnectError(''); }}
-          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-500 text-white rounded-xl font-medium transition-colors shadow-lg shadow-teal-600/20"
+          className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-medium transition-colors shadow-lg"
         >
           <PlusIcon className="w-5 h-5" />
           Добавить аккаунт
@@ -256,7 +212,7 @@ const AccountsPage: React.FC = () => {
       </div>
 
       {showAddForm && (
-        <div className="mb-8 bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <div className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
           {!accountPreview ? (
             <>
               <h3 className="text-lg font-semibold text-gray-900 mb-1">Подключить Instagram</h3>
@@ -284,16 +240,16 @@ const AccountsPage: React.FC = () => {
               )}
 
               {connectStep && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-2">
-                  <ArrowPathIcon className="w-4 h-4 text-blue-500 animate-spin" />
-                  <p className="text-sm text-blue-700">{connectStep}</p>
+                <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-xl flex items-center gap-2">
+                  <ArrowPathIcon className="w-4 h-4 text-gray-500 animate-spin" />
+                  <p className="text-sm text-gray-600">{connectStep}</p>
                 </div>
               )}
 
               <div className="bg-gray-50 rounded-xl p-4 mb-6">
                 <p className="text-sm font-medium text-gray-700 mb-2">Как получить токен:</p>
                 <ol className="text-sm text-gray-500 space-y-1 list-decimal list-inside">
-                  <li>Зайдите в <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-500">Meta for Developers</a></li>
+                  <li>Зайдите в <a href="https://developers.facebook.com" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:text-teal-700">Meta for Developers</a></li>
                   <li>Создайте приложение → Instagram Graph API</li>
                   <li>Скопируйте Long-Lived Access Token</li>
                 </ol>
@@ -303,7 +259,7 @@ const AccountsPage: React.FC = () => {
                 <button
                   onClick={handleCheckToken}
                   disabled={saving || !accessToken.trim()}
-                  className="px-6 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
+                  className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white rounded-xl font-medium transition-colors flex items-center gap-2"
                 >
                   {saving ? (
                     <>
@@ -333,16 +289,16 @@ const AccountsPage: React.FC = () => {
                 <h3 className="text-lg font-semibold text-green-800">Аккаунт найден!</h3>
               </div>
 
-              <div className="bg-gradient-to-r from-gray-50 to-green-50 border border-green-200 rounded-xl p-5 mb-5">
+              <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-5">
                 <div className="flex items-center gap-4">
                   {accountPreview.profile_picture_url ? (
                     <img
                       src={accountPreview.profile_picture_url}
                       alt={accountPreview.username}
-                      className="w-20 h-20 rounded-2xl object-cover shadow-lg border-2 border-white"
+                      className="w-20 h-20 rounded-xl object-cover shadow-lg border-2 border-white"
                     />
                   ) : (
-                    <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 flex items-center justify-center text-white font-bold text-3xl shadow-lg">
+                    <div className="w-20 h-20 rounded-xl bg-gray-400 flex items-center justify-center text-white font-bold text-3xl shadow-lg">
                       {accountPreview.username.charAt(0).toUpperCase()}
                     </div>
                   )}
@@ -376,7 +332,7 @@ const AccountsPage: React.FC = () => {
                 <button
                   onClick={handleConfirmConnect}
                   disabled={saving}
-                  className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-300 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-600/20"
+                  className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-300 text-white rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-lg"
                 >
                   {saving ? (
                     <>
@@ -407,7 +363,7 @@ const AccountsPage: React.FC = () => {
           <div className="w-8 h-8 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : accounts.length === 0 ? (
-        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-2xl">
+        <div className="text-center py-20 bg-gray-50 border border-gray-200 rounded-xl">
           <UserCircleIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-500 mb-2">Нет подключенных аккаунтов</h3>
           <p className="text-sm text-gray-400">Добавьте Instagram аккаунт для начала публикации</p>
@@ -417,7 +373,7 @@ const AccountsPage: React.FC = () => {
           {accounts.map((account) => (
             <div
               key={account.id}
-              className={`bg-white border rounded-2xl p-5 transition-all shadow-sm ${
+              className={`bg-white border rounded-xl p-5 transition-all shadow-sm ${
                 account.is_active ? 'border-gray-200' : 'border-gray-200 opacity-60'
               }`}
             >
@@ -436,7 +392,7 @@ const AccountsPage: React.FC = () => {
                   />
                 ) : null}
                 <div
-                  className="avatar-fallback w-14 h-14 rounded-xl bg-gradient-to-br from-pink-500 via-red-500 to-yellow-500 items-center justify-center text-white font-bold text-xl shadow-lg"
+                  className="avatar-fallback w-14 h-14 rounded-xl bg-gray-400 items-center justify-center text-white font-bold text-xl shadow-lg"
                   style={{ display: account.profile_picture_url ? 'none' : 'flex' }}
                 >
                   {account.username.charAt(0).toUpperCase()}
@@ -458,30 +414,11 @@ const AccountsPage: React.FC = () => {
                   <p className="text-sm text-gray-500">@{account.username}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
                     <span>ID: {account.ig_user_id}</span>
-                    <button
-                      onClick={() => setShowTokenId(showTokenId === account.id ? null : account.id)}
-                      className="flex items-center gap-1 hover:text-gray-600 transition-colors"
-                    >
-                      {showTokenId === account.id ? (
-                        <>
-                          <EyeSlashIcon className="w-3.5 h-3.5" />
-                          Скрыть токен
-                        </>
-                      ) : (
-                        <>
-                          <EyeIcon className="w-3.5 h-3.5" />
-                          Показать токен
-                        </>
-                      )}
-                    </button>
+                    <span className="flex items-center gap-1">
+                      <ShieldCheckIcon className="w-3.5 h-3.5" />
+                      Токен хранится на сервере
+                    </span>
                   </div>
-                  {showTokenId === account.id && (
-                    <div className="mt-2 p-2 bg-gray-50 rounded-lg">
-                      <code className="text-xs text-gray-500 break-all">
-                        {account.access_token.slice(0, 50)}...
-                      </code>
-                    </div>
-                  )}
                   {verificationResults[account.id] && (
                     <div className={`mt-2 p-3 rounded-lg border ${
                       verificationResults[account.id].valid
@@ -513,11 +450,11 @@ const AccountsPage: React.FC = () => {
                   <button
                     onClick={() => verifyToken(account)}
                     disabled={verifyingId === account.id}
-                    className="p-2.5 rounded-xl bg-blue-100 text-blue-600 hover:bg-blue-200 disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+                    className="p-2.5 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
                     title="Проверить токен"
                   >
                     {verifyingId === account.id ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="w-5 h-5 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <ShieldCheckIcon className="w-5 h-5" />
                     )}

@@ -1,0 +1,14 @@
+{
+  "name": "meta-graph-mcp",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --check index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.24.2"
+  }
+}

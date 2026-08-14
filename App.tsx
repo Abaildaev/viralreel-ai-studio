@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar';
 import { useAuth } from './contexts/AuthContext';
 
 const AccountsPage = lazy(() => import('./pages/AccountsPage'));
+const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AudioPage = lazy(() => import('./pages/AudioPage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
@@ -19,7 +20,7 @@ const MainApp: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>('generator');
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex">
+    <div className="min-h-screen bg-canvas text-gray-900 flex">
       <Sidebar
         currentView={currentView}
         onViewChange={setCurrentView}
@@ -30,6 +31,7 @@ const MainApp: React.FC = () => {
       <main className="flex-1 min-h-screen overflow-y-auto">
         <Suspense fallback={<div className="p-8 text-gray-500">Загрузка раздела…</div>}>
           {currentView === 'accounts' && <AccountsPage />}
+          {currentView === 'automations' && <AutomationsPage />}
           {currentView === 'settings' && <SettingsPage />}
           {currentView === 'scheduler' && <InstagramScheduler />}
           {currentView === 'audio' && <AudioPage />}

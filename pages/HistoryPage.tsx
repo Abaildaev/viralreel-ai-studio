@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getAuthenticatedHeaders, supabase } from '../lib/supabase';
+import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { ScheduledPost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
+import { useSignedUrls } from '../hooks/useSignedUrl';
 import {
   ArrowPathIcon,
   TrashIcon,
@@ -41,7 +42,7 @@ const HistoryPage: React.FC = () => {
     setIsLoading(true);
     let query = supabase
       .from('scheduled_posts')
-      .select('*, instagram_accounts(*)')
+      .select(`*, instagram_accounts(${INSTAGRAM_ACCOUNT_COLUMNS})`)
       .eq('user_id', user.id);
     if (selectedAccount) {
       query = query.eq('instagram_account_id', selectedAccount.id);
@@ -77,8 +78,8 @@ const HistoryPage: React.FC = () => {
       alert('Выберите аккаунт в боковом меню');
       return;
     }
-    if (!selectedAccount.access_token || !selectedAccount.ig_user_id) {
-      alert('Проверьте настройки аккаунта: необходим Access Token и Instagram User ID.');
+    if (!selectedAccount.ig_user_id) {
+      alert('Проверьте настройки аккаунта: не найден Instagram User ID.');
       return;
     }
     setRetryingPostId(post.id);
@@ -205,11 +206,10 @@ const HistoryPage: React.FC = () => {
 
   const filteredPosts = filter === 'all' ? posts : posts.filter(p => p.status === filter);
 
-  const getVideoUrl = (path: string | null) => {
-    if (!path) return '';
-    const { data } = supabase.storage.from('reels').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  // The reels bucket is private — previews need short-lived signed URLs.
+  const videoUrls = useSignedUrls('reels', posts.map(post => post.video_path));
+
+  const getVideoUrl = (path: string | null) => (path ? videoUrls[path] : undefined);
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
@@ -251,14 +251,14 @@ const HistoryPage: React.FC = () => {
     <div className="p-8 max-w-5xl mx-auto">
       <div className="flex items-start justify-between mb-8">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-teal-500/20">
+          <div className="w-14 h-14 rounded-xl bg-teal-600 flex items-center justify-center shadow-lg">
             <VideoCameraIcon className="w-7 h-7 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
               История публикаций
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-sm text-gray-500 mt-1">
               Все автоматические публикации с их статусами
             </p>
           </div>
@@ -348,7 +348,7 @@ const HistoryPage: React.FC = () => {
       )}
 
       {!isLoading && filteredPosts.length === 0 && (
-        <div className="text-center py-16 bg-white border border-gray-200 rounded-2xl">
+        <div className="text-center py-16 bg-white border border-gray-200 rounded-xl">
           <VideoCameraIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-500 mb-2">
             {filter === 'all' ? 'Нет публикаций' : 'Нет постов с таким статусом'}
@@ -369,7 +369,7 @@ const HistoryPage: React.FC = () => {
             return (
               <div
                 key={post.id}
-                className={`bg-white border rounded-2xl overflow-hidden transition-all hover:shadow-md ${
+                className={`bg-white border rounded-xl overflow-hidden transition-all hover:shadow-md ${
                   post.status === 'failed' ? 'border-red-200' : 'border-gray-200'
                 }`}
               >
@@ -426,7 +426,7 @@ const HistoryPage: React.FC = () => {
                         <button
                           onClick={() => handleRetry(post)}
                           disabled={retryingPostId === post.id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 rounded-lg transition-colors"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 rounded-lg transition-colors"
                         >
                           {retryingPostId === post.id ? (
                             <ArrowPathIcon className="w-3.5 h-3.5 animate-spin" />
@@ -476,7 +476,7 @@ const HistoryPage: React.FC = () => {
           onClick={() => setPreviewPost(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col"
+            className="bg-white rounded-xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10">
@@ -529,7 +529,7 @@ const HistoryPage: React.FC = () => {
           onClick={() => setShowMoveModal(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-md"
+            className="bg-white rounded-xl shadow-2xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-5 border-b border-gray-100">
@@ -582,7 +582,7 @@ const HistoryPage: React.FC = () => {
                       className="accent-teal-500"
                     />
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-pink-500 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center flex-shrink-0">
                         <span className="text-white text-xs font-bold">
                           {(account.account_name || account.username).charAt(0).toUpperCase()}
                         </span>
@@ -611,7 +611,7 @@ const HistoryPage: React.FC = () => {
                 <button
                   onClick={handleMoveAllPosts}
                   disabled={isMoving || !moveTargetAccountId}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-teal-600 hover:bg-teal-500 disabled:bg-gray-300 text-white transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-teal-600 hover:bg-teal-700 disabled:bg-gray-300 text-white transition-colors"
                 >
                   {isMoving ? (
                     <ArrowPathIcon className="w-4 h-4 animate-spin" />

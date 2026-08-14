@@ -13,7 +13,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    if (!hasValidCronSecret(req)) {
+    if (!await hasValidCronSecret(req)) {
       return new Response(JSON.stringify({ error: "Cron authentication required" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

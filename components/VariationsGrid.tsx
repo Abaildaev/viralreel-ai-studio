@@ -37,7 +37,7 @@ const VariationsGrid: React.FC<VariationsGridProps> = ({
     <div className="flex-1 p-6 lg:p-10 overflow-y-auto bg-gray-50">
       {appState === AppState.UPLOAD && !videoUrl && (
         <div className="h-full flex flex-col items-center justify-center text-center min-h-[60vh]">
-          <div className="w-20 h-20 rounded-2xl bg-gray-200 flex items-center justify-center mb-4">
+          <div className="w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center mb-4">
             <CloudArrowUpIcon className="w-10 h-10 text-gray-400" />
           </div>
           <h2 className="text-xl font-bold text-gray-400 mb-2">Начните с видео</h2>
@@ -47,7 +47,7 @@ const VariationsGrid: React.FC<VariationsGridProps> = ({
 
       {appState === AppState.CONFIG && videoUrl && variations.length === 0 && (
         <div className="h-full flex flex-col items-center justify-center text-center min-h-[60vh]">
-          <div className="w-20 h-20 rounded-2xl bg-gray-200 flex items-center justify-center mb-4 animate-pulse">
+          <div className="w-20 h-20 rounded-xl bg-gray-200 flex items-center justify-center mb-4 animate-pulse">
             <DocumentTextIcon className="w-10 h-10 text-gray-400" />
           </div>
           <h2 className="text-xl font-bold text-gray-400 mb-2">Настройте стратегию</h2>

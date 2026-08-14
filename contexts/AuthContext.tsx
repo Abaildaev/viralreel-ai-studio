@@ -17,7 +17,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_DEMO_KEY = 'viralreel_demo_user';
-const DEMO_MODE = import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
+const DEMO_MODE = import.meta.env.VITE_ENABLE_DEMO_MODE === 'true';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -119,12 +119,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
 
     try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
         if (session?.user) {
           setSession(session);
           setUser(session.user);
           fetchProfile(session.user.id);
+          return;
         }
+
+        // Fired on subscribe as well; initAuth above owns the initial state.
+        if (event === 'INITIAL_SESSION') return;
+
+        // The demo user is local-only, so it has no Supabase session to lose.
+        if (DEMO_MODE && localStorage.getItem(LOCAL_STORAGE_DEMO_KEY)) return;
+
+        // Signed out here or in another tab, or the refresh token expired —
+        // without this the app stays "logged in" while every request fails.
+        setSession(null);
+        setUser(null);
+        setProfile(null);
       });
       return () => subscription.unsubscribe();
     } catch {
@@ -176,13 +189,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!user) return { error: new Error('Not authenticated') };
+
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', user.id);
-    } catch {
-      /* ignore offline updates */
+      if (error) throw error;
+    } catch (err) {
+      // Report the failure instead of showing a saved state the database
+      // never accepted.
+      return { error: err instanceof Error ? err : new Error(String(err)) };
     }
 
     setProfile(prev => (prev ? { ...prev, ...updates } : null));

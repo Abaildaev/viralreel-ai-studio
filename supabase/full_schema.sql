@@ -1,4 +1,19 @@
 /*
+  GENERATED FILE — DO NOT EDIT BY HAND.
+
+  Every migration in supabase/migrations/, concatenated in timestamp order, for
+  bootstrapping a fresh database from the Supabase SQL editor. Prefer
+  `npx supabase db push`; use this file only when the CLI is unavailable.
+
+  After adding a migration run:  npm run schema:build
+  `npm test` fails while this file is out of date.
+*/
+
+-- ------------------------------------------------------------------------
+-- 20260206104009_create_scheduled_posts_table.sql
+-- ------------------------------------------------------------------------
+
+/*
   # Scheduled Posts for Instagram Auto-Publishing
 
   1. New Tables
@@ -45,6 +60,11 @@ CREATE POLICY "Allow all operations for demo"
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_scheduled 
   ON scheduled_posts (status, scheduled_at) 
   WHERE status = 'pending';
+
+-- ------------------------------------------------------------------------
+-- 20260206104647_add_user_profiles_and_update_posts.sql
+-- ------------------------------------------------------------------------
+
 /*
   # User Profiles and Updated Scheduled Posts
 
@@ -155,12 +175,17 @@ BEGIN
   VALUES (NEW.id, NEW.email);
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- ------------------------------------------------------------------------
+-- 20260206110150_create_instagram_accounts_table.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Instagram Accounts Management
 
@@ -232,7 +257,13 @@ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_instagram_accounts_user_id ON instagram_accounts(user_id);
-CREATE INDEX IF NOT EXISTS idx_scheduled_posts_instagram_account_id ON scheduled_posts(instagram_account_id);/*
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_instagram_account_id ON scheduled_posts(instagram_account_id);
+
+-- ------------------------------------------------------------------------
+-- 20260206112001_create_audio_files_table.sql
+-- ------------------------------------------------------------------------
+
+/*
   # Создание таблицы audio_files
 
   1. Новые таблицы
@@ -279,6 +310,11 @@ CREATE POLICY "Users can delete own audio files"
   FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------
+-- 20260206113012_create_telegram_settings_table.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Create Telegram Settings Table
 
@@ -334,6 +370,11 @@ CREATE POLICY "Users can delete own telegram settings"
   FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------
+-- 20260207084330_create_lead_magnets_table.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Create lead_magnets table
 
@@ -386,6 +427,11 @@ CREATE POLICY "Users can delete own lead magnets"
   ON lead_magnets FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------
+-- 20260207090517_create_video_templates_table.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Create video_templates table
 
@@ -442,6 +488,11 @@ CREATE POLICY "Users can delete own templates"
   ON video_templates FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------
+-- 20260207090534_create_batch_presets_table.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Create batch_presets table
 
@@ -509,6 +560,11 @@ CREATE POLICY "Users can delete own presets"
   ON batch_presets FOR DELETE
   TO authenticated
   USING (auth.uid() = user_id);
+
+-- ------------------------------------------------------------------------
+-- 20260207090737_create_templates_storage_bucket.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Create templates storage bucket
 
@@ -547,6 +603,11 @@ CREATE POLICY "Users can delete own template files"
     bucket_id = 'templates'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- ------------------------------------------------------------------------
+-- 20260207092111_add_account_id_to_video_templates.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add instagram_account_id to video_templates
 
@@ -571,6 +632,11 @@ BEGIN
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_video_templates_account_id ON video_templates(instagram_account_id);
+
+-- ------------------------------------------------------------------------
+-- 20260207100547_add_publish_window_to_profiles.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add Publishing Time Window to Profiles
 
@@ -615,6 +681,11 @@ BEGIN
     ALTER TABLE profiles ADD COLUMN publish_end_hour integer DEFAULT 22;
   END IF;
 END $$;
+
+-- ------------------------------------------------------------------------
+-- 20260207102518_add_updated_at_to_scheduled_posts.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add updated_at column to scheduled_posts
 
@@ -649,6 +720,11 @@ DROP TRIGGER IF EXISTS set_scheduled_posts_updated_at ON scheduled_posts;
 CREATE TRIGGER set_scheduled_posts_updated_at
   BEFORE UPDATE ON scheduled_posts
   FOR EACH ROW EXECUTE FUNCTION update_scheduled_posts_updated_at();
+
+-- ------------------------------------------------------------------------
+-- 20260207102608_schedule_auto_publish_cron.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Schedule auto-publish cron job
 
@@ -689,6 +765,11 @@ SELECT cron.schedule(
   ) AS request_id;
   $$
 );
+
+-- ------------------------------------------------------------------------
+-- 20260207103032_add_draft_status_and_nullable_scheduled_at.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add draft status and make scheduled_at nullable
 
@@ -709,6 +790,11 @@ ALTER TABLE scheduled_posts ADD CONSTRAINT scheduled_posts_status_check
   CHECK (status IN ('draft', 'pending', 'publishing', 'published', 'failed'));
 
 ALTER TABLE scheduled_posts ALTER COLUMN scheduled_at DROP NOT NULL;
+
+-- ------------------------------------------------------------------------
+-- 20260212161648_update_cron_to_every_minute.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Update auto-publish cron to every minute
 
@@ -739,6 +825,11 @@ SELECT cron.schedule(
   ) AS request_id;
   $$
 );
+
+-- ------------------------------------------------------------------------
+-- 20260219104304_add_gemini_api_key_to_profiles.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add gemini_api_key to profiles table
 
@@ -760,6 +851,11 @@ BEGIN
     ALTER TABLE profiles ADD COLUMN gemini_api_key text DEFAULT '' NOT NULL;
   END IF;
 END $$;
+
+-- ------------------------------------------------------------------------
+-- 20260219113440_add_account_id_to_lead_magnets.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add instagram_account_id to lead_magnets
 
@@ -786,6 +882,11 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS lead_magnets_user_account_idx
   ON lead_magnets (user_id, instagram_account_id);
+
+-- ------------------------------------------------------------------------
+-- 20260220104313_add_sort_order_to_scheduled_posts.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add sort_order column to scheduled_posts
 
@@ -814,7 +915,13 @@ FROM (
   SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id, instagram_account_id ORDER BY created_at DESC) AS rn
   FROM scheduled_posts
 ) sub
-WHERE scheduled_posts.id = sub.id AND scheduled_posts.sort_order = 0;/*
+WHERE scheduled_posts.id = sub.id AND scheduled_posts.sort_order = 0;
+
+-- ------------------------------------------------------------------------
+-- 20260405172200_create_audio_storage_bucket.sql
+-- ------------------------------------------------------------------------
+
+/*
   # Create audio storage bucket
 
   1. Storage
@@ -852,6 +959,11 @@ CREATE POLICY "Users can delete own audio files"
     bucket_id = 'audio'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- ------------------------------------------------------------------------
+-- 20260405174600_add_token_expires_to_instagram.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Add token expiration monitoring
 
@@ -865,6 +977,11 @@ ALTER TABLE instagram_accounts ADD COLUMN IF NOT EXISTS token_expires_at timesta
 UPDATE instagram_accounts 
 SET token_expires_at = created_at + interval '60 days' 
 WHERE token_expires_at IS NULL;
+
+-- ------------------------------------------------------------------------
+-- 20260405175000_schedule_check_tokens_cron.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Schedule check-tokens cron job
 
@@ -883,6 +1000,11 @@ SELECT cron.schedule(
     )
   $$
 );
+
+-- ------------------------------------------------------------------------
+-- 20260405175500_schedule_cleanup_storage_cron.sql
+-- ------------------------------------------------------------------------
+
 /*
   # Schedule cleanup-storage cron job
 
@@ -901,9 +1023,17 @@ SELECT cron.schedule(
     )
   $$
 );
+
+-- ------------------------------------------------------------------------
+-- 20260807100000_harden_storage_and_profiles.sql
+-- ------------------------------------------------------------------------
+
 /*
-  Production hardening applied by the latest migration. Keep this block here
-  because full_schema.sql is also used for fresh database bootstraps.
+  Production hardening:
+  - add the key column used by the frontend;
+  - create the reels bucket used by all generation flows;
+  - allow cleanup to null the stored path while retaining history rows;
+  - scope Storage writes and deletes to the user's folder.
 */
 
 ALTER TABLE profiles
@@ -952,3 +1082,231 @@ CREATE POLICY "Users can delete own reels"
     bucket_id = 'reels'
     AND auth.uid()::text = (storage.foldername(name))[1]
   );
+
+-- ------------------------------------------------------------------------
+-- 20260813153000_add_instagram_keyword_automations.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Instagram keyword automations:
+  - extend lead magnets with an automated reply and trigger settings;
+  - record webhook processing for idempotency and diagnostics;
+  - track account-level webhook subscription status.
+*/
+
+ALTER TABLE lead_magnets
+  ADD COLUMN IF NOT EXISTS reply_text text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS response_url text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS match_mode text NOT NULL DEFAULT 'contains',
+  ADD COLUMN IF NOT EXISTS trigger_dm boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS trigger_comments boolean NOT NULL DEFAULT true;
+
+ALTER TABLE lead_magnets
+  DROP CONSTRAINT IF EXISTS lead_magnets_match_mode_check;
+
+ALTER TABLE lead_magnets
+  ADD CONSTRAINT lead_magnets_match_mode_check
+  CHECK (match_mode IN ('exact', 'contains'));
+
+ALTER TABLE instagram_accounts
+  ADD COLUMN IF NOT EXISTS webhook_subscribed_at timestamptz,
+  ADD COLUMN IF NOT EXISTS webhook_error text;
+
+CREATE TABLE IF NOT EXISTS instagram_automation_events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  instagram_account_id uuid NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  lead_magnet_id uuid REFERENCES lead_magnets(id) ON DELETE SET NULL,
+  meta_event_id text NOT NULL,
+  trigger_type text NOT NULL CHECK (trigger_type IN ('dm', 'comment')),
+  sender_igsid text,
+  incoming_text text NOT NULL DEFAULT '',
+  status text NOT NULL DEFAULT 'received'
+    CHECK (status IN ('received', 'ignored', 'sent', 'failed')),
+  response_message_id text,
+  error_message text,
+  raw_event jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  processed_at timestamptz,
+  UNIQUE (instagram_account_id, meta_event_id)
+);
+
+CREATE INDEX IF NOT EXISTS instagram_automation_events_account_created_idx
+  ON instagram_automation_events (instagram_account_id, created_at DESC);
+
+ALTER TABLE instagram_automation_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view own instagram automation events"
+  ON instagram_automation_events;
+
+CREATE POLICY "Users can view own instagram automation events"
+  ON instagram_automation_events FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM instagram_accounts account
+      WHERE account.id = instagram_automation_events.instagram_account_id
+        AND account.user_id = auth.uid()
+    )
+  );
+
+-- ------------------------------------------------------------------------
+-- 20260813161000_unique_instagram_accounts.sql
+-- ------------------------------------------------------------------------
+
+/* Prevent duplicate connections of the same Instagram account per app user. */
+
+CREATE UNIQUE INDEX IF NOT EXISTS instagram_accounts_user_ig_unique_idx
+  ON instagram_accounts (user_id, ig_user_id);
+
+-- ------------------------------------------------------------------------
+-- 20260813170000_expand_comment_to_dm_automations.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Turn keyword rules into complete Instagram comment-to-DM scenarios.
+*/
+
+ALTER TABLE lead_magnets
+  ADD COLUMN IF NOT EXISTS keywords text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS public_reply_enabled boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS public_reply_variants text[] NOT NULL DEFAULT ARRAY['Отправил в Direct 🙌']::text[],
+  ADD COLUMN IF NOT EXISTS media_scope text NOT NULL DEFAULT 'all',
+  ADD COLUMN IF NOT EXISTS media_ids text[] NOT NULL DEFAULT '{}'::text[],
+  ADD COLUMN IF NOT EXISTS repeat_delay_hours integer NOT NULL DEFAULT 24;
+
+UPDATE lead_magnets
+SET keywords = ARRAY[codeword]
+WHERE cardinality(keywords) = 0 AND codeword <> '';
+
+ALTER TABLE lead_magnets
+  DROP CONSTRAINT IF EXISTS lead_magnets_media_scope_check,
+  DROP CONSTRAINT IF EXISTS lead_magnets_repeat_delay_check;
+
+ALTER TABLE lead_magnets
+  ADD CONSTRAINT lead_magnets_media_scope_check
+    CHECK (media_scope IN ('all', 'selected')),
+  ADD CONSTRAINT lead_magnets_repeat_delay_check
+    CHECK (repeat_delay_hours BETWEEN 0 AND 8760);
+
+ALTER TABLE instagram_automation_events
+  ADD COLUMN IF NOT EXISTS media_id text,
+  ADD COLUMN IF NOT EXISTS commenter_username text,
+  ADD COLUMN IF NOT EXISTS public_reply_status text NOT NULL DEFAULT 'skipped',
+  ADD COLUMN IF NOT EXISTS public_reply_id text,
+  ADD COLUMN IF NOT EXISTS dm_status text NOT NULL DEFAULT 'pending';
+
+ALTER TABLE instagram_automation_events
+  DROP CONSTRAINT IF EXISTS instagram_automation_events_public_reply_status_check,
+  DROP CONSTRAINT IF EXISTS instagram_automation_events_dm_status_check;
+
+ALTER TABLE instagram_automation_events
+  ADD CONSTRAINT instagram_automation_events_public_reply_status_check
+    CHECK (public_reply_status IN ('pending', 'sent', 'skipped', 'failed')),
+  ADD CONSTRAINT instagram_automation_events_dm_status_check
+    CHECK (dm_status IN ('pending', 'sent', 'skipped', 'failed'));
+
+CREATE INDEX IF NOT EXISTS instagram_automation_events_sender_rule_created_idx
+  ON instagram_automation_events (sender_igsid, lead_magnet_id, created_at DESC);
+
+-- ------------------------------------------------------------------------
+-- 20260813173000_add_automation_button.sql
+-- ------------------------------------------------------------------------
+
+ALTER TABLE lead_magnets
+  ADD COLUMN IF NOT EXISTS button_text text NOT NULL DEFAULT 'Получить материал';
+
+-- ------------------------------------------------------------------------
+-- 20260814120000_private_reels_bucket.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Close public read access to the reels bucket.
+
+  Previously the bucket was public and `storage.objects` allowed SELECT to the
+  `public` role for every object in it, so anyone holding the anon key (it ships
+  in the frontend bundle) could list and download every user's videos, including
+  unpublished drafts.
+
+  The bucket is now private:
+  - the frontend signs short-lived URLs for its own folder only;
+  - Edge Functions sign a URL with the service role right before handing it to
+    Instagram or Telegram.
+*/
+
+UPDATE storage.buckets SET public = false WHERE id = 'reels';
+
+DROP POLICY IF EXISTS "Anyone can read reels" ON storage.objects;
+
+DROP POLICY IF EXISTS "Users can read own reels" ON storage.objects;
+CREATE POLICY "Users can read own reels"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'reels'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- ------------------------------------------------------------------------
+-- 20260814120500_restrict_instagram_token_access.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Keep the Instagram access token on the server.
+
+  RLS scoped `instagram_accounts` rows to their owner, but every column was
+  readable — including `access_token`, a long-lived credential that can publish
+  to the account. Any XSS, malicious extension, or shoulder-surf on the accounts
+  page leaked it.
+
+  Column-level grants now hide the token from `anon` and `authenticated`.
+  Edge Functions use the service role, which is unaffected by these grants, so
+  publishing, verification and webhooks keep working.
+
+  Note: `SELECT *` on this table now fails for the frontend by design — clients
+  must list the columns they need.
+*/
+
+REVOKE ALL PRIVILEGES ON TABLE instagram_accounts FROM anon, authenticated;
+
+GRANT SELECT (
+  id,
+  user_id,
+  account_name,
+  username,
+  ig_user_id,
+  profile_picture_url,
+  is_active,
+  token_expires_at,
+  webhook_subscribed_at,
+  webhook_error,
+  created_at,
+  updated_at
+) ON TABLE instagram_accounts TO authenticated;
+
+GRANT UPDATE (account_name, is_active, updated_at)
+  ON TABLE instagram_accounts TO authenticated;
+
+GRANT DELETE ON TABLE instagram_accounts TO authenticated;
+
+-- Accounts are created exclusively by the connect-instagram-account function,
+-- which holds the token and runs with the service role.
+DROP POLICY IF EXISTS "Users can create own instagram accounts" ON instagram_accounts;
+
+-- ------------------------------------------------------------------------
+-- 20260814121000_drop_deepseek_api_key.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Remove the plaintext DeepSeek key from the database.
+
+  The BYOK model documented in the README means the key belongs to the user and
+  never has to reach our storage: the frontend calls api.deepseek.com directly
+  with the key held in localStorage. Mirroring it into `profiles` only created a
+  second plaintext copy to protect.
+
+  DESTRUCTIVE: any key currently stored in this column is deleted. Users whose
+  browser localStorage no longer holds the key must re-enter it in «Настройки».
+*/
+
+ALTER TABLE profiles DROP COLUMN IF EXISTS deepseek_api_key;

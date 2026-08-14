@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, getAuthenticatedUser } from "../_shared/auth.ts";
+import { createSignedVideoUrl } from "../_shared/storage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,11 +208,7 @@ Deno.serve(async (req: Request) => {
         .update({ status: "publishing" })
         .eq("id", post.id);
 
-      const { data: urlData } = supabase.storage
-        .from("reels")
-        .getPublicUrl(post.video_path);
-
-      const videoUrl = urlData.publicUrl;
+      const videoUrl = await createSignedVideoUrl(supabase, post.video_path);
 
       const videoCaption = post.hook_text || undefined;
 
