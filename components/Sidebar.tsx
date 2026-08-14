@@ -33,6 +33,7 @@ import {
   Cog6ToothIcon as Cog6ToothSolid,
 } from '@heroicons/react/24/solid';
 import { Button, cn, Logo } from './ui';
+import AccountSwitcher from './AccountSwitcher';
 
 interface NavItem {
   id: AppView;
@@ -176,7 +177,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           />
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
+        {/* Everything below is scoped to this account, so the switcher sits
+            above the navigation rather than buried on the accounts page. */}
+        <div className="pt-3">
+          <AccountSwitcher collapsed={collapsed} onNavigate={handleNavigate} />
+        </div>
+
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 pb-3">
           {NAV_ITEMS.map((item) => {
             const isActive = currentView === item.id;
             return (

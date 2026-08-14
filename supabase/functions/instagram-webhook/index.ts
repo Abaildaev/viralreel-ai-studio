@@ -12,6 +12,12 @@ import {
   TriggerType,
   truncateUtf8,
 } from "../_shared/keyword-match.ts";
+import {
+  decideAgentReply,
+  SALES_AGENT_COLUMNS,
+  SalesAgentRow,
+  TranscriptMessage,
+} from "../_shared/sales-agent.ts";
 
 const GRAPH_API_BASE_URL = "https://graph.instagram.com/v26.0";
 
@@ -163,6 +169,113 @@ async function sendPublicCommentReply(
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+interface AccountRow {
+  id: string;
+  user_id: string;
+  ig_user_id: string;
+  access_token: string;
+}
+
+/**
+ * Runs the AI sales agent for one incoming Direct message.
+ *
+ * Returns true when it owned the outcome (replied, or deliberately stayed
+ * silent and recorded why), false when no agent is configured and the caller
+ * should fall through to its normal "ignored" path.
+ */
+async function runSalesAgent(
+  supabase: ReturnType<typeof createAdminClient>,
+  account: AccountRow,
+  event: IncomingEvent,
+  finish: (patch: Record<string, unknown>) => unknown,
+): Promise<boolean> {
+  // An account-specific agent wins over the user's account-agnostic fallback.
+  const { data: agents } = await supabase
+    .from("ai_sales_agents")
+    .select(SALES_AGENT_COLUMNS)
+    .eq("user_id", account.user_id)
+    .eq("is_enabled", true)
+    .or(`instagram_account_id.eq.${account.id},instagram_account_id.is.null`);
+
+  const agent = (agents ?? []).sort((left, right) =>
+    Number(Boolean(right.instagram_account_id)) - Number(Boolean(left.instagram_account_id))
+  )[0] as SalesAgentRow | undefined;
+
+  if (!agent) return false;
+
+  const senderIgsid = event.senderIgsid!;
+
+  // Oldest-first, so the model reads the conversation in order.
+  const { data: history } = await supabase
+    .from("ai_sales_messages")
+    .select("role,content,handed_off")
+    .eq("instagram_account_id", account.id)
+    .eq("sender_igsid", senderIgsid)
+    .order("created_at", { ascending: true })
+    .limit(20);
+
+  const transcript: TranscriptMessage[] = (history ?? []).map((row) => ({
+    role: row.role as "user" | "agent",
+    content: row.content as string,
+  }));
+  const alreadyHandedOff = (history ?? []).some((row) => row.handed_off);
+
+  const decision = await decideAgentReply(agent, transcript, event.text, alreadyHandedOff);
+
+  // The incoming message is recorded either way — a thread the agent declined
+  // to answer is exactly the one a human needs to see.
+  await supabase.from("ai_sales_messages").insert({
+    instagram_account_id: account.id,
+    sender_igsid: senderIgsid,
+    role: "user",
+    content: event.text,
+    detected_intent: decision.intent,
+  });
+
+  if (!decision.reply) {
+    await finish({
+      status: "ignored",
+      public_reply_status: "skipped",
+      dm_status: "skipped",
+      error_message: decision.skippedReason ?? null,
+    });
+    return true;
+  }
+
+  let messageId: string;
+  try {
+    messageId = await sendInstagramReply(account.ig_user_id, account.access_token, event, {
+      text: decision.reply,
+    });
+  } catch (error) {
+    await finish({
+      status: "failed",
+      public_reply_status: "skipped",
+      dm_status: "failed",
+      error_message: describeInstagramError(error),
+    });
+    return true;
+  }
+
+  await supabase.from("ai_sales_messages").insert({
+    instagram_account_id: account.id,
+    sender_igsid: senderIgsid,
+    role: "agent",
+    content: decision.reply,
+    detected_intent: decision.intent,
+    handed_off: decision.handOff,
+  });
+
+  await finish({
+    status: "sent",
+    public_reply_status: "skipped",
+    dm_status: "sent",
+    response_message_id: messageId,
+    error_message: decision.handOff ? "Диалог передан человеку" : null,
+  });
+  return true;
+}
+
 async function processEvent(event: IncomingEvent): Promise<void> {
   const supabase = createAdminClient();
   const { data: account, error: accountError } = await supabase
@@ -229,6 +342,20 @@ async function processEvent(event: IncomingEvent): Promise<void> {
   });
 
   if (!match) {
+    /*
+      No keyword rule matched. Before giving up, the AI sales agent gets a turn —
+      this is the branch that makes it a real feature rather than a simulator.
+
+      Direct messages only. A comment is answered through the private-reply
+      endpoint, which Instagram permits exactly once per comment; spending that
+      one allowance on an open-ended chat reply would burn it for the lead
+      magnet that the person may be about to ask for.
+    */
+    if (event.triggerType === "dm" && event.senderIgsid) {
+      const handled = await runSalesAgent(supabase, account, event, finish);
+      if (handled) return;
+    }
+
     await finish({ status: "ignored", public_reply_status: "skipped", dm_status: "skipped" });
     return;
   }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { INSTAGRAM_ACCOUNT_COLUMNS, supabase } from '../lib/supabase';
 import { LeadMagnet, LeadMagnetStats, InstagramAccount } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../contexts/ModalContext';
@@ -10,7 +10,13 @@ import AiSalesAgentSimulator from '../components/AiSalesAgentSimulator';
 import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
-import { Button, PageHeader, PageShell } from '../components/ui';
+import { Button, Callout, PageHeader, PageShell } from '../components/ui';
+import {
+  DEFAULT_SALES_AGENT_CONFIG,
+  loadSalesAgentConfig,
+  saveSalesAgentConfig,
+} from '../services/aiSalesAgentService';
+import { AiSalesAgentConfig } from '../types';
 
 import {
   BoltIcon,
@@ -50,7 +56,7 @@ const blankForm: AutomationForm = {
 
 export default function AutomationsPage() {
   const { user } = useAuth();
-  const { confirm, alert } = useConfirm();
+  const { confirm, alert, toast } = useConfirm();
 
   const [activeTab, setActiveTab] = useState<Tab>('rules');
   const [rules, setRules] = useState<LeadMagnet[]>([]);
@@ -66,6 +72,32 @@ export default function AutomationsPage() {
 
   // Sales Agent showcase view mode
   const [salesAgentView, setSalesAgentView] = useState<'showcase' | 'editor'>('showcase');
+  const [agentConfig, setAgentConfig] = useState<AiSalesAgentConfig>(DEFAULT_SALES_AGENT_CONFIG);
+  const [savingAgent, setSavingAgent] = useState(false);
+
+  // The agent config now lives in the database, because the Edge Function that
+  // answers real Direct messages reads the same row.
+  useEffect(() => {
+    if (!user) return;
+    loadSalesAgentConfig(accounts[0]?.id ?? null).then(setAgentConfig);
+  }, [user, accounts]);
+
+  const handleSaveAgent = async () => {
+    if (!user) return;
+    setSavingAgent(true);
+    const { error } = await saveSalesAgentConfig(agentConfig, user.id);
+    setSavingAgent(false);
+
+    if (error) {
+      toast({ message: `Не удалось сохранить агента: ${error.message}`, tone: 'error' });
+      return;
+    }
+    toast(
+      agentConfig.isEnabled
+        ? 'Агент сохранён и включён — он начнёт отвечать в Direct'
+        : 'Агент сохранён. Он выключен и в Direct не отвечает.',
+    );
+  };
 
   useEffect(() => {
     if (user) {
@@ -79,16 +111,40 @@ export default function AutomationsPage() {
       const [rRes, sRes, eRes, aRes] = await Promise.all([
         supabase.from('lead_magnets').select('*').order('created_at', { ascending: false }),
         supabase.from('lead_magnet_stats').select('*'),
-        supabase.from('lead_magnet_events').select('*').order('created_at', { ascending: false }).limit(50),
-        supabase.from('instagram_accounts').select('*').order('created_at', { ascending: false }),
+        /*
+          The table is `instagram_automation_events`; `lead_magnet_events` has
+          never existed, so the live feed and the analytics tab were always fed
+          an empty list.
+        */
+        supabase
+          .from('instagram_automation_events')
+          .select('*, lead_magnets(title, codeword, response_url), instagram_accounts(username)')
+          .order('created_at', { ascending: false })
+          .limit(50),
+        /*
+          `select('*')` fails here by design — the hardening migration revoked
+          column access so the browser can never read `access_token`, which
+          means a wildcard select is rejected outright and the account list came
+          back empty.
+        */
+        supabase
+          .from('instagram_accounts')
+          .select(INSTAGRAM_ACCOUNT_COLUMNS)
+          .order('created_at', { ascending: false }),
       ]);
+
+      // Supabase reports failures in the result rather than throwing, so a
+      // bare `if (data)` hid every one of the errors above.
+      const failure = rRes.error || sRes.error || eRes.error || aRes.error;
+      if (failure) throw new Error(failure.message);
 
       if (rRes.data) setRules(rRes.data);
       if (sRes.data) setStats(sRes.data);
-      if (eRes.data) setEvents(eRes.data);
+      if (eRes.data) setEvents(eRes.data as unknown as LiveAutomationEvent[]);
       if (aRes.data) setAccounts(aRes.data);
     } catch (err: any) {
       console.error('Error loading automations:', err);
+      toast({ message: `Не удалось загрузить автоматизации: ${err.message}`, tone: 'error' });
     } finally {
       setLoading(false);
     }
@@ -401,11 +457,34 @@ export default function AutomationsPage() {
               </div>
 
               <div className="grid lg:grid-cols-12 gap-6 items-start">
-                <div className="lg:col-span-7">
-                  <AiSalesAgentConfigView />
+                <div className="lg:col-span-7 space-y-4">
+                  <Callout tone={agentConfig.isEnabled ? 'success' : 'info'}>
+                    {agentConfig.isEnabled
+                      ? 'Агент включён: он отвечает в Direct на сообщения, которые не подошли ни под один сценарий.'
+                      : 'Агент выключен. Пока он выключен, эта вкладка — песочница: реальным людям ничего не отправляется.'}
+                  </Callout>
+
+                  <AiSalesAgentConfigView config={agentConfig} onChange={setAgentConfig} />
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      variant="primary"
+                      onClick={handleSaveAgent}
+                      loading={savingAgent}
+                    >
+                      Сохранить агента
+                    </Button>
+                    <Button
+                      onClick={() =>
+                        setAgentConfig((c) => ({ ...c, isEnabled: !c.isEnabled }))
+                      }
+                    >
+                      {agentConfig.isEnabled ? 'Выключить в Direct' : 'Включить в Direct'}
+                    </Button>
+                  </div>
                 </div>
                 <div className="lg:col-span-5 sticky top-6">
-                  <AiSalesAgentSimulator />
+                  <AiSalesAgentSimulator config={agentConfig} />
                 </div>
               </div>
             </div>
@@ -414,12 +493,14 @@ export default function AutomationsPage() {
       )}
 
       {/* Tab 3: CRM & Analytics */}
-      {activeTab === 'analytics' && <AutomationAnalyticsDashboard />}
+      {activeTab === 'analytics' && (
+        <AutomationAnalyticsDashboard events={events} rules={rules} stats={stats} />
+      )}
 
       {/* Tab 4: Live Feed */}
       {activeTab === 'live' && (
         <div className="max-w-4xl mx-auto">
-          <AutomationLiveFeed events={events} />
+          <AutomationLiveFeed initialEvents={events} onRefresh={loadAll} />
         </div>
       )}
 

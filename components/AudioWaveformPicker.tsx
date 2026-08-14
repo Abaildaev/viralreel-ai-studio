@@ -196,7 +196,9 @@ export const AudioWaveformPicker: React.FC<AudioWaveformPickerProps> = ({
     }
   };
 
-  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Bound to the wrapper div, not the canvas, and it measures the wrapper —
+  // the element type in the signature was simply wrong.
+  const handleCanvasClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current || totalDuration <= 0) return;
     const rect = containerRef.current.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
