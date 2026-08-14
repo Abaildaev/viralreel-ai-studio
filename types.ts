@@ -68,6 +68,9 @@ export interface ViralVariation {
   textRotation?: number;
   uniquifierEnabled?: boolean;
   uniquifierIntensity?: 'low' | 'medium' | 'high';
+  trimStart?: number;
+  trimEnd?: number;
+  audioStartOffset?: number;
 }
 
 export interface GeneratedContentResponse {
@@ -193,3 +196,46 @@ export interface LeadMagnetInfo {
   description: string;
   codeword: string;
 }
+
+export interface ProductItem {
+  id: string;
+  name: string;
+  price: string;
+  description: string;
+  features: string[];
+  link?: string;
+}
+
+export interface ObjectionScript {
+  id: string;
+  objection: string; // e.g. "Дорого", "Нет времени", "Подумаю"
+  suggestedAnswer: string;
+}
+
+export type SalesAgentGoal = 'consultation' | 'direct_sale' | 'collect_contact' | 'lead_qualification';
+export type SalesAgentTone = 'friendly_expert' | 'energetic_mentor' | 'concise_consultant' | 'premium_concierge';
+
+export interface AiSalesAgentConfig {
+  id: string;
+  instagram_account_id?: string | null;
+  agentName: string;
+  tone: SalesAgentTone;
+  goal: SalesAgentGoal;
+  customInstructions: string;
+  businessDescription: string;
+  products: ProductItem[];
+  objections: ObjectionScript[];
+  targetActionPrompt: string; // e.g. "Предложи записаться на бесплатный разбор в Telegram: @my_telegram"
+  handoffKeywords: string[]; // e.g. "человек", "менеджер", "оператор", "позови человека"
+  maxConsecutiveReplies: number;
+  isEnabled: boolean;
+}
+
+export interface AiSalesMessage {
+  id: string;
+  role: 'user' | 'agent' | 'system';
+  content: string;
+  timestamp: string;
+  detectedIntent?: 'question' | 'objection' | 'ready_to_buy' | 'handoff_request' | 'greeting';
+}
+

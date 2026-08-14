@@ -10,7 +10,7 @@ import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline';
-import { supabase } from '../lib/supabase';
+import { supabase, getSignedUrl } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import { AudioFile } from '../types';
@@ -105,8 +105,7 @@ const BUDGET_CAPTIONS = [
   "Один простой инструмент = полный контроль над финансами.\nПиши ТАБЛИЦА в комменты — отправлю бесплатно 📊✨",
 ];
 
-const formatMoney = (amount: number) => {
-  if (!isFinite(amount) || isNaN(amount)) return "0";
+const formatMoney = (amount: number): string => {
   return Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 };
 
@@ -114,9 +113,8 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function getAudioUrl(path: string): string {
-  const { data } = supabase.storage.from('audio').getPublicUrl(path);
-  return data.publicUrl;
+async function getAudioUrl(path: string): Promise<string> {
+  return getSignedUrl('audio', path);
 }
 
 // --- КОМПОНЕНТ ---
@@ -144,18 +142,10 @@ export default function BudgetReelsPage() {
 
   // === Загрузка аудио при монтировании ===
   useEffect(() => {
-    if (user) loadAudioFiles();
-  }, [user]);
-
-  const loadAudioFiles = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from('audio_files')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-    if (data) setAudioFiles(data);
-  };
+    supabase.from('audio_files').select('*').order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setAudioFiles(data); });
+  }, [user]);
 
   // === Превью ===
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,15 +185,15 @@ export default function BudgetReelsPage() {
     setIsRendering(true);
 
     try {
-      const title = pickRandom(BUDGET_TITLES);
       const sequence = generateBudgetSequence();
+      const title = budgetTitle;
       const node = document.getElementById('reels-container');
       if (!node) { setIsRendering(false); return; }
 
       let audioUrl: string | null = null;
       if (audioMode === 'random' && audioFiles.length > 0) {
         const randomAudio = audioFiles[Math.floor(Math.random() * audioFiles.length)];
-        audioUrl = getAudioUrl(randomAudio.file_path);
+        audioUrl = await getAudioUrl(randomAudio.file_path);
       }
 
       const blob = await renderBudgetReelsVideo({
@@ -249,20 +239,17 @@ export default function BudgetReelsPage() {
       setBatchProgress({ current: i, total: batchCount, step: `Рендерю видео ${i + 1} из ${batchCount}...` });
 
       try {
-        // Рандомный уникальный заголовок
         let title: string;
         if (usedTitles.size >= BUDGET_TITLES.length) usedTitles.clear();
         do { title = pickRandom(BUDGET_TITLES); } while (usedTitles.has(title));
         usedTitles.add(title);
 
-        // Рандомная числовая последовательность
         const sequence = generateBudgetSequence();
 
-        // Рандомный аудиотрек
         let audioUrl: string | null = null;
         if (audioMode === 'random' && audioFiles.length > 0) {
           const randomAudio = audioFiles[Math.floor(Math.random() * audioFiles.length)];
-          audioUrl = getAudioUrl(randomAudio.file_path);
+          audioUrl = await getAudioUrl(randomAudio.file_path);
         }
 
         const node = document.getElementById('reels-container');

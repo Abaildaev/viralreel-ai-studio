@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { supabase, getSignedUrl } from '../lib/supabase';
 import { assertMp4Video, renderVideoWithOverlay } from '../utils/videoRenderer';
 import { generateViralHooks } from './geminiService';
 import {
@@ -40,14 +40,12 @@ const DEFAULT_TEXT_STYLE: TextStylePreset = {
   aiModel: 'none',
 };
 
-function getTemplateUrl(path: string): string {
-  const { data } = supabase.storage.from('templates').getPublicUrl(path);
-  return data.publicUrl;
+async function getTemplateUrl(path: string): Promise<string> {
+  return getSignedUrl('templates', path);
 }
 
-function getAudioUrl(path: string): string {
-  const { data } = supabase.storage.from('audio').getPublicUrl(path);
-  return data.publicUrl;
+async function getAudioUrl(path: string): Promise<string> {
+  return getSignedUrl('audio', path);
 }
 
 async function fetchAsFile(url: string, name: string): Promise<File> {
@@ -164,15 +162,15 @@ export async function runBatchGeneration(
 
       try {
         const template = pickRandom(accountTemplates);
-        const templateUrl = getTemplateUrl(template.file_path);
+        const templateUrl = await getTemplateUrl(template.file_path);
         const videoFile = await fetchAsFile(templateUrl, 'template.mp4');
 
         let audioUrl: string | null = null;
         if (preset.audio_mode === 'random' && audioFiles.length > 0) {
-          audioUrl = getAudioUrl(pickRandom(audioFiles).file_path);
+          audioUrl = await getAudioUrl(pickRandom(audioFiles).file_path);
         } else if (preset.audio_mode === 'specific' && preset.audio_file_id) {
           const af = audioFiles.find(a => a.id === preset.audio_file_id);
-          if (af) audioUrl = getAudioUrl(af.file_path);
+          if (af) audioUrl = await getAudioUrl(af.file_path);
         }
 
         const variation: ViralVariation = {

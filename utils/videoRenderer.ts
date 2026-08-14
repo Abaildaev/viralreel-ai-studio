@@ -8,6 +8,7 @@ import {
   stripMediaMetadata,
   UniquifierParams,
 } from './uniquifier';
+import { ensureRenderFontsLoaded } from './renderFonts';
 
 const CANVAS_WIDTH = 720;
 const CANVAS_HEIGHT = 1280;
@@ -19,6 +20,9 @@ export const renderVideoWithOverlay = async (
   variation: ViralVariation,
   audioUrl: string | null = null
 ): Promise<Blob> => {
+  // The user-selectable families are no longer in the document head, so they
+  // have to be requested before `fonts.ready` can mean anything for them.
+  await ensureRenderFontsLoaded();
   await Promise.all([document.fonts.ready, preloadShowcaseImages(variation)]);
 
   // AudioEncoder is optional: MP4 rendering must still work when the browser
@@ -169,11 +173,23 @@ async function renderMP4(
     ? await applyAudioUniquification(decodedAudio, uniquifier)
     : null;
   const audioDuration = audioBuffer ? audioBuffer.duration : 0;
-  const videoDuration = Math.min(video.duration, MAX_DURATION_S);
-  // Use the SHORTER of video and audio
+  
+  // Calculate trimmed video bounds
+  const rawVideoDuration = video.duration || 10;
+  const trimStart = Math.max(0, variation.trimStart || 0);
+  const trimEnd = variation.trimEnd && variation.trimEnd > trimStart
+    ? Math.min(rawVideoDuration, variation.trimEnd)
+    : Math.min(rawVideoDuration, MAX_DURATION_S);
+  const trimmedVideoDuration = Math.max(0.5, trimEnd - trimStart);
+
+  // Audio start offset
+  const audioStartOffset = Math.max(0, variation.audioStartOffset || 0);
+  const remainingAudioDuration = Math.max(0, audioDuration - audioStartOffset);
+
+  // Use the SHORTER of trimmed video and remaining audio
   const duration = audioUrl && audioDuration > 0
-    ? Math.min(videoDuration, audioDuration, MAX_DURATION_S)
-    : videoDuration;
+    ? Math.min(trimmedVideoDuration, remainingAudioDuration, MAX_DURATION_S)
+    : Math.min(trimmedVideoDuration, MAX_DURATION_S);
   const totalFrames = Math.ceil(duration * TARGET_FPS);
 
   const audioChannels = audioBuffer ? Math.min(audioBuffer.numberOfChannels, 2) : 0;
@@ -227,13 +243,14 @@ async function renderMP4(
   }
 
   for (let i = 0; i < totalFrames; i++) {
-    const time = i / TARGET_FPS;
-    await seekTo(video, time);
+    const relativeTime = i / TARGET_FPS;
+    const seekTime = trimStart + relativeTime;
+    await seekTo(video, seekTime);
 
     drawFrame(ctx, video, variation, CANVAS_WIDTH, CANVAS_HEIGHT, uniquifier);
 
     const frame = new VideoFrame(canvas, {
-      timestamp: Math.round(time * 1_000_000),
+      timestamp: Math.round(relativeTime * 1_000_000),
     });
     videoEncoder.encode(frame, { keyFrame: i % 60 === 0 });
     frame.close();
@@ -246,7 +263,8 @@ async function renderMP4(
   if (audioBuffer && audioEncoder && audioSupported) {
     const channels = audioChannels;
     const sampleRate = audioRate;
-    const maxSamples = Math.min(audioBuffer.length, Math.ceil(duration * sampleRate));
+    const audioSampleStart = Math.floor(audioStartOffset * sampleRate);
+    const maxSamples = Math.min(audioBuffer.length - audioSampleStart, Math.ceil(duration * sampleRate));
     const CHUNK = 1024;
 
     for (let offset = 0; offset < maxSamples; offset += CHUNK) {
@@ -255,7 +273,7 @@ async function renderMP4(
 
       for (let ch = 0; ch < channels; ch++) {
         const src = audioBuffer.getChannelData(ch);
-        data.set(src.subarray(offset, offset + count), ch * count);
+        data.set(src.subarray(audioSampleStart + offset, audioSampleStart + offset + count), ch * count);
       }
 
       const audioData = new AudioData({

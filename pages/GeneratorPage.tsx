@@ -59,9 +59,9 @@ const GeneratorPage: React.FC = () => {
       {gen.showAudioModal && (
         <AudioModal
           audioFiles={gen.audioFiles}
-          onSelectAudio={(audioId) => {
+          onSelectAudio={(audioId, audioStartOffset) => {
             const variation = gen.variations.find(v => v.id === gen.showAudioModal);
-            if (variation) gen.saveToScheduler(variation, audioId);
+            if (variation) gen.saveToScheduler(variation, audioId, audioStartOffset);
           }}
           onClose={() => gen.setShowAudioModal(null)}
         />

@@ -9,6 +9,7 @@ import {
   type UniquifierIntensity,
   type UniquifierParams,
 } from './uniquifier';
+import { ensureRenderFontsLoaded } from './renderFonts';
 
 // === Типы ===
 
@@ -111,6 +112,10 @@ export async function renderBudgetReelsVideo(options: BudgetRenderOptions): Prom
     onProgress,
   } = options;
   const uniquifier = generateUniquifierParams(uniquifierIntensity, uniquifierEnabled);
+
+  // The user-selectable families load on demand, so the DOM snapshot below
+  // would otherwise be rasterised with a fallback face.
+  await ensureRenderFontsLoaded();
 
   // Устанавливаем заголовок
   setBudgetTitle(title);

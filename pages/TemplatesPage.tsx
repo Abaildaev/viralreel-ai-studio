@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getSignedUrl } from '../lib/supabase';
 import { VideoTemplate } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
+import { useConfirm } from '../contexts/ModalContext';
+import { useSignedUrls } from '../hooks/useSignedUrl';
 import {
   FilmIcon,
   PlusIcon,
@@ -23,6 +25,7 @@ function sanitizeFileName(name: string): string {
 const TemplatesPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccount } = useAccount();
+  const { confirm, alert } = useConfirm();
   const [templates, setTemplates] = useState<VideoTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -32,6 +35,8 @@ const TemplatesPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const templateUrls = useSignedUrls('templates', templates.map(t => t.file_path));
 
   useEffect(() => {
     if (user) loadTemplates();
@@ -73,7 +78,11 @@ const TemplatesPage: React.FC = () => {
     if (!files || files.length === 0 || !user) return;
 
     if (!selectedAccount) {
-      alert('Сначала выберите аккаунт в боковом меню');
+      await alert({
+        title: 'Внимание',
+        message: 'Сначала выберите аккаунт в боковом меню',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -110,7 +119,11 @@ const TemplatesPage: React.FC = () => {
 
         if (insertError) throw insertError;
       } catch (error: any) {
-        alert(`${file.name}: ${error.message}`);
+        await alert({
+          title: 'Ошибка загрузки файла',
+          message: `${file.name}: ${error.message}`,
+          variant: 'error',
+        });
       }
     }
 
@@ -121,13 +134,25 @@ const TemplatesPage: React.FC = () => {
   };
 
   const handleDelete = async (template: VideoTemplate) => {
-    if (!confirm(`${template.name}?`)) return;
+    const ok = await confirm({
+      title: 'Удалить видео-шаблон?',
+      message: `Вы действительно хотите удалить «${template.name}»?`,
+      confirmText: 'Удалить',
+      variant: 'danger',
+      icon: 'trash',
+    });
+    if (!ok) return;
+
     try {
       await supabase.storage.from('templates').remove([template.file_path]);
       await supabase.from('video_templates').delete().eq('id', template.id);
       await loadTemplates();
     } catch (error: any) {
-      alert(error.message);
+      await alert({
+        title: 'Ошибка удаления',
+        message: error.message,
+        variant: 'error',
+      });
     }
   };
 
@@ -151,10 +176,7 @@ const TemplatesPage: React.FC = () => {
     );
   };
 
-  const getVideoUrl = (path: string) => {
-    const { data } = supabase.storage.from('templates').getPublicUrl(path);
-    return data.publicUrl;
-  };
+  const getVideoUrl = (path: string) => templateUrls[path] || '';
 
   const savingRef = useRef(false);
 
@@ -172,7 +194,11 @@ const TemplatesPage: React.FC = () => {
     const { error } = await supabase.from('video_templates').update({ name: trimmed }).eq('id', id);
     if (error) {
       console.error('Rename error:', error);
-      alert(`Ошибка переименования: ${error.message}`);
+      await alert({
+        title: 'Ошибка переименования',
+        message: error.message,
+        variant: 'error',
+      });
     } else {
       setTemplates(prev => prev.map(t => t.id === id ? { ...t, name: trimmed } : t));
     }

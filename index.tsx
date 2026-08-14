@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './styles/index.css';
 import MainApp from './App';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { AccountProvider } from './contexts/AccountContext';
 import { BatchGenerationProvider } from './contexts/BatchGenerationContext';
+import { ModalProvider } from './contexts/ModalContext';
 import AuthPage from './pages/AuthPage';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
 
@@ -40,7 +42,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <AuthProvider>
-      <AppWithAuth />
+      <ModalProvider>
+        <AppWithAuth />
+      </ModalProvider>
     </AuthProvider>
   </React.StrictMode>
 );

@@ -4,11 +4,13 @@ import { ViralVariation, AppState, AudioFile, VideoTemplate, CtaType, LeadMagnet
 import { assertMp4Video, renderVideoWithOverlay } from '../utils/videoRenderer';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
-import { supabase } from '../lib/supabase';
+import { useConfirm } from '../contexts/ModalContext';
+import { supabase, getSignedUrl } from '../lib/supabase';
 
 export function useGenerator() {
   const { user } = useAuth();
   const { selectedAccount } = useAccount();
+  const { alert } = useConfirm();
 
   const [appState, setAppState] = useState<AppState>(AppState.UPLOAD);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -119,9 +121,8 @@ export function useGenerator() {
     if (!tmpl) return;
     setSelectedTemplateId(templateId);
 
-    // Get public URL from storage
-    const { data } = supabase.storage.from('templates').getPublicUrl(tmpl.file_path);
-    const url = data.publicUrl;
+    // Get signed URL from storage
+    const url = await getSignedUrl('templates', tmpl.file_path);
     setVideoUrl(url);
 
     // Fetch blob and create File object for rendering
@@ -250,21 +251,28 @@ export function useGenerator() {
       setAppState(AppState.PREVIEW);
     } catch (e: any) {
       console.error(e);
-      alert(`Ошибка генерации: ${e.message || 'Неизвестная ошибка. Проверьте консоль (F12).'}`);
+      await alert({
+        title: 'Ошибка генерации',
+        message: e.message || 'Неизвестная ошибка генерации. Проверьте консоль или API-ключ.',
+        variant: 'error',
+      });
     } finally {
       setIsGenerating(false);
       setProgressMsg('');
     }
   };
 
-  const getAudioUrl = (path: string) => {
-    const { data } = supabase.storage.from('audio').getPublicUrl(path);
-    return data.publicUrl;
+  const getAudioUrl = async (path: string): Promise<string> => {
+    return getSignedUrl('audio', path);
   };
 
-  const saveToScheduler = async (variation: ViralVariation, audioId: string | null) => {
+  const saveToScheduler = async (variation: ViralVariation, audioId: string | null, audioStartOffset: number = 0) => {
     if (!user || !videoFile) {
-      alert('Ошибка: Загрузите видео перед сохранением.');
+      await alert({
+        title: 'Внимание',
+        message: 'Загрузите видео перед сохранением.',
+        variant: 'warning',
+      });
       return;
     }
 
@@ -273,11 +281,15 @@ export function useGenerator() {
 
     try {
       const selectedAudio = audioId ? audioFiles.find(a => a.id === audioId) : null;
-      const audioUrl = selectedAudio ? getAudioUrl(selectedAudio.file_path) : null;
+      const audioUrl = selectedAudio ? await getAudioUrl(selectedAudio.file_path) : null;
 
       let renderedBlob: Blob;
       try {
-        renderedBlob = await renderVideoWithOverlay(videoFile, variation, audioUrl);
+        const variationWithAudioOffset: ViralVariation = {
+          ...variation,
+          audioStartOffset,
+        };
+        renderedBlob = await renderVideoWithOverlay(videoFile, variationWithAudioOffset, audioUrl);
       } catch (renderErr: any) {
         throw new Error(`Ошибка рендеринга видео: ${renderErr.message}. Попробуйте другой формат видео или уменьшите длительность.`);
       }
@@ -321,7 +333,11 @@ export function useGenerator() {
       ));
     } catch (error: any) {
       console.error('Save error:', error);
-      alert(`Не удалось сохранить видео:\n\n${error.message}`);
+      await alert({
+        title: 'Ошибка сохранения',
+        message: `Не удалось сохранить видео:\n\n${error.message}`,
+        variant: 'error',
+      });
     } finally {
       setSavingId(null);
     }

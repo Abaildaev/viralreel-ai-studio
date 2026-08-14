@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ViralVariation } from '../types';
 import { fontOptions, fontSizeOptions, fontWeightOptions, bgOptions } from '../constants';
 import VideoPlayer from './VideoPlayer';
+import VideoTrimmer from './VideoTrimmer';
 import {
   CheckCircleIcon,
   ArrowPathIcon,
@@ -15,14 +16,15 @@ import {
   VideoCameraIcon,
   BookmarkIcon,
   TrashIcon,
+  ScissorsIcon,
 } from '@heroicons/react/24/outline';
 
 interface VariationCardProps {
   variation: ViralVariation;
   videoUrl: string;
   audioSrc?: string;
-  activeEditorTab: 'text' | 'video';
-  setActiveEditorTab: (tab: 'text' | 'video') => void;
+  activeEditorTab?: 'text' | 'video' | 'trim';
+  setActiveEditorTab?: (tab: any) => void;
   savingId: string | null;
   onUpdateStyle: (id: string, field: keyof ViralVariation, value: any) => void;
   onUpdatePosition: (id: string, x: number, y: number) => void;
@@ -42,6 +44,13 @@ const VariationCard: React.FC<VariationCardProps> = ({
   onRemove,
   onSave,
 }) => {
+  const [tab, setTab] = useState<'text' | 'video' | 'trim'>(activeEditorTab || 'text');
+  const currentTab = activeEditorTab !== undefined ? activeEditorTab : tab;
+  const switchTab = (t: 'text' | 'video' | 'trim') => {
+    setTab(t);
+    if (setActiveEditorTab) setActiveEditorTab(t);
+  };
+
   return (
     <div
       className={`bg-white border rounded-xl overflow-hidden transition-all duration-300 flex flex-col shadow-sm
@@ -89,11 +98,11 @@ const VariationCard: React.FC<VariationCardProps> = ({
 
       {variation.status !== 'sent' && (
         <div className="p-3 bg-gray-50 border-b border-gray-200 space-y-3">
-          <div className="flex rounded-xl bg-gray-200/60 p-1">
+          <div className="flex rounded-xl bg-gray-200/60 p-1 gap-1">
             <button
-              onClick={() => setActiveEditorTab('text')}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                activeEditorTab === 'text'
+              onClick={() => switchTab('text')}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+                currentTab === 'text'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
@@ -102,9 +111,9 @@ const VariationCard: React.FC<VariationCardProps> = ({
               Текст
             </button>
             <button
-              onClick={() => setActiveEditorTab('video')}
-              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
-                activeEditorTab === 'video'
+              onClick={() => switchTab('video')}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+                currentTab === 'video'
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
@@ -112,9 +121,20 @@ const VariationCard: React.FC<VariationCardProps> = ({
               <VideoCameraIcon className="w-3.5 h-3.5" />
               Видео
             </button>
+            <button
+              onClick={() => switchTab('trim')}
+              className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1 ${
+                currentTab === 'trim'
+                  ? 'bg-white text-teal-700 shadow-sm font-bold'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <ScissorsIcon className="w-3.5 h-3.5" />
+              Обрезка
+            </button>
           </div>
 
-          {activeEditorTab === 'text' && (
+          {currentTab === 'text' && (
             <div className="space-y-2.5">
               <textarea
                 value={variation.hookText}
@@ -360,7 +380,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
             </div>
           )}
 
-          {activeEditorTab === 'video' && (
+          {currentTab === 'video' && (
             <div className="space-y-3">
               <div>
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
@@ -418,6 +438,21 @@ const VariationCard: React.FC<VariationCardProps> = ({
               >
                 Сбросить
               </button>
+            </div>
+          )}
+
+          {currentTab === 'trim' && (
+            <div className="space-y-2">
+              <VideoTrimmer
+                videoFile={null}
+                videoUrl={videoUrl}
+                trimStart={variation.trimStart || 0}
+                trimEnd={variation.trimEnd || 10}
+                onChange={(start, end) => {
+                  onUpdateStyle(variation.id, 'trimStart', start);
+                  onUpdateStyle(variation.id, 'trimEnd', end);
+                }}
+              />
             </div>
           )}
         </div>

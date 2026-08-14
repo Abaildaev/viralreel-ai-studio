@@ -4,6 +4,7 @@ import { ScheduledPost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useSignedUrls } from '../hooks/useSignedUrl';
+import { useConfirm } from '../contexts/ModalContext';
 import {
   ArrowPathIcon,
   TrashIcon,
@@ -26,6 +27,7 @@ type StatusFilter = 'all' | 'published' | 'publishing' | 'pending' | 'failed' | 
 const HistoryPage: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccount, accounts } = useAccount();
+  const { confirm, alert } = useConfirm();
   const [posts, setPosts] = useState<ScheduledPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<StatusFilter>('all');
@@ -60,7 +62,15 @@ const HistoryPage: React.FC = () => {
     if (!user) return;
     const count = posts.filter(p => p.status === 'published' || p.status === 'failed').length;
     if (count === 0) return;
-    if (!confirm(`Удалить ${count} опубликованных и ошибочных постов из истории?`)) return;
+    const ok = await confirm({
+      title: 'Очистить историю?',
+      message: `Удалить ${count} опубликованных и ошибочных постов из истории?`,
+      confirmText: 'Очистить',
+      variant: 'danger',
+      icon: 'trash',
+    });
+    if (!ok) return;
+
     setIsClearing(true);
     const toDelete = posts.filter(p => p.status === 'published' || p.status === 'failed');
     for (const post of toDelete) {
@@ -75,11 +85,19 @@ const HistoryPage: React.FC = () => {
 
   const handleRetry = async (post: ScheduledPost) => {
     if (!selectedAccount) {
-      alert('Выберите аккаунт в боковом меню');
+      await alert({
+        title: 'Внимание',
+        message: 'Выберите аккаунт в боковом меню',
+        variant: 'warning',
+      });
       return;
     }
     if (!selectedAccount.ig_user_id) {
-      alert('Проверьте настройки аккаунта: не найден Instagram User ID.');
+      await alert({
+        title: 'Ошибка аккаунта',
+        message: 'Проверьте настройки аккаунта: не найден Instagram User ID.',
+        variant: 'error',
+      });
       return;
     }
     setRetryingPostId(post.id);
@@ -101,25 +119,45 @@ const HistoryPage: React.FC = () => {
       if (result.error) {
         const err: string = result.error;
         if (err.includes('access token') || err.includes('OAuthException') || err.includes('token')) {
-          alert('Невалидный или истёкший Access Token. Перейдите в раздел "Аккаунты" и обновите токен.');
+          await alert({
+            title: 'Ошибка токена',
+            message: 'Невалидный или истёкший Access Token. Перейдите в раздел "Аккаунты" и обновите токен.',
+            variant: 'error',
+          });
         } else if (err.includes('rate limit') || err.includes('spam')) {
-          alert('Превышен лимит публикаций Instagram. Подождите несколько минут и попробуйте снова.');
+          await alert({
+            title: 'Лимит Instagram',
+            message: 'Превышен лимит публикаций Instagram. Подождите несколько минут и попробуйте снова.',
+            variant: 'warning',
+          });
         } else {
-          alert(`Ошибка публикации: ${err}`);
+          await alert({
+            title: 'Ошибка публикации',
+            message: `Ошибка публикации: ${err}`,
+            variant: 'error',
+          });
         }
       }
     } catch (e: any) {
-      alert(`Ошибка: ${e.message}`);
+      await alert({
+        title: 'Ошибка',
+        message: `Ошибка: ${e.message}`,
+        variant: 'error',
+      });
     } finally {
       setRetryingPostId(null);
       await fetchPosts();
     }
   };
 
-  const handleOpenMoveModal = () => {
+  const handleOpenMoveModal = async () => {
     const otherAccounts = accounts.filter(a => a.id !== selectedAccount?.id);
     if (otherAccounts.length === 0) {
-      alert('Нет других аккаунтов для переноса. Добавьте аккаунт в разделе "Аккаунты".');
+      await alert({
+        title: 'Нет аккаунтов',
+        message: 'Нет других аккаунтов для переноса. Добавьте аккаунт в разделе "Аккаунты".',
+        variant: 'info',
+      });
       return;
     }
     setMoveTargetAccountId(otherAccounts[0].id);
@@ -130,12 +168,23 @@ const HistoryPage: React.FC = () => {
     if (!moveTargetAccountId || !user) return;
     const movablePosts = posts.filter(p => p.status === 'pending' || p.status === 'draft');
     if (movablePosts.length === 0) {
-      alert('Нет постов для переноса (только черновики и посты в очереди можно переносить).');
+      await alert({
+        title: 'Нет постов',
+        message: 'Нет постов для переноса (только черновики и посты в очереди можно переносить).',
+        variant: 'info',
+      });
       setShowMoveModal(false);
       return;
     }
     const targetAccount = accounts.find(a => a.id === moveTargetAccountId);
-    if (!confirm(`Перенести ${movablePosts.length} постов (черновики + в очереди) на аккаунт @${targetAccount?.username}?`)) return;
+    const ok = await confirm({
+      title: 'Перенести посты?',
+      message: `Перенести ${movablePosts.length} постов (черновики + в очереди) на аккаунт @${targetAccount?.username}?`,
+      confirmText: 'Перенести',
+      variant: 'primary',
+      icon: 'arrows',
+    });
+    if (!ok) return;
 
     setIsMoving(true);
     const { error } = await supabase
@@ -147,7 +196,11 @@ const HistoryPage: React.FC = () => {
     setShowMoveModal(false);
 
     if (error) {
-      alert(`Ошибка переноса: ${error.message}`);
+      await alert({
+        title: 'Ошибка переноса',
+        message: `Ошибка переноса: ${error.message}`,
+        variant: 'error',
+      });
     } else {
       await fetchPosts();
     }
@@ -157,10 +210,21 @@ const HistoryPage: React.FC = () => {
     if (!user) return;
     const queuedPosts = posts.filter(p => p.status === 'pending' || p.status === 'draft');
     if (queuedPosts.length < 2) {
-      alert('Нужно минимум 2 поста в очереди для перемешивания.');
+      await alert({
+        title: 'Недостаточно постов',
+        message: 'Нужно минимум 2 поста в очереди для перемешивания.',
+        variant: 'info',
+      });
       return;
     }
-    if (!confirm(`Перемешать ${queuedPosts.length} постов в очереди в случайном порядке?`)) return;
+    const ok = await confirm({
+      title: 'Перемешать очередь?',
+      message: `Перемешать ${queuedPosts.length} постов в очереди в случайном порядке?`,
+      confirmText: 'Перемешать',
+      variant: 'primary',
+      icon: 'shuffle',
+    });
+    if (!ok) return;
 
     setIsShuffling(true);
 

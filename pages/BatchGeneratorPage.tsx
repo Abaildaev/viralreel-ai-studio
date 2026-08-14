@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import { useBatchGeneration } from '../contexts/BatchGenerationContext';
+import { useConfirm } from '../contexts/ModalContext';
 import {
   BatchPreset,
   VideoTemplate,
@@ -27,6 +28,7 @@ import {
 const BatchGeneratorPage: React.FC = () => {
   const { user } = useAuth();
   const { accounts } = useAccount();
+  const { confirm, alert } = useConfirm();
   const { running, progress, startGeneration, stopGeneration } = useBatchGeneration();
   const [presets, setPresets] = useState<BatchPreset[]>([]);
   const [templates, setTemplates] = useState<VideoTemplate[]>([]);
@@ -79,7 +81,14 @@ const BatchGeneratorPage: React.FC = () => {
   };
 
   const handleDeletePreset = async (id: string) => {
-    if (!confirm('Удалить пресет?')) return;
+    const ok = await confirm({
+      title: 'Удалить пресет?',
+      message: 'Вы уверены, что хотите удалить этот пресет пакетной генерации?',
+      confirmText: 'Удалить',
+      variant: 'danger',
+      icon: 'trash',
+    });
+    if (!ok) return;
     await supabase.from('batch_presets').delete().eq('id', id);
     await loadAll();
   };

@@ -151,26 +151,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error) throw error;
       return { error: null };
     } catch (err: any) {
-      // Fallback to local demo user if network / supabase fails
-      if (DEMO_MODE && (err.message?.includes('fetch') || err.message?.includes('Network'))) {
-        setDemoUser(email);
-        return { error: null };
-      }
       return { error: err };
     }
   };
 
   const signIn = async (email: string, password: string) => {
+    // Explicit demo credentials check when DEMO_MODE flag is enabled
+    if (DEMO_MODE && (email === 'demo@viralreel.ai' || email === 'demo@example.com')) {
+      setDemoUser(email);
+      return { error: null };
+    }
+
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       return { error: null };
     } catch (err: any) {
-      // Fallback to local demo user if network / supabase fails or fails to fetch
-      if (DEMO_MODE && (err.message?.includes('fetch') || err.message?.includes('Network'))) {
-        setDemoUser(email);
-        return { error: null };
-      }
       return { error: err };
     }
   };

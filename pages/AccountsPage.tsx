@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '../lib/supabase';
 import { InstagramAccount } from '../types';
 import AccountAvatar from '../components/AccountAvatar';
+import TokenHealthCard from '../components/TokenHealthCard';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
+import { useConfirm } from '../contexts/ModalContext';
 import {
   PlusIcon,
   TrashIcon,
@@ -26,6 +28,7 @@ interface AccountPreview {
 const AccountsPage: React.FC = () => {
   const { user } = useAuth();
   const { refreshAccounts } = useAccount();
+  const { confirm, alert } = useConfirm();
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -128,7 +131,14 @@ const AccountsPage: React.FC = () => {
   };
 
   const handleDeleteAccount = async (id: string) => {
-    if (!confirm('Удалить этот аккаунт?')) return;
+    const ok = await confirm({
+      title: 'Удалить аккаунт?',
+      message: 'Вы уверены, что хотите удалить этот Instagram-аккаунт? Запланированные посты останутся, но не смогут публиковаться.',
+      confirmText: 'Удалить',
+      variant: 'danger',
+      icon: 'trash',
+    });
+    if (!ok) return;
 
     const { error } = await supabase
       .from('instagram_accounts')
@@ -402,6 +412,20 @@ const AccountsPage: React.FC = () => {
                       Токен хранится на сервере
                     </span>
                   </div>
+                  {/* Token Health Indicator */}
+                  <div className="mt-4">
+                    <TokenHealthCard
+                      account={account}
+                      onRefreshToken={() => {
+                        setShowAddForm(true);
+                        setAccessToken('');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onVerifyToken={() => verifyToken(account)}
+                      isVerifying={verifyingId === account.id}
+                    />
+                  </div>
+
                   {verificationResults[account.id] && (
                     <div className={`mt-2 p-3 rounded-lg border ${
                       verificationResults[account.id].valid

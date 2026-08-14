@@ -61,7 +61,6 @@ export interface Profile {
   publish_end_hour: number;
   created_at: string;
   updated_at: string;
-  gemini_api_key?: string;
 }
 
 export interface PublishWindow {

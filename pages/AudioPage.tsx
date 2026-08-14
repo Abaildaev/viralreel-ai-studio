@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getSignedUrl } from '../lib/supabase';
 import { AudioFile } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { useConfirm } from '../contexts/ModalContext';
+import { useSignedUrls } from '../hooks/useSignedUrl';
+import AudioWaveformPicker from '../components/AudioWaveformPicker';
 import {
   MusicalNoteIcon,
   PlusIcon,
@@ -12,10 +15,15 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
   PencilIcon,
+  SparklesIcon,
+  SpeakerWaveIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
 } from '@heroicons/react/24/outline';
 
 const AudioPage: React.FC = () => {
   const { user } = useAuth();
+  const { confirm, alert } = useConfirm();
   const [audioFiles, setAudioFiles] = useState<AudioFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -23,9 +31,15 @@ const AudioPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [expandedWaveformId, setExpandedWaveformId] = useState<string | null>(null);
+  const [audioOffsets, setAudioOffsets] = useState<Record<string, number>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const audioUrls = useSignedUrls('audio', audioFiles.map(a => a.file_path));
+
+  const getAudioUrl = (path: string) => audioUrls[path] || '';
 
   useEffect(() => {
     if (user) {
@@ -93,7 +107,11 @@ const AudioPage: React.FC = () => {
 
       await loadAudioFiles();
     } catch (error: any) {
-      alert(`Ошибка: ${error.message}`);
+      await alert({
+        title: 'Ошибка загрузки',
+        message: error.message,
+        variant: 'error',
+      });
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -115,20 +133,26 @@ const AudioPage: React.FC = () => {
   };
 
   const handleDelete = async (audioFile: AudioFile) => {
-    if (!confirm('Удалить это аудио?')) return;
+    const ok = await confirm({
+      title: 'Удалить аудиозапись?',
+      message: `Вы действительно хотите удалить «${audioFile.name}»?`,
+      confirmText: 'Удалить',
+      variant: 'danger',
+      icon: 'trash',
+    });
+    if (!ok) return;
 
     try {
       await supabase.storage.from('audio').remove([audioFile.file_path]);
       await supabase.from('audio_files').delete().eq('id', audioFile.id);
       await loadAudioFiles();
     } catch (error: any) {
-      alert(`Ошибка: ${error.message}`);
+      await alert({
+        title: 'Ошибка удаления',
+        message: error.message,
+        variant: 'error',
+      });
     }
-  };
-
-  const getAudioUrl = (path: string) => {
-    const { data } = supabase.storage.from('audio').getPublicUrl(path);
-    return data.publicUrl;
   };
 
   const savingRef = useRef(false);
@@ -147,14 +171,18 @@ const AudioPage: React.FC = () => {
     const { error } = await supabase.from('audio_files').update({ name: trimmed }).eq('id', id);
     if (error) {
       console.error('Rename error:', error);
-      alert(`Ошибка переименования: ${error.message}`);
+      await alert({
+        title: 'Ошибка переименования',
+        message: error.message,
+        variant: 'error',
+      });
     } else {
       setAudioFiles(prev => prev.map(a => a.id === id ? { ...a, name: trimmed } : a));
     }
     savingRef.current = false;
   };
 
-  const togglePlay = (audioFile: AudioFile) => {
+  const togglePlay = async (audioFile: AudioFile) => {
     if (playingId === audioFile.id) {
       audioRef.current?.pause();
       setPlayingId(null);
@@ -162,7 +190,9 @@ const AudioPage: React.FC = () => {
       if (audioRef.current) {
         audioRef.current.pause();
       }
-      const audio = new Audio(getAudioUrl(audioFile.file_path));
+      const url = audioUrls[audioFile.file_path] || (await getSignedUrl('audio', audioFile.file_path).catch(() => ''));
+      if (!url) return;
+      const audio = new Audio(url);
       audio.onended = () => setPlayingId(null);
       audio.play();
       audioRef.current = audio;
@@ -257,62 +287,108 @@ const AudioPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {filteredAudioFiles.map((audioFile) => (
-            <div
-              key={audioFile.id}
-              className="bg-white border border-gray-200 rounded-xl p-4 flex items-center gap-4 shadow-sm hover:border-gray-300 transition-colors"
-            >
-              <button
-                onClick={() => togglePlay(audioFile)}
-                className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                  playingId === audioFile.id
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          {filteredAudioFiles.map((audioFile) => {
+            const isWaveformOpen = expandedWaveformId === audioFile.id;
+            const currentOffset = audioOffsets[audioFile.id] || 0;
+
+            return (
+              <div
+                key={audioFile.id}
+                className={`bg-white border rounded-2xl overflow-hidden transition-all shadow-sm ${
+                  isWaveformOpen ? 'border-teal-500 ring-2 ring-teal-500/20 shadow-md' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                {playingId === audioFile.id ? (
-                  <PauseIcon className="w-5 h-5" />
-                ) : (
-                  <PlayIcon className="w-5 h-5" />
-                )}
-              </button>
-
-              <div className="flex-1 min-w-0">
-                {editingId === audioFile.id ? (
-                  <input
-                    autoFocus
-                    type="text"
-                    value={editingName}
-                    onChange={(e) => setEditingName(e.target.value)}
-                    onBlur={() => handleSaveRename(audioFile.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingId(null); }}
-                    className="font-medium text-gray-900 bg-gray-50 border border-teal-500 rounded-lg px-2 py-1 w-full outline-none text-sm"
-                  />
-                ) : (
-                  <h3
-                    className="font-medium text-gray-900 truncate cursor-pointer group flex items-center gap-1.5 hover:text-teal-600 transition-colors"
-                    onClick={() => handleStartRename(audioFile)}
-                    title="Нажмите для редактирования"
+                <div className="p-4 flex items-center gap-4">
+                  <button
+                    onClick={() => togglePlay(audioFile)}
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
+                      playingId === audioFile.id
+                        ? 'bg-teal-500 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                   >
-                    {audioFile.name}
-                    <PencilIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-teal-700 flex-shrink-0" />
-                  </h3>
-                )}
-                <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                  <span>{formatDuration(audioFile.duration)}</span>
-                  <span className="w-1 h-1 bg-gray-300 rounded-full" />
-                  <span>{formatFileSize(audioFile.file_size)}</span>
-                </div>
-              </div>
+                    {playingId === audioFile.id ? (
+                      <PauseIcon className="w-5 h-5" />
+                    ) : (
+                      <PlayIcon className="w-5 h-5" />
+                    )}
+                  </button>
 
-              <button
-                onClick={() => handleDelete(audioFile)}
-                className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <TrashIcon className="w-5 h-5" />
-              </button>
-            </div>
-          ))}
+                  <div className="flex-1 min-w-0">
+                    {editingId === audioFile.id ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onBlur={() => handleSaveRename(audioFile.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingId(null); }}
+                        className="font-medium text-gray-900 bg-gray-50 border border-teal-500 rounded-lg px-2 py-1 w-full outline-none text-sm"
+                      />
+                    ) : (
+                      <h3
+                        className="font-bold text-gray-900 truncate cursor-pointer group flex items-center gap-1.5 hover:text-teal-600 transition-colors text-sm"
+                        onClick={() => handleStartRename(audioFile)}
+                        title="Нажмите для редактирования"
+                      >
+                        {audioFile.name}
+                        <PencilIcon className="w-3.5 h-3.5 text-gray-300 group-hover:text-teal-700 flex-shrink-0" />
+                      </h3>
+                    )}
+                    <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
+                      <span>{formatDuration(audioFile.duration)}</span>
+                      <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                      <span>{formatFileSize(audioFile.file_size)}</span>
+                      {currentOffset > 0 && (
+                        <>
+                          <span className="w-1 h-1 bg-gray-300 rounded-full" />
+                          <span className="text-teal-600 font-semibold flex items-center gap-1">
+                            <SpeakerWaveIcon className="w-3 h-3" /> Старт: {currentOffset}с
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Waveform Drawer Toggle */}
+                  <button
+                    onClick={() => setExpandedWaveformId(isWaveformOpen ? null : audioFile.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                      isWaveformOpen
+                        ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                        : 'bg-gray-100 hover:bg-teal-50 hover:text-teal-700 text-gray-700'
+                    }`}
+                  >
+                    <SpeakerWaveIcon className="w-4 h-4" />
+                    <span>Волноформа</span>
+                    {isWaveformOpen ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
+                  </button>
+
+                  <button
+                    onClick={() => handleDelete(audioFile)}
+                    className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <TrashIcon className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Expanded Audio Waveform Section */}
+                {isWaveformOpen && (
+                  <div className="p-4 bg-gray-950 border-t border-gray-800 animate-in fade-in duration-150">
+                    <AudioWaveformPicker
+                      audioUrl={getAudioUrl(audioFile.file_path)}
+                      audioName={audioFile.name}
+                      duration={audioFile.duration}
+                      startOffset={currentOffset}
+                      onChangeOffset={(offset) => {
+                        setAudioOffsets(prev => ({ ...prev, [audioFile.id]: offset }));
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

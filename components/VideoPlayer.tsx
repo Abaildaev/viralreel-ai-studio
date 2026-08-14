@@ -26,6 +26,7 @@ interface VideoPlayerProps {
   showcaseStyle?: AiShowcaseStyle;
   showcaseEmoji?: string;
   textRotation?: number;
+  showSafeZones?: boolean;
   onPositionChange?: (x: number, y: number) => void;
   onCarouselBaitPositionChange?: (y: number) => void;
 }
@@ -55,6 +56,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   showcaseStyle,
   showcaseEmoji,
   textRotation = 0,
+  showSafeZones: initialSafeZones = false,
   onPositionChange,
   onCarouselBaitPositionChange
 }) => {
@@ -65,6 +67,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [isAudioMuted, setIsAudioMuted] = useState(false);
   const [isDraggingText, setIsDraggingText] = useState(false);
   const [isDraggingBait, setIsDraggingBait] = useState(false);
+  const [safeZonesActive, setSafeZonesActive] = useState(initialSafeZones);
 
   useEffect(() => {
     setPlaying(isPlaying);
@@ -319,6 +322,96 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
             <span className="text-xs animate-pulse">🔊</span>
           )}
         </button>
+      )}
+
+      {/* Safe Zones Toggle Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setSafeZonesActive(!safeZonesActive);
+        }}
+        className={`absolute top-3 left-3 z-40 px-2.5 py-1 rounded-full text-[11px] font-semibold backdrop-blur-md border transition-all flex items-center gap-1.5 shadow-lg ${
+          safeZonesActive
+            ? 'bg-cyan-500 text-slate-950 border-cyan-300 ring-2 ring-cyan-400/40 font-bold'
+            : 'bg-black/60 hover:bg-black/80 text-white/90 border-white/20'
+        }`}
+        title="Показать / скрыть безопасные зоны Instagram Reels"
+      >
+        <span>📐</span>
+        <span>{safeZonesActive ? 'Сетка Reels: ВКЛ' : 'Сетка Reels'}</span>
+      </button>
+
+      {/* Realistic Instagram Reels Safe Zones Overlay */}
+      {safeZonesActive && (
+        <div className="absolute inset-0 pointer-events-none z-30 flex flex-col justify-between p-3 select-none">
+          {/* Top Header UI */}
+          <div className="flex items-center justify-between text-white drop-shadow-md pt-1 px-1">
+            <span className="font-bold text-sm tracking-tight">Reels</span>
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
+              📷
+            </div>
+          </div>
+
+          {/* Safe Area Box */}
+          <div className="absolute inset-x-4 top-[14%] bottom-[27%] border-2 border-dashed border-cyan-400/80 rounded-2xl bg-cyan-500/5 flex flex-col items-center justify-between py-2 px-3 shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+            <div className="bg-cyan-950/90 backdrop-blur-sm text-cyan-300 border border-cyan-500/40 text-[9px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow">
+              ✓ 100% Безопасная зона текста
+            </div>
+            <div className="text-[9px] text-cyan-200/80 font-medium text-center bg-black/40 backdrop-blur-sm px-2 py-0.5 rounded-md">
+              Здесь текст не перекрывается кнопками Instagram
+            </div>
+          </div>
+
+          {/* Right Sidebar Action Icons */}
+          <div className="absolute right-2 bottom-16 flex flex-col items-center gap-3 text-white">
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm shadow">
+                ❤️
+              </div>
+              <span className="text-[9px] font-semibold text-white/90">24.5K</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm shadow">
+                💬
+              </div>
+              <span className="text-[9px] font-semibold text-white/90">382</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-sm shadow">
+                ✈️
+              </div>
+              <span className="text-[9px] font-semibold text-white/90">1.2K</span>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-xs shadow">
+              ⋯
+            </div>
+            <div className="w-7 h-7 rounded-full border-2 border-white/60 bg-gradient-to-tr from-pink-500 to-amber-500 flex items-center justify-center text-[10px] mt-1 shadow">
+              🎵
+            </div>
+          </div>
+
+          {/* Bottom Profile & Caption Simulation */}
+          <div className="w-4/5 text-white drop-shadow pb-1 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-amber-400 to-fuchsia-600 p-0.5 flex-shrink-0">
+                <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[10px] font-bold">
+                  IG
+                </div>
+              </div>
+              <span className="text-xs font-bold truncate">@username</span>
+              <span className="px-2 py-0.5 bg-white/20 backdrop-blur-sm text-[10px] font-semibold rounded-lg border border-white/30">
+                Подписаться
+              </span>
+            </div>
+            <div className="text-[10px] text-white/90 line-clamp-2 leading-tight">
+              Описание ролика и призыв к действию... <span className="text-white/60 font-semibold">ещё</span>
+            </div>
+            <div className="flex items-center gap-1 text-[9px] text-white/80">
+              <span>🎵</span>
+              <span className="truncate">Оригинальный звук — автор</span>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />

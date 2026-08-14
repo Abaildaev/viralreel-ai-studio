@@ -123,6 +123,129 @@ export function scheduleWithWindow(
   return times;
 }
 
+/** Weekday + time-of-day plan — the way people actually describe a posting schedule. */
+export interface SlotPlan {
+  /** JS getDay() numbering: 0 = Sunday … 6 = Saturday. */
+  weekdays: number[];
+  /** "HH:MM" in the plan's timezone. */
+  times: string[];
+  timezone: string;
+}
+
+function weekdayInTimezone(date: Date, timezone: string): number {
+  const short = date.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'short' });
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(short);
+}
+
+/** How far ahead we are willing to look for free slots before giving up. */
+const MAX_SLOT_SEARCH_DAYS = 400;
+
+/**
+ * Fills `count` posts into the next matching slots after `from`, skipping any
+ * minute already taken by `busy` so a new batch never lands on top of posts
+ * that are already queued.
+ */
+export function nextSlotTimes(
+  plan: SlotPlan,
+  count: number,
+  from: Date,
+  busy: Date[] = [],
+): Date[] {
+  if (count <= 0 || plan.weekdays.length === 0 || plan.times.length === 0) return [];
+
+  const taken = new Set(busy.map(date => Math.floor(date.getTime() / 60000)));
+  const sortedTimes = [...plan.times].sort();
+  const times: Date[] = [];
+
+  // Start from the calendar day of `from` as seen in the plan's timezone.
+  const startParts = getDatePartsInTimezone(from, plan.timezone);
+  const cursor = new Date(Date.UTC(startParts.year, startParts.month - 1, startParts.day));
+
+  for (let dayOffset = 0; dayOffset < MAX_SLOT_SEARCH_DAYS && times.length < count; dayOffset++) {
+    const day = new Date(cursor.getTime() + dayOffset * 86400000);
+    const year = day.getUTCFullYear();
+    const month = day.getUTCMonth() + 1;
+    const date = day.getUTCDate();
+
+    const probe = createDateInTimezone(year, month, date, 12, 0, plan.timezone);
+    if (!plan.weekdays.includes(weekdayInTimezone(probe, plan.timezone))) continue;
+
+    for (const time of sortedTimes) {
+      if (times.length >= count) break;
+      const [hour, minute] = time.split(':').map(Number);
+      const slot = createDateInTimezone(year, month, date, hour, minute, plan.timezone);
+      if (slot.getTime() <= from.getTime()) continue;
+      const key = Math.floor(slot.getTime() / 60000);
+      if (taken.has(key)) continue;
+      taken.add(key);
+      times.push(slot);
+    }
+  }
+
+  return times;
+}
+
+/** Instagram's Content Publishing API allows 25 posts per rolling 24 hours. */
+export const INSTAGRAM_DAILY_LIMIT = 25;
+
+/**
+ * Largest number of posts falling inside any 24-hour window — used to warn
+ * before Instagram starts rejecting them.
+ */
+export function maxPostsPerDay(times: Date[]): number {
+  const sorted = [...times].map(date => date.getTime()).sort((a, b) => a - b);
+  let worst = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    let count = 0;
+    for (let j = i; j < sorted.length && sorted[j] - sorted[i] < 86400000; j++) count++;
+    worst = Math.max(worst, count);
+  }
+  return worst;
+}
+
+export function formatInTimezone(date: Date, timezone: string): string {
+  return date.toLocaleString('ru-RU', {
+    timeZone: timezone,
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+export function dayLabelInTimezone(date: Date, timezone: string): string {
+  const today = new Date();
+  const sameDay = (left: Date, right: Date) =>
+    left.toLocaleDateString('ru-RU', { timeZone: timezone }) ===
+    right.toLocaleDateString('ru-RU', { timeZone: timezone });
+
+  if (sameDay(date, today)) return 'Сегодня';
+  if (sameDay(date, new Date(today.getTime() + 86400000))) return 'Завтра';
+  return date.toLocaleDateString('ru-RU', {
+    timeZone: timezone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+export const WEEKDAY_OPTIONS = [
+  { value: 1, label: 'Пн' },
+  { value: 2, label: 'Вт' },
+  { value: 3, label: 'Ср' },
+  { value: 4, label: 'Чт' },
+  { value: 5, label: 'Пт' },
+  { value: 6, label: 'Сб' },
+  { value: 0, label: 'Вс' },
+];
+
+/** Half-hour grid, so picking a time is two clicks instead of typing segments. */
+export const TIME_SLOT_OPTIONS = Array.from({ length: 48 }, (_, index) => {
+  const hour = String(Math.floor(index / 2)).padStart(2, '0');
+  const minute = index % 2 === 0 ? '00' : '30';
+  return `${hour}:${minute}`;
+});
+
 export const TIMEZONE_OPTIONS = [
   { value: 'Europe/Kaliningrad', label: 'Калининград (UTC+2)' },
   { value: 'Europe/Moscow', label: 'Москва (UTC+3)' },
