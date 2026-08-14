@@ -6,6 +6,7 @@ import VariationsGrid from '../components/VariationsGrid';
 import AudioModal from '../components/AudioModal';
 import { generateAiShowcaseContent } from '../services/geminiService';
 import { PageHeader, PageShell, Section } from '../components/ui';
+import AppSelect from '../components/ui/AppSelect';
 import {
   SparklesIcon,
   CloudArrowUpIcon,
@@ -356,7 +357,7 @@ const AiShowcasePage: React.FC = () => {
 
           <Section step={5} title="Количество роликов">
             <div className="flex gap-2">
-              <select
+              <AppSelect
                 value={gen.variationCount}
                 onChange={(e) => gen.setVariationCount(Number(e.target.value))}
                 className="field max-w-40"
@@ -364,7 +365,7 @@ const AiShowcasePage: React.FC = () => {
                 {[1, 2, 3, 4, 5, 6, 8, 10].map(num => (
                   <option key={num} value={num}>{num} {num === 1 ? 'ролик' : num < 5 ? 'ролика' : 'роликов'}</option>
                 ))}
-              </select>
+              </AppSelect>
               <button
                 onClick={handleGenerateAiHooks}
                 disabled={gen.isGenerating}

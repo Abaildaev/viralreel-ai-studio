@@ -11,6 +11,8 @@ import {
   SparklesIcon,
 } from '@heroicons/react/24/outline';
 import { Callout, Skeleton } from '../ui';
+import AppSelect from '../ui/AppSelect';
+import { generateLeadMagnetDirectVariants } from '../../services/ai/leadMagnetDirectGenerator';
 
 export interface AutomationForm {
   id: string | null;
@@ -26,6 +28,7 @@ export interface AutomationForm {
   public_reply_enabled: boolean;
   public_reply_variants: string[];
   reply_text: string;
+  direct_reply_variants: string[];
   response_url: string;
   button_text: string;
   repeat_delay_hours: number;
@@ -68,6 +71,8 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
   const [media, setMedia] = useState<InstagramMedia[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState('');
+  const [generatingDirectReplies, setGeneratingDirectReplies] = useState(false);
+  const [directReplyError, setDirectReplyError] = useState('');
 
   useEffect(() => {
     if (form.instagram_account_id && form.media_scope === 'selected') {
@@ -140,6 +145,58 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
     }));
   };
 
+  const addDirectReply = () => {
+    setForm((current) => ({
+      ...current,
+      direct_reply_variants: [...current.direct_reply_variants, ''],
+    }));
+  };
+
+  const updateDirectReply = (index: number, value: string) => {
+    setForm((current) => {
+      const direct_reply_variants = [...current.direct_reply_variants];
+      direct_reply_variants[index] = value;
+      return {
+        ...current,
+        direct_reply_variants,
+        reply_text: direct_reply_variants.find((item) => item.trim())?.trim() || '',
+      };
+    });
+  };
+
+  const removeDirectReply = (index: number) => {
+    setForm((current) => {
+      const direct_reply_variants = current.direct_reply_variants.filter((_, itemIndex) => itemIndex !== index);
+      return {
+        ...current,
+        direct_reply_variants: direct_reply_variants.length ? direct_reply_variants : [''],
+        reply_text: direct_reply_variants.find((item) => item.trim())?.trim() || '',
+      };
+    });
+  };
+
+  const generateDirectReplies = async () => {
+    setGeneratingDirectReplies(true);
+    setDirectReplyError('');
+    try {
+      const variants = await generateLeadMagnetDirectVariants({
+        title: form.title,
+        description: form.description,
+        keywords: form.keywords,
+        buttonText: form.button_text,
+      });
+      setForm((current) => ({
+        ...current,
+        direct_reply_variants: variants,
+        reply_text: variants[0],
+      }));
+    } catch (error) {
+      setDirectReplyError(error instanceof Error ? error.message : 'Не удалось подготовить варианты');
+    } finally {
+      setGeneratingDirectReplies(false);
+    }
+  };
+
   const toggleMediaSelection = (mediaId: string) => {
     setForm((c) => {
       const exists = c.media_ids.includes(mediaId);
@@ -150,8 +207,13 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim() || form.keywords.length === 0 || !form.reply_text.trim()) return;
-    onSave(form);
+    const directReplyVariants = form.direct_reply_variants.map((value) => value.trim()).filter(Boolean);
+    if (!form.title.trim() || form.keywords.length === 0 || directReplyVariants.length === 0) return;
+    onSave({
+      ...form,
+      direct_reply_variants: directReplyVariants,
+      reply_text: directReplyVariants[0],
+    });
   };
 
   return (
@@ -184,7 +246,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
               Instagram Аккаунт
             </label>
-            <select
+            <AppSelect
               value={form.instagram_account_id || ''}
               onChange={(e) =>
                 setForm((c) => ({ ...c, instagram_account_id: e.target.value || null }))
@@ -197,7 +259,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
                   @{a.username}
                 </option>
               ))}
-            </select>
+            </AppSelect>
           </div>
 
           {/* Title & Description */}
@@ -220,7 +282,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                 Режим совпадения
               </label>
-              <select
+              <AppSelect
                 value={form.match_mode}
                 onChange={(e) =>
                   setForm((c) => ({ ...c, match_mode: e.target.value as 'exact' | 'contains' }))
@@ -229,7 +291,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
               >
                 <option value="contains">Частичное совпадение (содержит слово)</option>
                 <option value="exact">Точное совпадение (только это слово)</option>
-              </select>
+              </AppSelect>
             </div>
           </div>
 
@@ -277,17 +339,64 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
 
           {/* Direct Message Content */}
           <div className="space-y-3">
-            <label className="block text-xs font-semibold text-gray-700">
-              Сообщение в Instagram Direct *
-            </label>
-            <textarea
-              rows={3}
-              required
-              value={form.reply_text}
-              onChange={(e) => setForm((c) => ({ ...c, reply_text: e.target.value }))}
-              placeholder="Привет! Держи обещанный гайд по ссылке ниже 👇"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs outline-none focus:border-brand-600 resize-none leading-relaxed"
-            />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700">
+                  Сообщения в Instagram Direct *
+                </label>
+                <p className="mt-1 text-[11px] leading-relaxed text-gray-400">
+                  При каждом срабатывании бот случайно выберет один вариант. Ссылка будет кнопкой ниже.
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={generateDirectReplies}
+                  disabled={generatingDirectReplies}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  <SparklesIcon className={`h-3.5 w-3.5 ${generatingDirectReplies ? 'animate-pulse' : ''}`} />
+                  {generatingDirectReplies ? 'ИИ пишет…' : 'ИИ: 3 варианта'}
+                </button>
+                <button
+                  type="button"
+                  onClick={addDirectReply}
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-brand-700 hover:text-brand-900"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" /> Добавить
+                </button>
+              </div>
+            </div>
+
+            {directReplyError && <p className="text-[11px] text-red-600">{directReplyError}</p>}
+
+            <div className="space-y-2">
+              {form.direct_reply_variants.map((variant, index) => (
+                <div key={index} className="flex items-start gap-2">
+                  <span className="mt-2.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-medium text-gray-500">
+                    {index + 1}
+                  </span>
+                  <textarea
+                    rows={2}
+                    required={index === 0}
+                    value={variant}
+                    onChange={(event) => updateDirectReply(index, event.target.value)}
+                    placeholder="Например: Готово — обещанный материал уже здесь. Нажмите кнопку ниже, чтобы открыть его 👇"
+                    className="flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed outline-none focus:border-brand-600"
+                  />
+                  {form.direct_reply_variants.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeDirectReply(index)}
+                      className="mt-1.5 p-1 text-gray-400 transition-colors hover:text-red-500"
+                      title="Удалить вариант"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
 
             <div className="grid sm:grid-cols-2 gap-3">
               <input

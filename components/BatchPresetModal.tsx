@@ -22,6 +22,7 @@ import {
   Bars3Icon,
   Bars3BottomRightIcon,
 } from '@heroicons/react/24/outline';
+import AppSelect from './ui/AppSelect';
 
 interface Props {
   preset: BatchPreset | null;
@@ -385,7 +386,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Аккаунт</label>
-            <select
+            <AppSelect
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
@@ -394,7 +395,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>@{a.username}</option>
               ))}
-            </select>
+            </AppSelect>
           </div>
 
           {/* Preset Type Selector */}
@@ -493,7 +494,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Тон</label>
-              <select
+              <AppSelect
                 value={tone}
                 onChange={(e) => setTone(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
@@ -501,11 +502,11 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 {toneOptions.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Призыв</label>
-              <select
+              <AppSelect
                 value={ctaType}
                 onChange={(e) => setCtaType(e.target.value as CtaType)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
@@ -513,7 +514,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 <option value="telegram">ТГ канал</option>
                 <option value="instagram">Подписка на Инсту</option>
                 <option value="codeword">Кодовое слово</option>
-              </select>
+              </AppSelect>
             </div>
           </div>
 
@@ -550,7 +551,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
             </div>
 
             {audioMode === 'specific' && (
-              <select
+              <AppSelect
                 value={audioFileId}
                 onChange={(e) => setAudioFileId(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50 mt-2"
@@ -559,7 +560,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 {audioFiles.map((a) => (
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
-              </select>
+              </AppSelect>
             )}
           </div>
 
@@ -568,7 +569,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Видео за запуск
               </label>
-              <select
+              <AppSelect
                 value={count}
                 onChange={(e) => setCount(Number(e.target.value))}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
@@ -576,7 +577,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                 {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
-              </select>
+              </AppSelect>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -684,7 +685,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Шрифт</label>
-                        <select
+                        <AppSelect
                           value={style.font}
                           onChange={(e) => setStyle({ ...style, font: e.target.value as FontFamily })}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none bg-white"
@@ -692,11 +693,11 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           {fontOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Толщина</label>
-                        <select
+                        <AppSelect
                           value={style.fontWeight}
                           onChange={(e) => setStyle({ ...style, fontWeight: e.target.value as FontWeight })}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none bg-white"
@@ -704,14 +705,14 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           {fontWeightOptions.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Размер хука</label>
-                        <select
+                        <AppSelect
                           value={style.fontSize}
                           onChange={(e) => setStyle({ ...style, fontSize: Number(e.target.value) })}
                           className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs outline-none bg-white"
@@ -719,11 +720,11 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           {[12, 13, 14, 15, 16, 17, 18, 19, 20].map((s) => (
                             <option key={s} value={s}>{s}px</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Фон</label>
-                        <select
+                        <AppSelect
                           value={style.bgStyle}
                           onChange={(e) => {
                             const newBg = e.target.value as BgStyle;
@@ -740,7 +741,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                           {bgOptions.map((o) => (
                             <option key={o.id} value={o.id}>{o.label}</option>
                           ))}
-                        </select>
+                        </AppSelect>
                       </div>
                     </div>
 

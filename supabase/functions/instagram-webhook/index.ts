@@ -477,13 +477,14 @@ async function processEvent(event: IncomingEvent): Promise<void> {
   // The Direct message is the promise; the public comment merely announces it.
   // Sending the announcement first would publicly claim a delivery that may
   // never happen, so the DM goes out first and gates everything else.
+  const directReplyText = buildReplyText(matched);
   let messageId: string;
   try {
     messageId = await sendInstagramReply(
       account.ig_user_id,
       account.access_token,
       event,
-      buildDirectMessage(matched),
+      buildDirectMessage(matched, directReplyText),
     );
   } catch (error) {
     await finish({
@@ -501,7 +502,7 @@ async function processEvent(event: IncomingEvent): Promise<void> {
       instagram_account_id: account.id,
       sender_igsid: event.senderIgsid,
       role: "agent",
-      content: buildReplyText(matched),
+      content: directReplyText,
       detected_intent: "lead_magnet",
     });
   }

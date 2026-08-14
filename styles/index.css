@@ -46,23 +46,23 @@
     nothing below this file should hardcode a hex.
   */
   :root {
-    --bg: #FCFCFD;
+    --bg: #FCFCFC;
     --surface: #FFFFFF;
-    --surface-sunken: #F6F7F9;
-    --border: #E8EAED;
-    --border-strong: #D7DBE0;
+    --surface-sunken: #F5F5F3;
+    --border: #E5E5E2;
+    --border-strong: #D6D7D2;
 
-    --text: #14161A;
-    --text-secondary: #5B616E;
-    --text-muted: #8A909C;
+    --text: #20211F;
+    --text-secondary: #646660;
+    --text-muted: #92948E;
 
-    --accent: #1E60FF;
-    --accent-hover: #1551E5;
-    --accent-subtle: #EFF4FF;
+    --accent: #292B27;
+    --accent-hover: #1B1D1A;
+    --accent-subtle: #F0F0ED;
   }
 
   body {
-    font-family: 'Plus Jakarta Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    font-family: 'Manrope', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
     background-color: var(--bg);
     color: var(--text);
     letter-spacing: -0.015em;

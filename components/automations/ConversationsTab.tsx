@@ -4,9 +4,12 @@ import {
   ArrowTopRightOnSquareIcon,
   ChatBubbleLeftRightIcon,
   PaperAirplaneIcon,
+  SparklesIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
 import { supabase } from '../../lib/supabase';
+import { AiSalesMessage } from '../../types';
+import { generateSalesAgentReply, loadSalesAgentConfig } from '../../services/aiSalesAgentService';
 
 type MessageRole = 'user' | 'agent';
 
@@ -56,6 +59,7 @@ export default function ConversationsTab() {
   const [contacts, setContacts] = useState<InstagramContact[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [assisting, setAssisting] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
 
@@ -170,6 +174,30 @@ export default function ConversationsTab() {
     await loadMessages();
   };
 
+  const handleDraftWithAi = async () => {
+    if (!selected || assisting) return;
+
+    setAssisting(true);
+    setSendError(null);
+    try {
+      const accountId = selected.messages[0].instagram_account_id;
+      const config = await loadSalesAgentConfig(accountId);
+      const history: AiSalesMessage[] = selected.messages.slice(-12).map((message) => ({
+        id: message.id,
+        role: message.role,
+        content: message.content,
+        timestamp: message.created_at,
+        detectedIntent: message.detected_intent as AiSalesMessage['detectedIntent'],
+      }));
+      const { reply } = await generateSalesAgentReply(history, config);
+      setDraft(reply);
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'Не удалось подготовить ответ с ИИ');
+    } finally {
+      setAssisting(false);
+    }
+  };
+
   return (
     <div className="bg-white border border-gray-200/70 rounded-2xl shadow-xs overflow-hidden min-h-[620px] flex">
       <aside className="w-full md:w-[340px] border-r border-gray-100 flex flex-col shrink-0">
@@ -269,6 +297,18 @@ export default function ConversationsTab() {
             </div>
             <footer className="p-4 bg-white border-t border-gray-100">
               {sendError && <p className="mb-2 text-xs text-red-600">{sendError}</p>}
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <p className="text-[10px] text-gray-400">ИИ предложит ответ по контексту диалога — вы сможете его изменить.</p>
+                <button
+                  type="button"
+                  onClick={handleDraftWithAi}
+                  disabled={assisting}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] font-medium text-gray-700 transition-colors hover:border-gray-300 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  <SparklesIcon className={`h-3.5 w-3.5 ${assisting ? 'animate-pulse' : ''}`} />
+                  {assisting ? 'ИИ пишет…' : 'Помочь написать'}
+                </button>
+              </div>
               <div className="flex items-end gap-2">
                 <textarea
                   value={draft}

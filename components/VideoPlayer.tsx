@@ -399,7 +399,9 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
         </div>
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
+      {hookText && (
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
+      )}
 
       {isDragging && (
         <>

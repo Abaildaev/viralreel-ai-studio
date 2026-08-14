@@ -14,25 +14,19 @@ const GeneratorPage: React.FC = () => {
       <div className="flex flex-col">
         <GeneratorSidebar
           videoUrl={gen.videoUrl}
-          activeTab={gen.activeTab}
-          setActiveTab={gen.setActiveTab}
           inputText={gen.inputText}
           setInputText={gen.setInputText}
           variationCount={gen.variationCount}
           setVariationCount={gen.setVariationCount}
-          tone={gen.tone}
-          setTone={gen.setTone}
-          ctaType={gen.ctaType}
-          setCtaType={gen.setCtaType}
+          outputMode={gen.outputMode}
+          setOutputMode={gen.setOutputMode}
           isGenerating={gen.isGenerating}
-          isGeneratingTopic={gen.isGeneratingTopic}
           progressMsg={gen.progressMsg}
           allLeadMagnets={gen.allLeadMagnets}
           selectedLeadMagnetId={gen.selectedLeadMagnetId}
           selectedAccountId={selectedAccount?.id ?? null}
           fileInputRef={gen.fileInputRef}
           onFileChange={gen.handleFileChange}
-          onRandomTopic={gen.handleRandomTopic}
           onGenerate={gen.handleGenerate}
           onSelectLeadMagnet={gen.handleSelectLeadMagnet}
           getAvailableLeadMagnets={gen.getAvailableLeadMagnets}

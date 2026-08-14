@@ -20,7 +20,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        sans: ['Manrope', 'Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'SF Mono', 'Menlo', 'monospace'],
       },
       /* Compact scale — this app is dense by design. Air comes from spacing. */
@@ -47,16 +47,30 @@ export default {
           never again leaves the palette lying about its own colour.
         */
         brand: {
-          50: '#EFF4FF',
-          100: '#DCE7FF',
-          200: '#BED3FF',
-          300: '#91B4FF',
-          400: '#5D8DFF',
-          500: '#3B6FFF',
-          600: '#1E60FF',
-          700: '#1551E5',
-          800: '#1642B4',
-          900: '#17398D',
+          50: '#F5F5F3',
+          100: '#ECECE8',
+          200: '#DEDEDA',
+          300: '#C6C7C1',
+          400: '#969890',
+          500: '#666860',
+          600: '#292B27',
+          700: '#1B1D1A',
+          800: '#151614',
+          900: '#0E0F0D',
+          950: '#090A08',
+        },
+        // A few older components still use `blue-*`; keep them neutral too.
+        blue: {
+          50: '#F5F5F3',
+          100: '#ECECE8',
+          200: '#DEDEDA',
+          300: '#C6C7C1',
+          400: '#969890',
+          500: '#666860',
+          600: '#292B27',
+          700: '#1B1D1A',
+          800: '#151614',
+          900: '#0E0F0D',
         },
         /*
           Pure neutrals rather than the blue-tinted slate ramp. `gray` is the
@@ -64,18 +78,25 @@ export default {
           the two cannot drift apart again.
         */
         gray: {
-          50: '#F6F7F9',
-          100: '#EFF1F4',
-          200: '#E8EAED',
-          300: '#D7DBE0',
-          400: '#A8AEB9',
-          500: '#8A909C',
-          600: '#5B616E',
-          700: '#414751',
-          800: '#292D35',
-          900: '#14161A',
+          50: '#F5F5F3',
+          100: '#EEEEEB',
+          200: '#E5E5E2',
+          300: '#D6D7D2',
+          400: '#AAABA5',
+          500: '#92948E',
+          600: '#646660',
+          700: '#494B46',
+          800: '#30312E',
+          900: '#20211F',
         },
-        canvas: '#FCFCFD',
+        canvas: '#FCFCFC',
+      },
+      fontWeight: {
+        medium: '450',
+        semibold: '550',
+        bold: '600',
+        extrabold: '650',
+        black: '700',
       },
       /* Neutral, low-contrast elevation. No coloured glows. */
       boxShadow: {

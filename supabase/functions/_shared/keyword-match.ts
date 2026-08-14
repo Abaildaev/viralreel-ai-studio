@@ -15,6 +15,7 @@ export interface LeadMagnetRow {
   codeword: string;
   keywords: string[];
   reply_text: string;
+  direct_reply_variants: string[];
   response_url: string;
   button_text: string;
   match_mode: MatchMode;
@@ -29,7 +30,7 @@ export interface LeadMagnetRow {
 }
 
 export const LEAD_MAGNET_COLUMNS =
-  "id,instagram_account_id,title,description,codeword,keywords,reply_text,response_url," +
+  "id,instagram_account_id,title,description,codeword,keywords,reply_text,direct_reply_variants,response_url," +
   "button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled," +
   "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds";
 
@@ -132,14 +133,20 @@ export function truncateUtf8(value: string, maxBytes: number): string {
 }
 
 export function buildReplyText(leadMagnet: LeadMagnetRow): string {
+  const variants = (leadMagnet.direct_reply_variants ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
   const fallback = leadMagnet.description
     ? `Вот ваш материал «${leadMagnet.title}».\n\n${leadMagnet.description}`
     : `Вот ваш материал «${leadMagnet.title}».`;
-  return truncateUtf8(leadMagnet.reply_text.trim() || fallback, 640);
+  const selected = variants.length
+    ? variants[Math.floor(Math.random() * variants.length)]
+    : leadMagnet.reply_text.trim() || fallback;
+  return truncateUtf8(selected, 640);
 }
 
-export function buildDirectMessage(leadMagnet: LeadMagnetRow): Record<string, unknown> {
-  const text = buildReplyText(leadMagnet);
+export function buildDirectMessage(leadMagnet: LeadMagnetRow, replyText = buildReplyText(leadMagnet)): Record<string, unknown> {
+  const text = replyText;
   const url = leadMagnet.response_url.trim();
   if (!url) return { text };
 

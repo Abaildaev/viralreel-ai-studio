@@ -12,6 +12,7 @@ export interface UniquifierParams {
   saturate: number;
   hueRotate: number;
   noiseOpacity: number;
+  timeOffsetSeconds: number;
   // Audio Uniquifier Parameters
   audioPitchShift: number; // Pitch multiplier shift e.g. 0.9985 to 1.0015 (+/- 0.15%)
   subNoiseLevel: number;   // Amplitude of sub-audible high-freq noise (0.0001 - 0.001)
@@ -19,9 +20,9 @@ export interface UniquifierParams {
 }
 
 const intensityMultipliers = {
-  low: { scaleMax: 0.015, rotateMax: 0.3, panMax: 2, filterMax: 1.5, noiseMax: 0.015, pitchShiftMax: 0.001, noiseAudioMax: 0.0004 },
-  medium: { scaleMax: 0.03, rotateMax: 0.6, panMax: 4, filterMax: 3.0, noiseMax: 0.025, pitchShiftMax: 0.0015, noiseAudioMax: 0.0008 },
-  high: { scaleMax: 0.05, rotateMax: 1.2, panMax: 8, filterMax: 5.0, noiseMax: 0.04, pitchShiftMax: 0.0025, noiseAudioMax: 0.0015 },
+  low: { scaleMax: 0.015, rotateMax: 0.3, panMax: 2, filterMax: 1.5, noiseMax: 0.015, pitchShiftMax: 0.001, noiseAudioMax: 0.0004, timeOffsetMax: 0.08 },
+  medium: { scaleMax: 0.03, rotateMax: 0.6, panMax: 4, filterMax: 3.0, noiseMax: 0.025, pitchShiftMax: 0.0015, noiseAudioMax: 0.0008, timeOffsetMax: 0.16 },
+  high: { scaleMax: 0.05, rotateMax: 1.2, panMax: 8, filterMax: 5.0, noiseMax: 0.04, pitchShiftMax: 0.0025, noiseAudioMax: 0.0015, timeOffsetMax: 0.28 },
 };
 
 export function generateUniquifierParams(
@@ -41,6 +42,7 @@ export function generateUniquifierParams(
       saturate: 100,
       hueRotate: 0,
       noiseOpacity: 0,
+      timeOffsetSeconds: 0,
       audioPitchShift: 1.0,
       subNoiseLevel: 0,
       stripMetadata: false,
@@ -65,6 +67,8 @@ export function generateUniquifierParams(
     saturate: 100 + randRange(0.5, mult.filterMax) * randSign(),
     hueRotate: randRange(0.2, mult.filterMax * 0.5) * randSign(),
     noiseOpacity: randRange(0.01, mult.noiseMax),
+    // A tiny fresh seek offset changes the frame sequence without becoming visible.
+    timeOffsetSeconds: randRange(0.02, mult.timeOffsetMax),
     // Audio pitch shift +/- 0.15% to 0.25%
     audioPitchShift: 1.0 + randRange(0.0005, mult.pitchShiftMax) * randSign(),
     subNoiseLevel: randRange(0.0002, mult.noiseAudioMax),
@@ -215,4 +219,3 @@ export function stripMediaMetadata(buffer: ArrayBuffer): ArrayBuffer {
 
   return resultBytes.buffer;
 }
-

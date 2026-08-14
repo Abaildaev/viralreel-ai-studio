@@ -49,6 +49,7 @@ const blankForm: AutomationForm = {
     'Ссылка уже у вас в Direct 🙌',
   ],
   reply_text: '',
+  direct_reply_variants: [''],
   response_url: '',
   button_text: 'Получить материал',
   repeat_delay_hours: 24,
@@ -187,6 +188,9 @@ export default function AutomationsPage() {
         ? rule.public_reply_variants
         : ['Отправил в Direct! 🚀'],
       reply_text: rule.reply_text,
+      direct_reply_variants: rule.direct_reply_variants?.length
+        ? rule.direct_reply_variants
+        : [rule.reply_text || ''],
       response_url: rule.response_url || '',
       button_text: rule.button_text || 'Получить материал',
       repeat_delay_hours: rule.repeat_delay_hours ?? 24,
@@ -245,6 +249,7 @@ export default function AutomationsPage() {
         public_reply_enabled: form.public_reply_enabled,
         public_reply_variants: form.public_reply_variants,
         reply_text: form.reply_text.trim(),
+        direct_reply_variants: form.direct_reply_variants.map((value) => value.trim()).filter(Boolean),
         response_url: form.response_url.trim() || null,
         button_text: form.button_text.trim() || null,
         repeat_delay_hours: form.repeat_delay_hours,

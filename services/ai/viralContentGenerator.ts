@@ -22,6 +22,147 @@ type AiShowcaseGenerationOptions = {
   logoMode: AiShowcaseGenerationMode;
 };
 
+type AiStoryGenerationOptions = {
+  topic: string;
+  variationCount: number;
+  leadMagnet?: LeadMagnetInfo;
+};
+
+function compactAiStoryHook(value: string): string {
+  const hook = value
+    .replace(/[\n\r]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/[:;,.]+$/, '')
+    .trim();
+  const words = hook.split(' ').filter(Boolean);
+  if (words.length <= 8 && hook.length <= 68) return hook;
+  return words.slice(0, 8).join(' ');
+}
+
+const forbiddenAiStoryCaptionPhrases = [
+  'вертикальный кадр',
+  'вертикального кадра',
+  'горизонтальное видео',
+  'в центре кадра',
+  'hook сверху',
+  'хук сверху',
+  'всё по формуле',
+  'все по формуле',
+  '15-секундн',
+  'цепляет за секунду',
+  'правильная композиция',
+  'эта ai-мини-история создана одним промптом',
+  'текст сверху',
+  'макет ролика',
+  'формул',
+];
+
+function isStrongAiStoryCaption(caption: string, codeword: string): boolean {
+  const normalized = caption.toLowerCase().replace(/ё/g, 'е');
+  const normalizedCodeword = codeword.toLowerCase().replace(/ё/g, 'е');
+
+  return caption.length >= 350
+    && normalized.includes('seedance 2.0')
+    && normalized.includes(normalizedCodeword)
+    && !forbiddenAiStoryCaptionPhrases.some((phrase) => normalized.includes(phrase));
+}
+
+function getMockAiStoryContent(
+  topic: string,
+  variationCount: number,
+  leadMagnet?: LeadMagnetInfo,
+): GeneratedContentResponse {
+  const codeword = leadMagnet?.codeword?.trim().toUpperCase() || 'ИИ';
+  const hooks = [
+    'Seedance 2 + 1 промпт',
+    '1 промпт = Reels на миллион',
+    'Этот Reel полностью создал ИИ',
+    'Мини-фильм за 15 секунд',
+    'Нейросеть сняла это без камеры',
+    'Такие Reels создаются одним промптом',
+  ];
+  const captions = [
+    `Чтобы создать такой Reels, больше не нужны съёмочная команда, актёры и дни на монтаж. В Seedance 2.0 достаточно одного детального промпта, если вы умеете правильно описать героя, сцену, эмоцию и движение камеры.\n\nЯ записал для вас бесплатный мини-курс. Внутри — структура сильного промпта, настройка сцен и приёмы, которые помогут сделать AI-видео цельным, а не набором случайных кадров.\n\nНапишите «${codeword}» в комментариях или директ — отправлю мини-курс бесплатно.`,
+    `Самая сложная часть в создании AI-Reels — не нажать кнопку «сгенерировать», а объяснить нейросети, что именно вы хотите увидеть. Один грамотно собранный промпт в Seedance 2.0 может задать весь сюжет: от атмосферы и персонажа до движения и финала.\n\nВ бесплатном мини-курсе я показал, из каких блоков собирать промпт, как сохранять одного героя между сценами и какие ошибки портят результат.\n\nНапишите «${codeword}» в комментариях или директ — и я пришлю вам урок.`,
+    `Красивое AI-видео начинается не с дорогого софта, а с понятной идеи и точного текста для нейросети. В Seedance 2.0 можно собрать целую мини-историю из одного промпта — если в нём есть драматургия, визуальные детали и понятная динамика.\n\nЯ собрал этот процесс в бесплатный мини-курс: от первой идеи до готового промпта. Вы поймёте, что писать, в каком порядке и как доводить генерацию до нужного результата.\n\nОставьте слово «${codeword}» в комментариях или директ — отправлю доступ бесплатно.`,
+    `Один сильный промпт способен заменить целую цепочку проб и случайных генераций. В Seedance 2.0 вы можете сразу задать персонажа, окружение, стиль, логику сцены и работу камеры. Главное — знать, как перевести свою идею на язык нейросети.\n\nИменно этому посвящён мой бесплатный мини-курс. После него у вас будет понятный шаблон промпта и пошаговый процесс для своих AI-Reels.\n\nНапишите «${codeword}» в комментариях или директ, и я отправлю вам мини-курс.`,
+  ];
+
+  return {
+    variations: Array.from({ length: variationCount }, (_, index) => ({
+      hook: hooks[index % hooks.length],
+      caption: captions[index % captions.length],
+    })),
+  };
+}
+
+/** Creates short headline-led copy for landscape AI mini-stories inside 9:16 Reels. */
+export const generateAiStoryReels = async ({
+  topic,
+  variationCount,
+  leadMagnet,
+}: AiStoryGenerationOptions): Promise<GeneratedContentResponse> => {
+  const cleanTopic = topic.trim() || 'AI-мини-история для Reels';
+  const codeword = leadMagnet?.codeword?.trim().toUpperCase() || 'ИИ';
+  const leadMagnetContext = [leadMagnet?.title, leadMagnet?.description]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join(' — ');
+
+  try {
+    const client = getClient();
+    const prompt = `
+Ты — сильный direct-response копирайтер для Instagram Reels об AI-видео.
+Исходная тема: "${cleanTopic}".
+Лид-магнит: "${leadMagnetContext || 'бесплатный мини-курс по Seedance 2.0 и написанию промптов'}".
+Создай ровно ${variationCount} заметно разных вариантов.
+
+Правила hook:
+- 2–8 слов, не более 68 символов;
+- сложность читается за одну секунду;
+- чередуй модель + промпт, результат, удивление, скорость и мини-фильм;
+- допустимые конструкции: «Seedance 2 + 1 промпт», «1 промпт = Reels на миллион», «Этот Reel создал ИИ»;
+- не повторяй примеры дословно во всех вариантах и не обещай гарантированные просмотры.
+
+Правила caption:
+- 450–850 символов, 3–4 коротких абзаца, без хэштегов;
+- это продающий текст, а не техническое описание ролика;
+- открой желанием аудитории создавать эффектные AI-Reels без съёмочной команды и сложного монтажа;
+- объясни, что такие видео создаются в Seedance 2.0 с помощью одного грамотно собранного промпта;
+- отдельным абзацем продай бесплатный мини-курс: «я записал для вас»; внутри — как писать промпты, задавать сцены, движение камеры, сохранять героя и исправлять ошибки;
+- последний абзац — прямой CTA написать «${codeword}» в комментариях или директ, чтобы получить мини-курс;
+- не начинай CTA фразой «Хотите научиться?» и не пиши канцелярским языком;
+- не описывай макет: запрещены фразы про вертикальный кадр, горизонтальное видео, текст сверху, hook, композицию и «всё по формуле»;
+- не выдумывай кейсы, цифры и гарантии; не повторяй одинаковые фразы между вариантами.
+
+Верни ТОЛЬКО JSON:
+{"variations":[{"hook":"...","caption":"..."}]}`;
+
+    const response = await client.chat.completions.create({
+      model: MODEL_ID,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.95,
+      response_format: { type: 'json_object' },
+      extra_body: NO_THINKING,
+    } as any);
+
+    const variations = processVariations(response.choices[0]?.message?.content || '', variationCount)
+      .map((variation) => ({
+        hook: compactAiStoryHook(variation.hook),
+        caption: variation.caption.trim(),
+      }))
+      .filter((variation) => variation.hook && isStrongAiStoryCaption(variation.caption, codeword))
+      .slice(0, variationCount);
+
+    return variations.length === variationCount
+      ? { variations }
+      : getMockAiStoryContent(cleanTopic, variationCount, leadMagnet);
+  } catch (error) {
+    console.warn('AI story generation failed, using focused fallback', error);
+    return getMockAiStoryContent(cleanTopic, variationCount, leadMagnet);
+  }
+};
+
 function compactShowcaseHook(value: string): string {
   const hook = value.replace(/\s+/g, ' ').trim();
   const words = hook.split(' ').filter(Boolean);

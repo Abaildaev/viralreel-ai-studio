@@ -3,6 +3,7 @@ import { ViralVariation } from '../types';
 import { fontOptions, fontSizeOptions, fontWeightOptions, bgOptions } from '../constants';
 import VideoPlayer from './VideoPlayer';
 import VideoTrimmer from './VideoTrimmer';
+import AppSelect from './ui/AppSelect';
 import {
   CheckCircleIcon,
   ArrowPathIcon,
@@ -91,7 +92,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
               Отправлено
             </>
           ) : (
-            <>Вариант</>
+            <>{variation.variantKind === 'clean' ? 'Без заголовка' : 'С заголовком'}</>
           )}
         </div>
       </div>
@@ -249,17 +250,17 @@ const VariationCard: React.FC<VariationCardProps> = ({
                       </button>
                     </div>
 
-                    <select
+                    <AppSelect
                       value={variation.font}
                       onChange={(e) => onUpdateStyle(variation.id, 'font', e.target.value)}
                       className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1 min-w-[90px]"
                     >
                       {fontOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                    </select>
+                    </AppSelect>
                   </div>
 
                   <div className="flex items-center gap-2 justify-between">
-                    <select
+                    <AppSelect
                       value={variation.fontWeight}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontWeight', e.target.value)}
                       className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1"
@@ -267,14 +268,14 @@ const VariationCard: React.FC<VariationCardProps> = ({
                       {fontWeightOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
-                    </select>
-                    <select
+                    </AppSelect>
+                    <AppSelect
                       value={variation.fontSize}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontSize', Number(e.target.value))}
                       className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 w-16 text-center"
                     >
                       {fontSizeOptions.map(size => <option key={size} value={size}>{size}px</option>)}
-                    </select>
+                    </AppSelect>
                   </div>
 
                   <div className="flex items-center justify-between gap-2 border-t border-gray-200 pt-2">
@@ -306,7 +307,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                   {variation.bgStyle === 'ai-showcase' && (
                     <div className="flex items-center gap-2 border-t border-gray-200 pt-2">
                       <span className="text-xs text-gray-500 font-medium whitespace-nowrap">🤖 Нейросеть</span>
-                      <select
+                      <AppSelect
                         value={variation.aiModel || 'claude'}
                         onChange={(e) => onUpdateStyle(variation.id, 'aiModel', e.target.value)}
                         className="flex-1 bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 font-medium"
@@ -315,7 +316,7 @@ const VariationCard: React.FC<VariationCardProps> = ({
                         <option value="chatgpt">ChatGPT (OpenAI) 🟢</option>
                         <option value="gemini">Gemini (Google) 🔵</option>
                         <option value="none">Без логотипа</option>
-                      </select>
+                      </AppSelect>
                     </div>
                   )}
 
@@ -348,17 +349,17 @@ const VariationCard: React.FC<VariationCardProps> = ({
                     </div>
                   )}
                   <div className="flex items-center gap-2 justify-between">
-                    <select
+                    <AppSelect
                       value={variation.font}
                       onChange={(e) => onUpdateStyle(variation.id, 'font', e.target.value)}
                       className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1 min-w-[90px]"
                     >
                       {fontOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                    </select>
+                    </AppSelect>
                   </div>
 
                   <div className="flex items-center gap-2 justify-between">
-                    <select
+                    <AppSelect
                       value={variation.fontWeight}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontWeight', e.target.value)}
                       className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 flex-1"
@@ -366,14 +367,14 @@ const VariationCard: React.FC<VariationCardProps> = ({
                       {fontWeightOptions.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
-                    </select>
-                    <select
+                    </AppSelect>
+                    <AppSelect
                       value={variation.fontSize}
                       onChange={(e) => onUpdateStyle(variation.id, 'fontSize', Number(e.target.value))}
                       className="bg-white text-gray-700 text-xs rounded px-2 py-1.5 outline-none border border-gray-200 focus:border-brand-500 w-16 text-center"
                     >
                       {fontSizeOptions.map(size => <option key={size} value={size}>{size}px</option>)}
-                    </select>
+                    </AppSelect>
                   </div>
                 </>
               )}
@@ -382,6 +383,33 @@ const VariationCard: React.FC<VariationCardProps> = ({
 
           {currentTab === 'video' && (
             <div className="space-y-3">
+              <div className="rounded-xl border border-brand-200 bg-brand-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold text-brand-900">Уникализатор</p>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-brand-700">Новые кадрирование, цвет, шум, аудио и метаданны при каждом рендере.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateStyle(variation.id, 'uniquifierEnabled', variation.uniquifierEnabled === false)}
+                    className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${variation.uniquifierEnabled !== false ? 'bg-brand-600 text-white' : 'bg-white text-gray-500 border border-gray-200'}`}
+                  >
+                    {variation.uniquifierEnabled !== false ? 'ВКЛ' : 'ВЫКЛ'}
+                  </button>
+                </div>
+                {variation.uniquifierEnabled !== false && (
+                  <AppSelect
+                    value={variation.uniquifierIntensity || 'medium'}
+                    onChange={(e) => onUpdateStyle(variation.id, 'uniquifierIntensity', e.target.value)}
+                    className="mt-2 w-full rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 outline-none focus:border-brand-500"
+                  >
+                    <option value="low">Мягкая</option>
+                    <option value="medium">Стандартная</option>
+                    <option value="high">Усиленная</option>
+                  </AppSelect>
+                )}
+              </div>
+
               <div>
                 <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
                   <span>Масштаб</span>
@@ -463,9 +491,13 @@ const VariationCard: React.FC<VariationCardProps> = ({
           <p className="text-xs text-gray-400 mb-2">
             {variation.captionText.length} символов
           </p>
-          <div className="bg-gray-50 rounded-xl p-3 text-sm text-gray-700 max-h-32 overflow-y-auto border border-gray-200">
-            <p className="whitespace-pre-wrap text-xs leading-relaxed">{variation.captionText}</p>
-          </div>
+          <textarea
+            value={variation.captionText}
+            onChange={(event) => onUpdateStyle(variation.id, 'captionText', event.target.value)}
+            rows={6}
+            className="w-full resize-y rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-700 outline-none focus:border-brand-500 focus:bg-white focus:ring-1 focus:ring-brand-500"
+            aria-label="Описание Reels"
+          />
         </div>
 
         <div className="mt-auto grid grid-cols-2 gap-2">

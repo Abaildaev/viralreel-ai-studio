@@ -22,6 +22,7 @@ import {
   BoltIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import AppSelect from './ui/AppSelect';
 
 interface AiSalesAgentConfigProps {
   config: AiSalesAgentConfig;
@@ -175,7 +176,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-slate-500 font-medium">Привязан к аккаунту:</span>
             {accounts.length > 0 ? (
-              <select
+              <AppSelect
                 value={selectedAccountId || ''}
                 onChange={(e) => onAccountChange?.(e.target.value || null)}
                 className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-bold text-slate-800 outline-none focus:border-[#1E60FF]"
@@ -186,7 +187,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
                     @{a.username}
                   </option>
                 ))}
-              </select>
+              </AppSelect>
             ) : (
               <span className="font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
                 Все аккаунты
@@ -315,7 +316,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Тон коммуникации
             </label>
-            <select
+            <AppSelect
               value={config.tone}
               onChange={(e) => handleUpdate({ tone: e.target.value as SalesAgentTone })}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
@@ -324,7 +325,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
               <option value="energetic_mentor">Энергичный наставник (драйв, акцент на результат)</option>
               <option value="concise_consultant">Лаконичный консультант (строго по делу и фактам)</option>
               <option value="premium_concierge">Премиум консьерж (на «вы», деликатно и с заботой)</option>
-            </select>
+            </AppSelect>
           </div>
         </div>
 
@@ -332,7 +333,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
           <label className="block text-xs font-semibold text-slate-700 mb-1.5">
             Главная цель диалога (к чему агент подводит клиента)
           </label>
-          <select
+          <AppSelect
             value={config.goal}
             onChange={(e) => handleUpdate({ goal: e.target.value as SalesAgentGoal })}
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-[#1E60FF] font-medium"
@@ -341,7 +342,7 @@ export const AiSalesAgentConfigView: React.FC<AiSalesAgentConfigProps> = ({
             <option value="direct_sale">Прямая продажа (отправка ссылки на оплату)</option>
             <option value="collect_contact">Сбор контактов (Telegram, телефон) для связи</option>
             <option value="lead_qualification">Квалификация лида (задать 2-3 ключевых вопроса)</option>
-          </select>
+          </AppSelect>
         </div>
 
         <div>

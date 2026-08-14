@@ -1,5 +1,6 @@
 import React, { useId } from 'react';
 import { cn } from './cn';
+import { AppSelect } from './AppSelect';
 
 interface FieldFrameProps {
   label?: string;
@@ -72,18 +73,15 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
 );
 Textarea.displayName = 'Textarea';
 
-type SelectProps = React.SelectHTMLAttributes<HTMLSelectElement> & { invalid?: boolean };
+type SelectProps = React.ComponentProps<typeof AppSelect> & { invalid?: boolean };
 
-export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
-  ({ invalid, className, children, ...rest }, ref) => (
-    <select
-      ref={ref}
-      className={cn('field cursor-pointer pr-8', invalid && 'field-invalid', className)}
-      {...rest}
-    >
-      {children}
-    </select>
-  ),
+export const Select: React.FC<SelectProps> = ({ invalid, className, children, ...rest }) => (
+  <AppSelect
+    className={cn('field cursor-pointer pr-3', invalid && 'field-invalid', className)}
+    {...rest}
+  >
+    {children}
+  </AppSelect>
 );
 Select.displayName = 'Select';
 

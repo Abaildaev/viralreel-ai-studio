@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
-import { generateViralHooks, generateViralTopic, generateViralContentFromFrames } from '../services/geminiService';
-import { ViralVariation, AppState, AudioFile, VideoTemplate, CtaType, LeadMagnetInfo, LeadMagnet } from '../types';
+import { generateAiStoryReels } from '../services/geminiService';
+import { ViralVariation, AppState, AudioFile, VideoTemplate, LeadMagnetInfo, LeadMagnet, ReelOutputMode } from '../types';
 import { assertMp4Video, renderVideoWithOverlay } from '../utils/videoRenderer';
 import { ensureRenderFontsLoaded } from '../utils/renderFonts';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,13 +17,10 @@ export function useGenerator() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'topic' | 'reference' | 'auto'>('topic');
   const [inputText, setInputText] = useState('');
-  const [variationCount, setVariationCount] = useState(4);
-  const [tone, setTone] = useState('Provokacionnyj');
-  const [ctaType, setCtaType] = useState<CtaType>('instagram');
+  const [variationCount, setVariationCount] = useState(1);
+  const [outputMode, setOutputMode] = useState<ReelOutputMode>('both');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isGeneratingTopic, setIsGeneratingTopic] = useState(false);
   const [progressMsg, setProgressMsg] = useState('');
   const [activeEditorTab, setActiveEditorTab] = useState<'text' | 'video'>('text');
   const [variations, setVariations] = useState<ViralVariation[]>([]);
@@ -146,105 +143,37 @@ export function useGenerator() {
     setAppState(AppState.CONFIG);
   };
 
-  const handleRandomTopic = async () => {
-    if (activeTab !== 'topic') return;
-    setIsGeneratingTopic(true);
-    setInputText('Генерация темы...');
-    try {
-      const newTopic = await generateViralTopic(tone);
-      setInputText(newTopic);
-    } catch {
-      setInputText('');
-    } finally {
-      setIsGeneratingTopic(false);
-    }
-  };
-
-  const extractFrames = async (file: File): Promise<string[]> => {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement('video');
-      video.src = URL.createObjectURL(file);
-      video.muted = true;
-      video.playsInline = true;
-      video.crossOrigin = 'anonymous';
-
-      const frames: string[] = [];
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      video.onloadedmetadata = async () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const duration = video.duration;
-        const timePoints = [duration * 0.1, duration * 0.5, duration * 0.9];
-
-        const seekAndCapture = async (time: number) => {
-          return new Promise<void>((res) => {
-            video.currentTime = time;
-            video.onseeked = () => {
-              ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-              const base64 = dataUrl.split(',')[1];
-              frames.push(base64);
-              res();
-            };
-          });
-        };
-
-        for (const time of timePoints) {
-          await seekAndCapture(time);
-        }
-
-        URL.revokeObjectURL(video.src);
-        resolve(frames);
-      };
-
-      video.onerror = (e) => reject(e);
-    });
-  };
-
   const handleGenerate = async () => {
     setIsGenerating(true);
     setProgressMsg('Думаю...');
 
     try {
-      let newVariationsData: { hook: string; caption: string }[] = [];
+      setProgressMsg('Создаю описания и заголовки...');
+      const result = await generateAiStoryReels({
+        topic: inputText || 'AI-мини-история, созданная одним промптом',
+        variationCount,
+        leadMagnet,
+      });
 
-      if (activeTab === 'auto') {
-        if (!videoFile) { setIsGenerating(false); return; }
-        setProgressMsg('Анализирую видео...');
-        const frames = await extractFrames(videoFile);
-        setProgressMsg('Генерирую идеи...');
-        const lm = ctaType === 'codeword' ? leadMagnet : undefined;
-        const result = await generateViralContentFromFrames(frames, variationCount, tone, inputText, ctaType, lm);
-        newVariationsData = result.variations;
-      } else {
-        let topicToUse = inputText;
-        if (!topicToUse) {
-          setProgressMsg('Подбираю тему...');
-          topicToUse = await generateViralTopic(tone);
-          setInputText(topicToUse);
-        }
-        setProgressMsg('Генерирую контент...');
-        const lm = ctaType === 'codeword' ? leadMagnet : undefined;
-        const result = await generateViralHooks(topicToUse, variationCount, tone, ctaType, lm);
-        newVariationsData = result.variations;
-      }
-
-      const newVariations: ViralVariation[] = newVariationsData.map((v, i) => ({
-        id: Date.now().toString() + i,
-        hookText: v.hook,
-        captionText: v.caption,
+      const makeVariation = (
+        hook: string,
+        caption: string,
+        variantKind: 'headline' | 'clean',
+        id: string,
+      ): ViralVariation => ({
+        id,
+        hookText: variantKind === 'headline' ? hook : '',
+        captionText: caption,
         status: 'pending',
         font: 'Inter',
-        fontSize: 24,
-        fontWeight: '700',
+        fontSize: 30,
+        fontWeight: '900',
         textAlign: 'center',
         textShadow: true,
         bgStyle: 'none',
         bgOpacity: 80,
         posX: 50,
-        posY: 25,
+        posY: 20,
         videoScale: 1.0,
         videoPanX: 0,
         videoPanY: 0,
@@ -253,8 +182,20 @@ export function useGenerator() {
         aiModel: 'none',
         textRotation: 0,
         uniquifierEnabled: true,
-        uniquifierIntensity: 'medium',
-      }));
+        uniquifierIntensity: 'high',
+        reelFormat: 'ai-story',
+        variantKind,
+      });
+
+      const variantKinds: Array<'headline' | 'clean'> = outputMode === 'both'
+        ? ['headline', 'clean']
+        : [outputMode];
+      const generationId = Date.now().toString();
+      const newVariations = result.variations.flatMap((variation, index) =>
+        variantKinds.map((variantKind) =>
+          makeVariation(variation.hook, variation.caption, variantKind, `${generationId}-${index}-${variantKind}`)
+        )
+      );
       setVariations(newVariations);
       setAppState(AppState.PREVIEW);
     } catch (e: any) {
@@ -330,6 +271,10 @@ export function useGenerator() {
             fontSize: variation.fontSize,
             fontWeight: variation.fontWeight,
             textAlign: variation.textAlign,
+            reelFormat: 'ai-story',
+            variantKind: variation.variantKind,
+            uniquifierEnabled: variation.uniquifierEnabled,
+            uniquifierIntensity: variation.uniquifierIntensity,
           },
           status: 'draft',
         });
@@ -373,13 +318,10 @@ export function useGenerator() {
     appState,
     videoFile,
     videoUrl,
-    activeTab, setActiveTab,
     inputText, setInputText,
     variationCount, setVariationCount,
-    tone, setTone,
-    ctaType, setCtaType,
+    outputMode, setOutputMode,
     isGenerating,
-    isGeneratingTopic,
     progressMsg,
     activeEditorTab, setActiveEditorTab,
     variations, setVariations,
@@ -397,7 +339,6 @@ export function useGenerator() {
 
     // Actions
     handleFileChange,
-    handleRandomTopic,
     handleGenerate,
     saveToScheduler,
     updateStyle,

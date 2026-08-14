@@ -1,38 +1,24 @@
 import React from 'react';
-import { CtaType, LeadMagnet, VideoTemplate } from '../types';
-import { toneOptions } from '../constants';
-import {
-  CloudArrowUpIcon,
-  SparklesIcon,
-  ArrowPathIcon,
-  DocumentDuplicateIcon,
-  SwatchIcon,
-  FilmIcon,
-  LightBulbIcon,
-} from '@heroicons/react/24/outline';
+import { LeadMagnet, ReelOutputMode, VideoTemplate } from '../types';
+import { ArrowPathIcon, CloudArrowUpIcon, SparklesIcon } from '@heroicons/react/24/outline';
 import { SparklesIcon as SparklesSolid } from '@heroicons/react/24/solid';
+import AppSelect from './ui/AppSelect';
 
 interface GeneratorSidebarProps {
   videoUrl: string | null;
-  activeTab: 'topic' | 'reference' | 'auto';
-  setActiveTab: (tab: 'topic' | 'reference' | 'auto') => void;
   inputText: string;
   setInputText: (text: string) => void;
   variationCount: number;
   setVariationCount: (count: number) => void;
-  tone: string;
-  setTone: (tone: string) => void;
-  ctaType: CtaType;
-  setCtaType: (cta: CtaType) => void;
+  outputMode: ReelOutputMode;
+  setOutputMode: (mode: ReelOutputMode) => void;
   isGenerating: boolean;
-  isGeneratingTopic: boolean;
   progressMsg: string;
   allLeadMagnets: LeadMagnet[];
   selectedLeadMagnetId: string | null;
   selectedAccountId: string | null;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onRandomTopic: () => void;
   onGenerate: () => void;
   onSelectLeadMagnet: (id: string) => void;
   getAvailableLeadMagnets: (magnets: LeadMagnet[], accountId: string | null) => LeadMagnet[];
@@ -41,22 +27,27 @@ interface GeneratorSidebarProps {
   onTemplateSelect: (templateId: string) => void;
 }
 
+const ideaPresets = [
+  'Seedance 2 + 1 промпт',
+  'Reels на миллион одним промптом',
+  'AI-мини-фильм без камеры',
+];
+
 const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
   videoUrl,
-  activeTab, setActiveTab,
-  inputText, setInputText,
-  variationCount, setVariationCount,
-  tone, setTone,
-  ctaType, setCtaType,
+  inputText,
+  setInputText,
+  variationCount,
+  setVariationCount,
+  outputMode,
+  setOutputMode,
   isGenerating,
-  isGeneratingTopic,
   progressMsg,
   allLeadMagnets,
   selectedLeadMagnetId,
   selectedAccountId,
   fileInputRef,
   onFileChange,
-  onRandomTopic,
   onGenerate,
   onSelectLeadMagnet,
   getAvailableLeadMagnets,
@@ -64,232 +55,178 @@ const GeneratorSidebar: React.FC<GeneratorSidebarProps> = ({
   selectedTemplateId,
   onTemplateSelect,
 }) => {
+  const availableLeadMagnets = getAvailableLeadMagnets(allLeadMagnets, selectedAccountId);
+  const selectedLeadMagnet = availableLeadMagnets.find((magnet) => magnet.id === selectedLeadMagnetId)
+    ?? availableLeadMagnets[0];
+  const outputCount = variationCount * (outputMode === 'both' ? 2 : 1);
+  const countLabel = outputMode === 'both' ? 'Комплектов' : 'Роликов';
+
   return (
-    <div className="w-full bg-white border-b border-gray-200 p-6">
+    <div className="w-full border-b border-gray-200 bg-white p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-gray-900">Генератор контента</h2>
-        <p className="text-sm text-gray-500">Создавайте вирусные хуки с помощью ИИ</p>
+        <h2 className="text-lg font-bold text-gray-900">AI Reels-генератор</h2>
+        <p className="text-sm text-gray-500">Мини-истории с кодовым словом и двумя версиями ролика</p>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 mb-5">
-        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Фоновое видео</h3>
+      <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-5">
+        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">Исходное AI-видео</h3>
         {videoUrl ? (
-          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-            <video src={videoUrl} className="w-full h-36 object-contain bg-gray-900 rounded-xl" />
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 rounded-xl">
-              <span className="text-xs font-medium bg-white px-3 py-1.5 rounded-full text-gray-900">Изменить видео</span>
+          <div className="group relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+            <video src={videoUrl} className="h-36 w-full rounded-xl bg-gray-900 object-contain" />
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-900">Изменить видео</span>
             </div>
           </div>
         ) : (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 hover:border-brand-500 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all hover:bg-gray-100"
+            className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 p-8 transition-all hover:border-brand-500 hover:bg-gray-100"
           >
-            <CloudArrowUpIcon className="w-10 h-10 text-gray-400 mb-2" />
-            <span className="text-sm text-gray-600 font-medium">Загрузить видео</span>
-            <span className="text-xs text-gray-400 mt-1">Рекомендуется формат 9:16</span>
+            <CloudArrowUpIcon className="mb-2 h-10 w-10 text-gray-400" />
+            <span className="text-sm font-medium text-gray-600">Загрузить AI-видео</span>
+            <span className="mt-1 text-xs text-gray-400">16:9 или 9:16, MP4</span>
           </div>
         )}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={onFileChange}
-          accept="video/*"
-          className="hidden"
-        />
+        <input type="file" ref={fileInputRef} onChange={onFileChange} accept="video/*" className="hidden" />
 
-        {/* Template selector */}
         <div className="mt-3">
-          <label className="block text-xs text-gray-500 mb-1.5 font-medium">Или выберите из подложек</label>
-          <select
+          <label className="mb-1.5 block text-xs font-medium text-gray-500">Или выберите из подложек</label>
+          <AppSelect
             value={selectedTemplateId}
-            onChange={e => onTemplateSelect(e.target.value)}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50 bg-white"
+            onChange={(event) => onTemplateSelect(event.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
           >
             <option value="">— Не выбрано —</option>
-            {templates.map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>{template.name}</option>
             ))}
-          </select>
-          {templates.length === 0 && (
-            <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
-              Нет подложек. Загрузите в разделе «Подложки».
-            </p>
-          )}
+          </AppSelect>
         </div>
       </div>
 
       {videoUrl && (
-        <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 flex flex-col gap-4">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Стратегия контента</h3>
-
-          <div className="flex bg-white rounded-xl p-1 border border-gray-200 shadow-sm">
-            <button
-              onClick={() => setActiveTab('topic')}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'topic' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-              <SwatchIcon className="w-3.5 h-3.5" />
-              Тема
-            </button>
-            <button
-              onClick={() => setActiveTab('reference')}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'reference' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-              <DocumentDuplicateIcon className="w-3.5 h-3.5" />
-              Референс
-            </button>
-            <button
-              onClick={() => setActiveTab('auto')}
-              className={`flex-1 py-2 text-xs font-medium rounded-lg flex items-center justify-center gap-1.5 transition-all ${activeTab === 'auto' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-900'}`}
-            >
-              <FilmIcon className="w-3.5 h-3.5" />
-              Авто
-            </button>
+        <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-gray-50 p-5">
+          <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
+            <p className="flex items-center gap-2 text-sm font-bold text-brand-950">
+              <SparklesSolid className="h-4 w-4 text-brand-600" />
+              Какие версии генерировать?
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+              {[
+                { id: 'both' as const, title: 'Оба', detail: 'С и без заголовка' },
+                { id: 'headline' as const, title: 'С заголовком', detail: 'X 50% / Y 20%' },
+                { id: 'clean' as const, title: 'Без заголовка', detail: 'Исходное разрешение' },
+              ].map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setOutputMode(option.id)}
+                  className={`rounded-lg border p-2.5 text-left transition-colors ${outputMode === option.id ? 'border-brand-600 bg-brand-600 text-white shadow-sm' : 'border-brand-200 bg-white text-brand-900 hover:border-brand-400'}`}
+                >
+                  <span className="block font-bold">{option.title}</span>
+                  <span className={`mt-1 block text-[10px] leading-snug ${outputMode === option.id ? 'text-brand-100' : 'text-brand-700'}`}>{option.detail}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-brand-700">
+              {outputMode === 'both'
+                ? 'Каждая идея даст два Reels с одним продающим описанием и CTA.'
+                : outputMode === 'headline'
+                  ? 'Будут созданы только вертикальные Reels с заголовком.'
+                  : 'Будут созданы только чистые версии в исходном соотношении сторон.'}
+            </p>
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-medium text-gray-700">
-                {activeTab === 'topic' && 'О чем видео?'}
-                {activeTab === 'reference' && 'Вставьте заголовок'}
-                {activeTab === 'auto' && 'Контекст (опционально)'}
-              </label>
-              {activeTab === 'topic' && (
+            <label className="mb-2 block text-sm font-medium text-gray-700">Тема или акцент ролика</label>
+            <textarea
+              value={inputText}
+              onChange={(event) => setInputText(event.target.value)}
+              placeholder="Например: Seedance 2, один промпт и AI-мини-фильм…"
+              className="h-24 w-full resize-none rounded-xl border border-gray-200 bg-white p-3 text-sm outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+            />
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {ideaPresets.map((preset) => (
                 <button
-                  onClick={onRandomTopic}
-                  disabled={isGeneratingTopic}
-                  className="text-xs flex items-center gap-1 text-amber-600 hover:text-amber-500 transition-colors disabled:opacity-50"
+                  key={preset}
+                  type="button"
+                  onClick={() => setInputText(preset)}
+                  className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] text-gray-600 transition-colors hover:border-brand-300 hover:text-brand-700"
                 >
-                  <LightBulbIcon className={`w-4 h-4 ${isGeneratingTopic ? 'animate-pulse' : ''}`} />
-                  {isGeneratingTopic ? 'Думаю...' : 'Идея'}
+                  {preset}
                 </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">{countLabel}</label>
+              <AppSelect
+                value={variationCount}
+                onChange={(event) => setVariationCount(Number(event.target.value))}
+                className="w-full rounded-xl border border-gray-200 bg-white p-2.5 text-sm outline-none focus:ring-brand-500"
+              >
+                {[1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>{count} → {count * (outputMode === 'both' ? 2 : 1)} Reels</option>
+                ))}
+              </AppSelect>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-gray-500">Лид-магнит и кодовое слово</label>
+              {availableLeadMagnets.length > 0 ? (
+                <AppSelect
+                  value={selectedLeadMagnet?.id ?? ''}
+                  onChange={(event) => onSelectLeadMagnet(event.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white p-2.5 text-sm outline-none focus:ring-brand-500"
+                >
+                  {availableLeadMagnets.map((magnet) => (
+                    <option key={magnet.id} value={magnet.id}>
+                      «{magnet.codeword}» — {magnet.title}
+                    </option>
+                  ))}
+                </AppSelect>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  Нет активных лид-магнитов. В описании будет слово «ИИ», но для автоответа создайте правило.
+                </div>
               )}
             </div>
-
-            {activeTab !== 'auto' ? (
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder={activeTab === 'topic' ? "Оставьте пустым — ИИ подберёт тему сам" : 'Вставьте заголовок сюда...'}
-                className="w-full bg-white border border-gray-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 outline-none resize-none h-28 placeholder:text-gray-400"
-              />
-            ) : (
-              <div className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm">
-                <p className="flex items-center gap-2 text-brand-600 font-semibold mb-2">
-                  <SparklesSolid className="w-4 h-4" />
-                  ИИ Анализ видео
-                </p>
-                <p className="text-xs text-gray-500 mb-3">
-                  Автоматический анализ видео и генерация идей.
-                </p>
-                <input
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Добавить контекст..."
-                  className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-900 outline-none focus:ring-1 focus:ring-brand-500"
-                />
-              </div>
-            )}
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-500">Вариации</label>
-              <select
-                value={variationCount}
-                onChange={(e) => setVariationCount(Number(e.target.value))}
-                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-brand-500 outline-none"
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map(num => (
-                  <option key={num} value={num}>{num}</option>
-                ))}
-              </select>
+          {selectedLeadMagnet && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-800">
+              В описание автоматически попадёт CTA: «Напиши {selectedLeadMagnet.codeword.toUpperCase()}».
             </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-500">Тон</label>
-              <select
-                value={tone}
-                onChange={(e) => setTone(e.target.value)}
-                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-brand-500 outline-none"
-              >
-                {toneOptions.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-1.5 text-gray-500">Призыв</label>
-              <select
-                value={ctaType}
-                onChange={(e) => setCtaType(e.target.value as CtaType)}
-                className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-sm focus:ring-brand-500 outline-none"
-              >
-                <option value="telegram">ТГ канал</option>
-                <option value="instagram">Подписка на Инсту</option>
-                <option value="codeword">Кодовое слово</option>
-              </select>
-              {ctaType === 'codeword' && (() => {
-                const available = getAvailableLeadMagnets(allLeadMagnets, selectedAccountId);
-                if (available.length === 0) {
-                  return (
-                    <p className="text-xs text-amber-600 mt-1.5">
-                      Нет лид-магнитов. Добавьте в настройках.
-                    </p>
-                  );
-                }
-                if (available.length === 1) {
-                  return (
-                    <p className="text-xs text-gray-400 mt-1.5">
-                      «{available[0].codeword}» — {available[0].title}
-                    </p>
-                  );
-                }
-                return (
-                  <select
-                    value={selectedLeadMagnetId ?? ''}
-                    onChange={(e) => onSelectLeadMagnet(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2 text-sm mt-1.5 focus:ring-brand-500 outline-none"
-                  >
-                    {available.map(lm => (
-                      <option key={lm.id} value={lm.id}>
-                        «{lm.codeword}» — {lm.title}
-                      </option>
-                    ))}
-                  </select>
-                );
-              })()}
-            </div>
-          </div>
+          )}
 
-          <div className="flex items-center justify-between bg-brand-50 border border-brand-200/60 rounded-xl p-2.5 text-xs text-brand-800 mt-2">
+          <div className="flex items-center justify-between rounded-xl border border-brand-200/60 bg-brand-50 p-2.5 text-xs text-brand-800">
             <span className="flex items-center gap-1.5 font-medium">
-              <SparklesIcon className="w-4 h-4 text-brand-600" />
-              ⚡ Авто-уникализация видео
+              <SparklesIcon className="h-4 w-4 text-brand-600" />
+              Новый цифровой отпечаток для каждого из {outputCount} Reels
             </span>
-            <span className="bg-brand-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Активна
-            </span>
+            <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Всегда</span>
           </div>
 
           <button
             onClick={onGenerate}
-            disabled={isGenerating || (activeTab === 'reference' && !inputText)}
-            className={`w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all mt-2 ${
+            disabled={isGenerating}
+            className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold transition-all ${
               isGenerating
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : 'bg-brand-600 hover:bg-brand-700 text-white shadow-lg'
+                ? 'cursor-not-allowed bg-gray-200 text-gray-500'
+                : 'bg-brand-600 text-white shadow-lg hover:bg-brand-700'
             }`}
           >
             {isGenerating ? (
               <>
-                <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                {progressMsg || 'Думаю...'}
+                <ArrowPathIcon className="h-5 w-5 animate-spin" />
+                {progressMsg || 'Создаю комплекты…'}
               </>
             ) : (
               <>
-                <SparklesIcon className="w-5 h-5" />
-                Сгенерировать
+                <SparklesIcon className="h-5 w-5" />
+                Создать {outputCount} Reels
               </>
             )}
           </button>

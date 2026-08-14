@@ -5,6 +5,8 @@ export type AiShowcaseStyle = 'white-badge' | 'emoji-white' | 'figma-ai' | 'dark
 export type BgStyle = 'none' | 'glass' | 'solid-black' | 'solid-white' | 'quote-white' | 'bank-transfer' | 'ai-showcase' | 'white-badge';
 export type FontWeight = '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 export type CtaType = 'codeword' | 'telegram' | 'instagram';
+export type ReelFormat = 'ai-story';
+export type ReelOutputMode = 'both' | 'headline' | 'clean';
 
 /**
  * Shape returned to the browser. `access_token` is intentionally missing — the
@@ -71,6 +73,8 @@ export interface ViralVariation {
   trimStart?: number;
   trimEnd?: number;
   audioStartOffset?: number;
+  reelFormat?: ReelFormat;
+  variantKind?: 'headline' | 'clean';
 }
 
 export interface GeneratedContentResponse {
@@ -165,6 +169,7 @@ export interface LeadMagnet {
   codeword: string;
   keywords: string[];
   reply_text: string;
+  direct_reply_variants: string[];
   response_url: string;
   button_text: string;
   match_mode: 'exact' | 'contains';
@@ -238,4 +243,3 @@ export interface AiSalesMessage {
   timestamp: string;
   detectedIntent?: 'question' | 'objection' | 'ready_to_buy' | 'handoff_request' | 'greeting';
 }
-

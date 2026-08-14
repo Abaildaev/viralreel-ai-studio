@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { LeadMagnet, InstagramAccount } from '../../types';
 import { BeakerIcon, SparklesIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import AppSelect from '../ui/AppSelect';
 
 interface TestResult {
   blockers: string[];
@@ -123,7 +124,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
           <label className="block text-xs font-medium text-gray-600 mb-1.5">
             Instagram аккаунт
           </label>
-          <select
+          <AppSelect
             value={selectedAccountId}
             onChange={(e) => setSelectedAccountId(e.target.value)}
             className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs outline-none focus:border-brand-600 font-medium"
@@ -133,7 +134,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
                 @{a.username}
               </option>
             ))}
-          </select>
+          </AppSelect>
         </div>
 
         <div>

@@ -92,7 +92,7 @@ async function applyAudioUniquification(
   }
 }
 
-async function findSupportedVideoCodec(): Promise<string | null> {
+async function findSupportedVideoCodec(width: number, height: number): Promise<string | null> {
   if (typeof VideoEncoder === 'undefined') return null;
   const codecs = [
     'avc1.42001f',
@@ -103,8 +103,8 @@ async function findSupportedVideoCodec(): Promise<string | null> {
     try {
       const result = await VideoEncoder.isConfigSupported({
         codec,
-        width: CANVAS_WIDTH,
-        height: CANVAS_HEIGHT,
+        width,
+        height,
         bitrate: 6_000_000,
         framerate: TARGET_FPS,
       });
@@ -129,10 +129,13 @@ async function isAudioCodecSupported(sampleRate: number, channels: number): Prom
   }
 }
 
-function createCanvas(): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+function createCanvas(
+  width: number = CANVAS_WIDTH,
+  height: number = CANVAS_HEIGHT,
+): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement('canvas');
-  canvas.width = CANVAS_WIDTH;
-  canvas.height = CANVAS_HEIGHT;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext('2d', { alpha: false })!;
   // @ts-ignore
   if (ctx.letterSpacing !== undefined) {
@@ -159,11 +162,14 @@ async function renderMP4(
   variation: ViralVariation,
   audioUrl: string | null
 ): Promise<Blob> {
-  const videoCodec = await findSupportedVideoCodec();
+  const video = await loadVideo(videoFile);
+  const preserveSourceDimensions = variation.variantKind === 'clean';
+  const outputWidth = preserveSourceDimensions ? video.videoWidth : CANVAS_WIDTH;
+  const outputHeight = preserveSourceDimensions ? video.videoHeight : CANVAS_HEIGHT;
+  const videoCodec = await findSupportedVideoCodec(outputWidth, outputHeight);
   if (!videoCodec) throw new Error('No supported H.264 codec');
 
-  const video = await loadVideo(videoFile);
-  const { canvas, ctx } = createCanvas();
+  const { canvas, ctx } = createCanvas(outputWidth, outputHeight);
   const uniquifier = generateUniquifierParams(
     variation.uniquifierIntensity || 'medium',
     variation.uniquifierEnabled !== false
@@ -180,10 +186,18 @@ async function renderMP4(
   const trimEnd = variation.trimEnd && variation.trimEnd > trimStart
     ? Math.min(rawVideoDuration, variation.trimEnd)
     : Math.min(rawVideoDuration, MAX_DURATION_S);
-  const trimmedVideoDuration = Math.max(0.5, trimEnd - trimStart);
+  const uniqueTimeOffset = Math.min(
+    uniquifier.timeOffsetSeconds,
+    Math.max(0, trimEnd - trimStart - 0.5)
+  );
+  const effectiveTrimStart = trimStart + uniqueTimeOffset;
+  const trimmedVideoDuration = Math.max(0.5, trimEnd - effectiveTrimStart);
 
   // Audio start offset
-  const audioStartOffset = Math.max(0, variation.audioStartOffset || 0);
+  const audioStartOffset = Math.max(
+    0,
+    audioUrl ? variation.audioStartOffset || 0 : effectiveTrimStart
+  );
   const remainingAudioDuration = Math.max(0, audioDuration - audioStartOffset);
 
   // Use the SHORTER of trimmed video and remaining audio
@@ -201,7 +215,7 @@ async function renderMP4(
   const target = new ArrayBufferTarget();
   const muxerConfig: ConstructorParameters<typeof Muxer>[0] = {
     target,
-    video: { codec: 'avc', width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    video: { codec: 'avc', width: outputWidth, height: outputHeight },
     fastStart: 'in-memory',
   };
 
@@ -222,8 +236,8 @@ async function renderMP4(
 
   videoEncoder.configure({
     codec: videoCodec,
-    width: CANVAS_WIDTH,
-    height: CANVAS_HEIGHT,
+    width: outputWidth,
+    height: outputHeight,
     bitrate: 6_000_000,
     framerate: TARGET_FPS,
   });
@@ -244,10 +258,10 @@ async function renderMP4(
 
   for (let i = 0; i < totalFrames; i++) {
     const relativeTime = i / TARGET_FPS;
-    const seekTime = trimStart + relativeTime;
+    const seekTime = effectiveTrimStart + relativeTime;
     await seekTo(video, seekTime);
 
-    drawFrame(ctx, video, variation, CANVAS_WIDTH, CANVAS_HEIGHT, uniquifier);
+    drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
 
     const frame = new VideoFrame(canvas, {
       timestamp: Math.round(relativeTime * 1_000_000),
@@ -324,12 +338,28 @@ async function renderWebM(
       audioElement.crossOrigin = 'anonymous';
     }
 
-    const { canvas, ctx } = createCanvas();
-
     const startRendering = async () => {
       try {
-        video.currentTime = 0;
-        await new Promise(r => { video.onseeked = r; });
+        const uniquifier = generateUniquifierParams(
+          variation.uniquifierIntensity || 'medium',
+          variation.uniquifierEnabled !== false
+        );
+        const rawVideoDuration = video.duration || 10;
+        const trimStart = Math.max(0, variation.trimStart || 0);
+        const trimEnd = variation.trimEnd && variation.trimEnd > trimStart
+          ? Math.min(rawVideoDuration, variation.trimEnd)
+          : Math.min(rawVideoDuration, MAX_DURATION_S);
+        const uniqueTimeOffset = Math.min(
+          uniquifier.timeOffsetSeconds,
+          Math.max(0, trimEnd - trimStart - 0.5)
+        );
+        const effectiveTrimStart = trimStart + uniqueTimeOffset;
+        const preserveSourceDimensions = variation.variantKind === 'clean';
+        const outputWidth = preserveSourceDimensions ? video.videoWidth : CANVAS_WIDTH;
+        const outputHeight = preserveSourceDimensions ? video.videoHeight : CANVAS_HEIGHT;
+        const { canvas, ctx } = createCanvas(outputWidth, outputHeight);
+
+        await seekTo(video, effectiveTrimStart);
 
         const videoStream = canvas.captureStream(30);
         const audioContext = new AudioContext();
@@ -382,27 +412,22 @@ async function renderWebM(
           }
         };
 
-        const uniquifier = generateUniquifierParams(
-          variation.uniquifierIntensity || 'medium',
-          variation.uniquifierEnabled !== false
-        );
-
         const renderLoop = () => {
           if (video.paused || video.ended) {
             recorder.stop();
             if (audioElement) audioElement.pause();
             return;
           }
-          drawFrame(ctx, video, variation, CANVAS_WIDTH, CANVAS_HEIGHT, uniquifier);
+          drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
           requestAnimationFrame(renderLoop);
         };
 
-        drawFrame(ctx, video, variation, CANVAS_WIDTH, CANVAS_HEIGHT, uniquifier);
+        drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
         recorder.start();
 
         if (audioUrl && audioElement) {
           video.muted = true;
-          audioElement.currentTime = 0;
+          audioElement.currentTime = Math.max(0, variation.audioStartOffset || 0);
           await audioElement.play();
         } else {
           video.muted = false;
@@ -410,9 +435,11 @@ async function renderWebM(
         }
 
         // Use the SHORTER of video and audio
-        const targetDurationMs = audioUrl && audioElement
-          ? Math.min(video.duration, audioElement.duration) * 1000
-          : video.duration * 1000;
+        const trimmedVideoDuration = Math.max(0.5, trimEnd - effectiveTrimStart);
+        const remainingAudioDuration = audioUrl && audioElement
+          ? Math.max(0, audioElement.duration - (variation.audioStartOffset || 0))
+          : trimmedVideoDuration;
+        const targetDurationMs = Math.min(trimmedVideoDuration, remainingAudioDuration) * 1000;
         const cappedDurationMs = Math.min(targetDurationMs, MAX_DURATION_S * 1000);
 
         await video.play();
@@ -502,12 +529,14 @@ function drawFrame(
 
   ctx.restore();
 
-  const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, 'rgba(0,0,0,0.4)');
-  gradient.addColorStop(0.5, 'transparent');
-  gradient.addColorStop(1, 'rgba(0,0,0,0.6)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+  if (variation.hookText.trim()) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, 'rgba(0,0,0,0.4)');
+    gradient.addColorStop(0.5, 'transparent');
+    gradient.addColorStop(1, 'rgba(0,0,0,0.6)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+  }
 
   if (uniquifier && uniquifier.enabled) {
     applyUniquifierNoise(ctx, uniquifier, width, height);
@@ -682,6 +711,8 @@ function drawText(
   canvasW: number,
   canvasH: number
 ) {
+  if (!v.hookText.trim()) return;
+
   const scaleFactor = canvasW / 300;
   const fontSize = v.fontSize * scaleFactor;
   const padding = 16 * scaleFactor;
