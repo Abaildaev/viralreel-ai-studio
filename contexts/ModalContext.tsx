@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
 import {
   ExclamationTriangleIcon,
   TrashIcon,
@@ -9,6 +9,7 @@ import {
   QuestionMarkCircleIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
+import { Button, cn } from '../components/ui';
 
 export interface ConfirmOptions {
   title?: string;
@@ -26,6 +27,21 @@ export interface AlertOptions {
   variant?: 'error' | 'warning' | 'info' | 'success';
 }
 
+export type ToastTone = 'success' | 'error' | 'info' | 'warning';
+
+export interface ToastOptions {
+  message: string;
+  tone?: ToastTone;
+  /** Milliseconds on screen. Errors default to longer than confirmations. */
+  duration?: number;
+}
+
+interface Toast {
+  id: number;
+  message: string;
+  tone: ToastTone;
+}
+
 interface ModalState {
   isOpen: boolean;
   type: 'confirm' | 'alert';
@@ -41,17 +57,81 @@ interface ModalState {
 interface ModalContextType {
   confirm: (options: ConfirmOptions | string) => Promise<boolean>;
   alert: (options: AlertOptions | string) => Promise<void>;
+  /**
+   * Non-blocking feedback for something that already happened. Prefer this over
+   * `alert` for success and progress: a modal that only says "готово" costs the
+   * user a click to dismiss information they never asked for.
+   */
+  toast: (options: ToastOptions | string) => void;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
 
+const TOAST_TONES: Record<ToastTone, { box: string; icon: ReactNode }> = {
+  success: {
+    box: 'border-green-200 bg-green-50 text-green-900',
+    icon: <CheckCircleIcon className="h-5 w-5 text-green-600" />,
+  },
+  error: {
+    box: 'border-red-200 bg-red-50 text-red-900',
+    icon: <ExclamationTriangleIcon className="h-5 w-5 text-red-600" />,
+  },
+  warning: {
+    box: 'border-amber-200 bg-amber-50 text-amber-900',
+    icon: <ExclamationTriangleIcon className="h-5 w-5 text-amber-600" />,
+  },
+  info: {
+    box: 'border-gray-200 bg-white text-gray-900',
+    icon: <InformationCircleIcon className="h-5 w-5 text-brand-600" />,
+  },
+};
+
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [modalState, setModalState] = useState<ModalState | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const nextToastId = useRef(0);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+
+  const dismissToast = useCallback((id: number) => {
+    const timer = timers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timers.current.delete(id);
+    }
+    setToasts((current) => current.filter((toast) => toast.id !== id));
+  }, []);
+
+  const toast = useCallback(
+    (options: ToastOptions | string) => {
+      const opts: ToastOptions = typeof options === 'string' ? { message: options } : options;
+      const tone = opts.tone ?? 'success';
+      // An error is worth more reading time than a confirmation.
+      const duration = opts.duration ?? (tone === 'error' ? 6000 : 4000);
+      const id = nextToastId.current++;
+
+      setToasts((current) => [...current, { id, message: opts.message, tone }]);
+      timers.current.set(
+        id,
+        setTimeout(() => dismissToast(id), duration),
+      );
+    },
+    [dismissToast],
+  );
+
+  // Timers outlive the component without this, and firing into an unmounted
+  // tree warns in development.
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach(clearTimeout);
+      pending.clear();
+    };
+  }, []);
 
   const confirm = useCallback((options: ConfirmOptions | string): Promise<boolean> => {
     return new Promise((resolve) => {
       const opts: ConfirmOptions = typeof options === 'string' ? { message: options } : options;
-      
+
       let autoIcon = opts.icon;
       if (!autoIcon) {
         if (opts.variant === 'danger' || opts.message.toLowerCase().includes('удалить')) {
@@ -104,11 +184,16 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     });
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      modalState?.resolve(false);
-    }
-  };
+  // Escape has to be caught on the document: the overlay only received key
+  // events while it happened to hold focus, which it loses to its own buttons.
+  useEffect(() => {
+    if (!modalState) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') modalState.resolve(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [modalState]);
 
   const renderIcon = () => {
     const iconType = modalState?.icon;
@@ -116,92 +201,90 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
     if (iconType === 'trash' || variant === 'danger') {
       return (
-        <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
-          <TrashIcon className="w-6 h-6" />
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+          <TrashIcon className="h-6 w-6" />
         </div>
       );
     }
     if (iconType === 'shuffle') {
       return (
-        <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
-          <ArrowsUpDownIcon className="w-6 h-6" />
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+          <ArrowsUpDownIcon className="h-6 w-6" />
         </div>
       );
     }
     if (iconType === 'arrows') {
       return (
-        <div className="w-12 h-12 rounded-2xl bg-gray-100 text-gray-700 flex items-center justify-center flex-shrink-0">
-          <ArrowsRightLeftIcon className="w-6 h-6" />
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-gray-700">
+          <ArrowsRightLeftIcon className="h-6 w-6" />
         </div>
       );
     }
     if (iconType === 'warning' || variant === 'error' || variant === 'warning') {
       return (
-        <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
-          <ExclamationTriangleIcon className="w-6 h-6" />
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+          <ExclamationTriangleIcon className="h-6 w-6" />
         </div>
       );
     }
     if (variant === 'success') {
       return (
-        <div className="w-12 h-12 rounded-2xl bg-green-50 text-green-600 flex items-center justify-center flex-shrink-0">
-          <CheckCircleIcon className="w-6 h-6" />
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-600">
+          <CheckCircleIcon className="h-6 w-6" />
         </div>
       );
     }
     return (
-      <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center flex-shrink-0">
-        <QuestionMarkCircleIcon className="w-6 h-6" />
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
+        <QuestionMarkCircleIcon className="h-6 w-6" />
       </div>
     );
   };
 
-  const getConfirmButtonClasses = () => {
+  /* Only the destructive and cautionary confirmations depart from the primary
+     button; the rest use it as-is. */
+  const confirmButtonClass = () => {
     const variant = modalState?.variant;
     const icon = modalState?.icon;
-
-    if (variant === 'danger' || icon === 'trash') {
-      return 'bg-red-600 hover:bg-red-700 text-white shadow-red-200';
-    }
-    if (icon === 'shuffle') {
-      return 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200';
-    }
-    if (variant === 'warning' || variant === 'error') {
-      return 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-200';
-    }
-    return 'bg-brand-600 hover:bg-brand-700 text-white shadow-brand-200';
+    if (variant === 'danger' || icon === 'trash') return 'bg-red-600 hover:bg-red-700';
+    if (variant === 'warning' || variant === 'error') return 'bg-amber-600 hover:bg-amber-700';
+    return '';
   };
 
   return (
-    <ModalContext.Provider value={{ confirm, alert }}>
+    <ModalContext.Provider value={{ confirm, alert, toast }}>
       {children}
 
       {modalState?.isOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+          className="animate-in fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm duration-150"
           onClick={() => modalState.resolve(false)}
-          onKeyDown={handleKeyDown}
-          tabIndex={-1}
+          role="presentation"
         >
           <div
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-gray-100 transform transition-all animate-in zoom-in-95 duration-150 flex flex-col"
+            role="dialog"
+            aria-modal="true"
+            aria-label={modalState.title}
+            className="animate-in zoom-in-95 flex w-full max-w-md flex-col rounded-2xl border border-gray-100 bg-white p-6 shadow-2xl duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-4">
               {renderIcon()}
-              <div className="flex-1 min-w-0 pt-0.5">
+              <div className="min-w-0 flex-1 pt-0.5">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-base font-bold text-gray-900 leading-snug">
+                  <h3 className="text-base font-semibold leading-snug text-gray-900">
                     {modalState.title}
                   </h3>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    title="Закрыть"
                     onClick={() => modalState.resolve(false)}
-                    className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
+                    icon={<XMarkIcon className="h-5 w-5" />}
+                  />
                 </div>
-                <p className="mt-2 text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-gray-600">
                   {modalState.message}
                 </p>
               </div>
@@ -209,24 +292,50 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
             <div className="mt-6 flex items-center justify-end gap-3 pt-2">
               {modalState.type === 'confirm' && (
-                <button
-                  type="button"
-                  onClick={() => modalState.resolve(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  {modalState.cancelText}
-                </button>
+                <Button onClick={() => modalState.resolve(false)}>{modalState.cancelText}</Button>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
                 autoFocus
                 onClick={() => modalState.resolve(true)}
-                className={`px-5 py-2.5 rounded-xl text-sm font-semibold shadow-md transition-all ${getConfirmButtonClasses()}`}
+                className={confirmButtonClass()}
               >
                 {modalState.confirmText}
-              </button>
+              </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast stack. `polite` so a success note never interrupts a screen
+          reader mid-sentence — the modal above is what assertive is for. */}
+      {toasts.length > 0 && (
+        <div
+          aria-live="polite"
+          className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex flex-col items-center gap-2 sm:inset-x-auto sm:bottom-5 sm:right-5 sm:items-end"
+        >
+          {toasts.map(({ id, message, tone }) => (
+            <div
+              key={id}
+              className={cn(
+                'animate-toast-in pointer-events-auto flex w-full items-start gap-2.5 rounded-xl border px-3.5 py-3 shadow-lg sm:w-auto sm:max-w-sm',
+                TOAST_TONES[tone].box,
+              )}
+            >
+              <span className="mt-px flex-shrink-0" aria-hidden>
+                {TOAST_TONES[tone].icon}
+              </span>
+              <p className="min-w-0 flex-1 text-sm leading-relaxed">{message}</p>
+              <button
+                type="button"
+                onClick={() => dismissToast(id)}
+                title="Закрыть"
+                className="-mr-1 flex-shrink-0 rounded-lg p-1 opacity-50 transition-opacity hover:opacity-100"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </ModalContext.Provider>
