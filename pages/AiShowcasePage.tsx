@@ -5,7 +5,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import VariationsGrid from '../components/VariationsGrid';
 import AudioModal from '../components/AudioModal';
 import { generateAiShowcaseContent } from '../services/geminiService';
-import Section from '../components/Section';
+import { Section } from '../components/ui';
 import {
   SparklesIcon,
   CloudArrowUpIcon,
