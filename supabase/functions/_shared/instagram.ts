@@ -74,6 +74,55 @@ export async function publishContainer(
   return data.id;
 }
 
+/** Carries Meta's numeric codes so callers can explain the failure. */
+export class InstagramApiError extends Error {
+  constructor(
+    message: string,
+    readonly code?: number,
+    readonly subcode?: number,
+  ) {
+    super(message);
+    this.name = "InstagramApiError";
+  }
+}
+
+/**
+ * Meta's messages are English, terse and often refer to internal concepts. The
+ * automation log is read by the account owner, so store something actionable.
+ */
+export function describeInstagramError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const code = error instanceof InstagramApiError ? error.code : undefined;
+  const subcode = error instanceof InstagramApiError ? error.subcode : undefined;
+  const haystack = raw.toLowerCase();
+
+  const has = (...needles: string[]) => needles.some((needle) => haystack.includes(needle));
+
+  if (code === 190 || has("access token", "session has expired", "oauthexception")) {
+    return "Токен Instagram истёк или отозван — переподключите аккаунт в разделе «Аккаунты».";
+  }
+  if (subcode === 2534022 || has("user not found", "recipient not found")) {
+    return "Instagram не нашёл получателя: возможно, аккаунт удалён или заблокировал вас.";
+  }
+  if (code === 551 || has("isn't available", "is not available", "cannot message")) {
+    return "Пользователь закрыл личные сообщения или ограничил переписку — Direct доставить нельзя.";
+  }
+  if (subcode === 2534014 || has("outside of allowed window", "messaging window", "24 hours")) {
+    return "Прошло больше 24 часов с сообщения пользователя — Instagram запрещает писать первым.";
+  }
+  if (has("already replied", "already sent a private reply")) {
+    return "На этот комментарий уже отправлялся личный ответ — Instagram разрешает только один.";
+  }
+  if (code === 613 || code === 4 || code === 17 || code === 32 || has("rate limit", "too many")) {
+    return "Достигнут лимит запросов Instagram — попробуйте позже или уменьшите частоту автоответов.";
+  }
+  if (has("permission", "not authorized", "insufficient")) {
+    return "Не хватает прав приложения Meta: проверьте разрешения instagram_manage_messages и instagram_manage_comments.";
+  }
+
+  return raw;
+}
+
 /** Polls the container until Instagram finishes transcoding the upload. */
 export async function waitForProcessing(
   containerId: string,

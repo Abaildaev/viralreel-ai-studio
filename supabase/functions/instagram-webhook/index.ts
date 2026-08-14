@@ -1,10 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient } from "../_shared/auth.ts";
 import { constantTimeEqual, secretEquals } from "../_shared/crypto.ts";
+import { describeInstagramError, InstagramApiError } from "../_shared/instagram.ts";
+import {
+  buildDirectMessage,
+  LEAD_MAGNET_COLUMNS,
+  LeadMagnetRow,
+  normalizeText,
+  pickPublicReply,
+  selectLeadMagnet,
+  TriggerType,
+  truncateUtf8,
+} from "../_shared/keyword-match.ts";
 
 const GRAPH_API_BASE_URL = "https://graph.instagram.com/v26.0";
 
-type TriggerType = "dm" | "comment";
+/** Upper bound for the humanising delay, to stay inside the background-task budget. */
+const MAX_REPLY_DELAY_SECONDS = 60;
 
 interface IncomingEvent {
   accountIgId: string;
@@ -18,93 +30,11 @@ interface IncomingEvent {
   rawEvent: Record<string, unknown>;
 }
 
-interface LeadMagnetRow {
-  id: string;
-  instagram_account_id: string | null;
-  title: string;
-  description: string;
-  codeword: string;
-  keywords: string[];
-  reply_text: string;
-  response_url: string;
-  button_text: string;
-  match_mode: "exact" | "contains";
-  trigger_dm: boolean;
-  trigger_comments: boolean;
-  public_reply_enabled: boolean;
-  public_reply_variants: string[];
-  media_scope: "all" | "selected";
-  media_ids: string[];
-  repeat_delay_hours: number;
-}
-
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-function normalizeText(value: string): string {
-  return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleUpperCase("ru-RU");
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function matchesCodeword(text: string, codeword: string, mode: "exact" | "contains"): boolean {
-  const normalizedText = normalizeText(text);
-  const normalizedCodeword = normalizeText(codeword);
-  if (!normalizedText || !normalizedCodeword) return false;
-  if (mode === "exact") return normalizedText === normalizedCodeword;
-
-  const pattern = new RegExp(
-    `(^|[^\\p{L}\\p{N}_])${escapeRegExp(normalizedCodeword)}($|[^\\p{L}\\p{N}_])`,
-    "u",
-  );
-  return pattern.test(normalizedText);
-}
-
-function buildReply(leadMagnet: LeadMagnetRow): string {
-  const fallback = leadMagnet.description
-    ? `Вот ваш материал «${leadMagnet.title}».\n\n${leadMagnet.description}`
-    : `Вот ваш материал «${leadMagnet.title}».`;
-  return truncateUtf8(leadMagnet.reply_text.trim() || fallback, 640);
-}
-
-function buildDirectMessage(leadMagnet: LeadMagnetRow): Record<string, unknown> {
-  const text = buildReply(leadMagnet);
-  const url = leadMagnet.response_url.trim();
-  if (!url) return { text };
-
-  return {
-    attachment: {
-      type: "template",
-      payload: {
-        template_type: "button",
-        text,
-        buttons: [{
-          type: "web_url",
-          url,
-          title: truncateUtf8(leadMagnet.button_text.trim() || "Получить материал", 20),
-        }],
-      },
-    },
-  };
-}
-
-function truncateUtf8(value: string, maxBytes: number): string {
-  const encoder = new TextEncoder();
-  let result = "";
-  let bytes = 0;
-  for (const character of value) {
-    const characterBytes = encoder.encode(character).length;
-    if (bytes + characterBytes > maxBytes) break;
-    result += character;
-    bytes += characterBytes;
-  }
-  return result;
 }
 
 function extractEvents(payload: any): IncomingEvent[] {
@@ -174,32 +104,47 @@ async function hasValidSignature(rawBody: string, signatureHeader: string | null
   return constantTimeEqual(expected, provided);
 }
 
+async function graphPost(url: string, accessToken: string, body: unknown): Promise<any> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => null);
+  if (!response.ok || data?.error) {
+    throw new InstagramApiError(
+      data?.error?.message ?? `Instagram API returned HTTP ${response.status}`,
+      data?.error?.code,
+      data?.error?.error_subcode,
+    );
+  }
+  return data;
+}
+
 async function sendInstagramReply(
   accountIgId: string,
   accessToken: string,
   event: IncomingEvent,
   message: Record<string, unknown>,
 ): Promise<string> {
-  const recipient = event.triggerType === "comment"
-    ? { comment_id: event.commentId }
-    : { id: event.senderIgsid };
-
   if (event.triggerType === "dm" && !event.senderIgsid) {
     throw new Error("Instagram sender ID is missing");
   }
 
-  const response = await fetch(`${GRAPH_API_BASE_URL}/${accountIgId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ recipient, message }),
-  });
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    throw new Error(data?.error?.message ?? `Instagram API returned HTTP ${response.status}`);
-  }
+  // Comment-triggered DMs go through the private-reply endpoint, which is the
+  // only way to message someone who has not written to us first.
+  const recipient = event.triggerType === "comment"
+    ? { comment_id: event.commentId }
+    : { id: event.senderIgsid };
+
+  const data = await graphPost(
+    `${GRAPH_API_BASE_URL}/${accountIgId}/messages`,
+    accessToken,
+    { recipient, message },
+  );
   return String(data.message_id ?? "");
 }
 
@@ -208,28 +153,15 @@ async function sendPublicCommentReply(
   accessToken: string,
   text: string,
 ): Promise<string> {
-  const response = await fetch(`${GRAPH_API_BASE_URL}/${commentId}/replies`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ message: truncateUtf8(text, 300) }),
-  });
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    throw new Error(data?.error?.message ?? `Instagram API returned HTTP ${response.status}`);
-  }
+  const data = await graphPost(
+    `${GRAPH_API_BASE_URL}/${commentId}/replies`,
+    accessToken,
+    { message: truncateUtf8(text, 300) },
+  );
   return String(data.id ?? "");
 }
 
-function pickPublicReply(leadMagnet: LeadMagnetRow): string {
-  const variants = (leadMagnet.public_reply_variants ?? [])
-    .map((value) => value.trim())
-    .filter(Boolean);
-  if (variants.length === 0) return "Отправил в Direct 🙌";
-  return variants[Math.floor(Math.random() * variants.length)];
-}
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function processEvent(event: IncomingEvent): Promise<void> {
   const supabase = createAdminClient();
@@ -246,6 +178,8 @@ async function processEvent(event: IncomingEvent): Promise<void> {
     return;
   }
 
+  // Our own public replies come back as comment events; without this the
+  // automation would answer itself in a loop.
   if (
     event.senderIgsid === String(account.ig_user_id) ||
     normalizeText(event.commenterUsername ?? "") === normalizeText(String(account.username ?? ""))
@@ -273,44 +207,33 @@ async function processEvent(event: IncomingEvent): Promise<void> {
   if (eventInsertError?.code === "23505") return;
   if (eventInsertError) throw eventInsertError;
 
+  const finish = (patch: Record<string, unknown>) =>
+    supabase
+      .from("instagram_automation_events")
+      .update({ ...patch, processed_at: new Date().toISOString() })
+      .eq("id", eventRow.id);
+
   const { data: leadMagnets, error: leadMagnetError } = await supabase
     .from("lead_magnets")
-    .select("id,instagram_account_id,title,description,codeword,keywords,reply_text,response_url,button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled,public_reply_variants,media_scope,media_ids,repeat_delay_hours")
+    .select(LEAD_MAGNET_COLUMNS)
     .eq("user_id", account.user_id)
     .eq("is_active", true)
     .or(`instagram_account_id.eq.${account.id},instagram_account_id.is.null`);
 
   if (leadMagnetError) throw leadMagnetError;
 
-  const sortedLeadMagnets = ((leadMagnets ?? []) as LeadMagnetRow[]).sort((left, right) =>
-    Number(Boolean(right.instagram_account_id)) - Number(Boolean(left.instagram_account_id))
-  );
-  const matched = sortedLeadMagnets.find((leadMagnet) => {
-    const triggerEnabled = event.triggerType === "dm"
-      ? leadMagnet.trigger_dm
-      : leadMagnet.trigger_comments;
-    const mediaEnabled = event.triggerType !== "comment" ||
-      leadMagnet.media_scope !== "selected" ||
-      Boolean(event.mediaId && leadMagnet.media_ids?.includes(event.mediaId));
-    const keywords = leadMagnet.keywords?.length ? leadMagnet.keywords : [leadMagnet.codeword];
-    return triggerEnabled && mediaEnabled && keywords.some((keyword) =>
-      matchesCodeword(event.text, keyword, leadMagnet.match_mode)
-    );
+  const match = selectLeadMagnet((leadMagnets ?? []) as LeadMagnetRow[], {
+    triggerType: event.triggerType,
+    text: event.text,
+    mediaId: event.mediaId,
   });
 
-  if (!matched) {
-    await supabase
-      .from("instagram_automation_events")
-      .update({
-        status: "ignored",
-        public_reply_status: "skipped",
-        dm_status: "skipped",
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", eventRow.id);
+  if (!match) {
+    await finish({ status: "ignored", public_reply_status: "skipped", dm_status: "skipped" });
     return;
   }
 
+  const matched = match.leadMagnet;
 
   if (event.senderIgsid && matched.repeat_delay_hours > 0) {
     const cutoff = new Date(Date.now() - matched.repeat_delay_hours * 60 * 60 * 1000).toISOString();
@@ -322,33 +245,54 @@ async function processEvent(event: IncomingEvent): Promise<void> {
       .eq("status", "sent")
       .gte("created_at", cutoff);
     if ((count ?? 0) > 0) {
-      await supabase
-        .from("instagram_automation_events")
-        .update({
-          lead_magnet_id: matched.id,
-          status: "ignored",
-          public_reply_status: "skipped",
-          dm_status: "skipped",
-          error_message: `Повторный запуск доступен через ${matched.repeat_delay_hours} ч.`,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("id", eventRow.id);
+      await finish({
+        lead_magnet_id: matched.id,
+        status: "ignored",
+        public_reply_status: "skipped",
+        dm_status: "skipped",
+        error_message: `Этот человек уже получал материал — повтор доступен через ${matched.repeat_delay_hours} ч.`,
+      });
       return;
     }
   }
 
   if (!String(account.access_token).startsWith("IGAA")) {
-    await supabase
-      .from("instagram_automation_events")
-      .update({
-        lead_magnet_id: matched.id,
-        status: "failed",
-        public_reply_status: "skipped",
-        dm_status: "failed",
-        error_message: "Keyword automation requires an Instagram Login (IGAA) user token",
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", eventRow.id);
+    await finish({
+      lead_magnet_id: matched.id,
+      status: "failed",
+      public_reply_status: "skipped",
+      dm_status: "failed",
+      error_message:
+        "Автоответы требуют токен Instagram Login (IGAA). Переподключите аккаунт через Instagram, а не через Facebook.",
+    });
+    return;
+  }
+
+  const delaySeconds = Math.min(Math.max(matched.reply_delay_seconds ?? 0, 0), MAX_REPLY_DELAY_SECONDS);
+  if (delaySeconds > 0) {
+    // Jitter so repeated triggers do not answer at a metronomic interval.
+    await sleep((delaySeconds * 0.5 + Math.random() * delaySeconds * 0.5) * 1000);
+  }
+
+  // The Direct message is the promise; the public comment merely announces it.
+  // Sending the announcement first would publicly claim a delivery that may
+  // never happen, so the DM goes out first and gates everything else.
+  let messageId: string;
+  try {
+    messageId = await sendInstagramReply(
+      account.ig_user_id,
+      account.access_token,
+      event,
+      buildDirectMessage(matched),
+    );
+  } catch (error) {
+    await finish({
+      lead_magnet_id: matched.id,
+      status: "failed",
+      public_reply_status: "skipped",
+      dm_status: "failed",
+      error_message: describeInstagramError(error),
+    });
     return;
   }
 
@@ -365,45 +309,19 @@ async function processEvent(event: IncomingEvent): Promise<void> {
       publicReplyStatus = "sent";
     } catch (error) {
       publicReplyStatus = "failed";
-      publicReplyError = error instanceof Error ? error.message : String(error);
+      publicReplyError = describeInstagramError(error);
     }
   }
 
-  try {
-    const messageId = await sendInstagramReply(
-      account.ig_user_id,
-      account.access_token,
-      event,
-      buildDirectMessage(matched),
-    );
-    await supabase
-      .from("instagram_automation_events")
-      .update({
-        lead_magnet_id: matched.id,
-        status: "sent",
-        public_reply_status: publicReplyStatus,
-        public_reply_id: publicReplyId || null,
-        dm_status: "sent",
-        response_message_id: messageId,
-        error_message: publicReplyError || null,
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", eventRow.id);
-  } catch (error) {
-    const dmError = error instanceof Error ? error.message : String(error);
-    await supabase
-      .from("instagram_automation_events")
-      .update({
-        lead_magnet_id: matched.id,
-        status: "failed",
-        public_reply_status: publicReplyStatus,
-        public_reply_id: publicReplyId || null,
-        dm_status: "failed",
-        error_message: [publicReplyError, dmError].filter(Boolean).join(" · "),
-        processed_at: new Date().toISOString(),
-      })
-      .eq("id", eventRow.id);
-  }
+  await finish({
+    lead_magnet_id: matched.id,
+    status: "sent",
+    public_reply_status: publicReplyStatus,
+    public_reply_id: publicReplyId || null,
+    dm_status: "sent",
+    response_message_id: messageId,
+    error_message: publicReplyError ? `Direct доставлен, но публичный ответ не отправлен: ${publicReplyError}` : null,
+  });
 }
 
 async function processPayload(payload: unknown): Promise<void> {

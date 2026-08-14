@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getAuthenticatedHeaders, supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
-import { LeadMagnet } from '../types';
+import { LeadMagnet, LeadMagnetStats } from '../types';
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
@@ -37,7 +37,23 @@ interface AutomationForm {
   response_url: string;
   button_text: string;
   repeat_delay_hours: number;
+  reply_delay_seconds: number;
   is_active: boolean;
+}
+
+interface TestResult {
+  blockers: string[];
+  matched: {
+    id: string;
+    title: string;
+    keyword: string;
+    delay_seconds: number;
+    direct_text: string;
+    button_text: string | null;
+    response_url: string | null;
+    public_reply: string | null;
+  } | null;
+  considered: { id: string; title: string; reason: string }[];
 }
 
 interface InstagramMedia {
@@ -87,8 +103,11 @@ const createEmptyForm = (accountId: string | null = null): AutomationForm => ({
   response_url: '',
   button_text: 'Получить материал',
   repeat_delay_hours: 24,
+  reply_delay_seconds: 0,
   is_active: true,
 });
+
+const EVENTS_PAGE_SIZE = 20;
 
 const statusMeta = {
   sent: { label: 'Доставлено', className: 'bg-green-50 text-green-700 border-green-200' },
@@ -111,18 +130,33 @@ const AutomationsPage: React.FC = () => {
   const [notice, setNotice] = useState<{ success: boolean; message: string } | null>(null);
   const [media, setMedia] = useState<InstagramMedia[]>([]);
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [stats, setStats] = useState<LeadMagnetStats[]>([]);
+  const [eventAccountId, setEventAccountId] = useState('');
+  const [eventLimit, setEventLimit] = useState(EVENTS_PAGE_SIZE);
+  const [eventsTotal, setEventsTotal] = useState(0);
+  const [testText, setTestText] = useState('');
+  const [testTrigger, setTestTrigger] = useState<'comment' | 'dm'>('comment');
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const loadDashboard = useCallback(async (quiet = false) => {
     if (!user) return;
     quiet ? setRefreshing(true) : setLoading(true);
 
-    const [rulesResult, eventsResult] = await Promise.all([
+    let eventsQuery = supabase
+      .from('instagram_automation_events')
+      .select(
+        'id,trigger_type,incoming_text,commenter_username,status,public_reply_status,dm_status,error_message,created_at,lead_magnets(title,codeword),instagram_accounts(username)',
+        { count: 'exact' },
+      )
+      .order('created_at', { ascending: false })
+      .limit(eventLimit);
+    if (eventAccountId) eventsQuery = eventsQuery.eq('instagram_account_id', eventAccountId);
+
+    const [rulesResult, eventsResult, statsResult] = await Promise.all([
       supabase.from('lead_magnets').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase
-        .from('instagram_automation_events')
-        .select('id,trigger_type,incoming_text,commenter_username,status,public_reply_status,dm_status,error_message,created_at,lead_magnets(title,codeword),instagram_accounts(username)')
-        .order('created_at', { ascending: false })
-        .limit(40),
+      eventsQuery,
+      supabase.from('lead_magnet_stats').select('*'),
     ]);
 
     if (rulesResult.error || eventsResult.error) {
@@ -130,15 +164,25 @@ const AutomationsPage: React.FC = () => {
     }
     setRules((rulesResult.data || []) as LeadMagnet[]);
     setEvents((eventsResult.data || []) as unknown as AutomationEvent[]);
+    setEventsTotal(eventsResult.count ?? 0);
+    setStats((statsResult.data || []) as LeadMagnetStats[]);
     setLoading(false);
     setRefreshing(false);
-  }, [user]);
+  }, [user, eventAccountId, eventLimit]);
 
   useEffect(() => { loadDashboard(); }, [loadDashboard]);
 
+  const statsByRule = useMemo(
+    () => new Map(stats.map(row => [row.lead_magnet_id, row])),
+    [stats],
+  );
+
   const activeRules = rules.filter(rule => rule.is_active).length;
-  const sentCount = events.filter(event => event.status === 'sent').length;
-  const conversion = events.length ? Math.round((sentCount / events.length) * 100) : 0;
+  // Counted across the whole history, not just the page of events on screen.
+  const sentCount = stats.reduce((total, row) => total + Number(row.sent_count || 0), 0);
+  const failedCount = stats.reduce((total, row) => total + Number(row.failed_count || 0), 0);
+  const attempts = sentCount + failedCount;
+  const deliverability = attempts ? Math.round((sentCount / attempts) * 100) : 100;
   const readyAccounts = accounts.filter(account => account.webhook_subscribed_at && !account.webhook_error).length;
 
   const loadMedia = useCallback(async (accountId: string | null) => {
@@ -172,6 +216,8 @@ const AutomationsPage: React.FC = () => {
     setForm(createEmptyForm(selectedAccount?.id || accounts[0]?.id || null));
     setKeywordDraft('');
     setNotice(null);
+    setTestResult(null);
+    setTestText('');
     setEditorOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -194,8 +240,11 @@ const AutomationsPage: React.FC = () => {
       response_url: rule.response_url || '',
       button_text: rule.button_text || 'Получить материал',
       repeat_delay_hours: rule.repeat_delay_hours ?? 24,
+      reply_delay_seconds: rule.reply_delay_seconds ?? 0,
       is_active: rule.is_active,
     });
+    setTestResult(null);
+    setTestText('');
     setKeywordDraft('');
     setEditorOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -232,6 +281,7 @@ const AutomationsPage: React.FC = () => {
         response_url: form.response_url.trim(),
         button_text: (form.button_text || '').trim() || 'Получить материал',
         repeat_delay_hours: form.repeat_delay_hours,
+        reply_delay_seconds: form.reply_delay_seconds,
         is_active: form.is_active,
         updated_at: new Date().toISOString(),
       };
@@ -247,6 +297,35 @@ const AutomationsPage: React.FC = () => {
       setNotice({ success: false, message: error.message || 'Не удалось сохранить автоматизацию' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  /**
+   * Runs the real matcher on the server against the saved rules, so the result
+   * reflects what the webhook would do — not a re-implementation in the client.
+   */
+  const runTest = async () => {
+    if (!form.instagram_account_id || !testText.trim()) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-automation`, {
+        method: 'POST',
+        headers: await getAuthenticatedHeaders(),
+        body: JSON.stringify({
+          account_id: form.instagram_account_id,
+          text: testText,
+          trigger_type: testTrigger,
+          media_id: form.media_scope === 'selected' ? form.media_ids[0] : undefined,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Не удалось выполнить проверку');
+      setTestResult(result as TestResult);
+    } catch (error: any) {
+      setNotice({ success: false, message: error.message || 'Не удалось выполнить проверку' });
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -268,6 +347,16 @@ const AutomationsPage: React.FC = () => {
   }).format(new Date(value));
 
   const selectedMedia = useMemo(() => media.filter(item => form.media_ids.includes(item.id)), [media, form.media_ids]);
+
+  const editorAccount = accounts.find(account => account.id === form.instagram_account_id);
+  // A rule saved against an unsubscribed account never fires, silently.
+  const accountBlockers = editorAccount
+    ? [
+      !editorAccount.is_active && 'Аккаунт отключён в разделе «Аккаунты»',
+      !editorAccount.webhook_subscribed_at && 'Нет подписки на webhook — Instagram не пришлёт события. Переподключите аккаунт.',
+      editorAccount.webhook_error && `Ошибка подписки: ${editorAccount.webhook_error}`,
+    ].filter(Boolean) as string[]
+    : [];
 
   if (editorOpen) {
     return (
@@ -313,6 +402,18 @@ const AutomationsPage: React.FC = () => {
                     <option value="">Выберите аккаунт</option>
                     {accounts.map(account => <option key={account.id} value={account.id}>@{account.username}</option>)}
                   </select>
+                  {accountBlockers.length > 0 && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                      <p className="text-sm font-medium text-amber-900 flex items-center gap-2">
+                        <ExclamationTriangleIcon className="w-4 h-4" /> Сценарий сохранится, но не сработает
+                      </p>
+                      <ul className="mt-1.5 space-y-1">
+                        {accountBlockers.map(blocker => (
+                          <li key={blocker} className="text-xs text-amber-800">• {blocker}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 <ChoiceCard active={form.trigger_comments} title="Комментарий под Reels" description="Ключевое слово в комментарии" onClick={() => setForm(current => ({ ...current, trigger_comments: !current.trigger_comments }))} />
                 <ChoiceCard active={form.trigger_dm} title="Сообщение в Direct" description="Ключевое слово в личке" onClick={() => setForm(current => ({ ...current, trigger_dm: !current.trigger_dm }))} />
@@ -418,18 +519,97 @@ const AutomationsPage: React.FC = () => {
               </div>
             </BuilderSection>
 
-            <BuilderSection number={form.trigger_comments ? '5' : '4'} title="Защита от спама" subtitle="Не отправлять один и тот же материал человеку слишком часто.">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-gray-600">Повторный запуск через</span>
-                <select value={form.repeat_delay_hours} onChange={event => setForm(current => ({ ...current, repeat_delay_hours: Number(event.target.value) }))} className="field max-w-48">
-                  <option value={0}>без ограничения</option>
-                  <option value={1}>1 час</option>
-                  <option value={24}>24 часа</option>
-                  <option value={168}>7 дней</option>
-                  <option value={720}>30 дней</option>
-                  <option value={8760}>1 год</option>
-                </select>
+            <BuilderSection number={form.trigger_comments ? '5' : '4'} title="Поведение бота" subtitle="Частота повторов и пауза перед ответом.">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Повторный запуск для того же человека</label>
+                  <select value={form.repeat_delay_hours} onChange={event => setForm(current => ({ ...current, repeat_delay_hours: Number(event.target.value) }))} className="field">
+                    <option value={0}>без ограничения</option>
+                    <option value={1}>через 1 час</option>
+                    <option value={24}>через 24 часа</option>
+                    <option value={168}>через 7 дней</option>
+                    <option value={720}>через 30 дней</option>
+                    <option value={8760}>через 1 год</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Пауза перед ответом</label>
+                  <select value={form.reply_delay_seconds} onChange={event => setForm(current => ({ ...current, reply_delay_seconds: Number(event.target.value) }))} className="field">
+                    <option value={0}>отвечать сразу</option>
+                    <option value={10}>около 10 секунд</option>
+                    <option value={30}>около 30 секунд</option>
+                    <option value={60}>около 60 секунд</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    Мгновенный ответ — заметный признак бота. Пауза берётся случайной в пределах выбранной.
+                  </p>
+                </div>
               </div>
+            </BuilderSection>
+
+            <BuilderSection number={form.trigger_comments ? '6' : '5'} title="Проверка" subtitle="Прогоняет ваш текст через тот же механизм, что и живые комментарии. Ничего не отправляет.">
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-xl w-fit mb-3">
+                <button onClick={() => setTestTrigger('comment')} className={`px-4 py-2 rounded-lg text-sm font-medium ${testTrigger === 'comment' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Комментарий</button>
+                <button onClick={() => setTestTrigger('dm')} className={`px-4 py-2 rounded-lg text-sm font-medium ${testTrigger === 'dm' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Direct</button>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  value={testText}
+                  onChange={event => setTestText(event.target.value)}
+                  onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); runTest(); } }}
+                  placeholder="Например: привет, скинь гайд пожалуйста"
+                  className="field"
+                />
+                <button onClick={runTest} disabled={testing || !testText.trim() || !form.instagram_account_id} className="btn btn-primary">
+                  {testing && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
+                  Проверить
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Проверяются сохранённые сценарии — сначала сохраните изменения.</p>
+
+              {testResult && (
+                <div className="mt-4 space-y-3">
+                  {testResult.blockers.map(blocker => (
+                    <p key={blocker} className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">{blocker}</p>
+                  ))}
+
+                  {testResult.matched ? (
+                    <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                      <p className="text-sm font-semibold text-green-900">
+                        Сработает «{testResult.matched.title}» по слову «{testResult.matched.keyword}»
+                        {testResult.matched.delay_seconds > 0 && ` — с паузой около ${testResult.matched.delay_seconds} с`}
+                      </p>
+                      {testResult.matched.public_reply && (
+                        <p className="text-xs text-green-800 mt-2">Под публикацией: «{testResult.matched.public_reply}»</p>
+                      )}
+                      <div className="mt-3 bg-white border border-green-200 rounded-xl p-3">
+                        <p className="text-xs whitespace-pre-line text-gray-800">{testResult.matched.direct_text}</p>
+                        {testResult.matched.button_text && (
+                          <div className="mt-2 text-center text-xs font-semibold text-teal-700 bg-teal-50 rounded-lg py-2">{testResult.matched.button_text}</div>
+                        )}
+                      </div>
+                      {!testResult.matched.response_url && (
+                        <p className="text-xs text-green-800 mt-2">Ссылка не заполнена — сообщение уйдёт без кнопки.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl p-3">Ни один сценарий не сработает на этот текст.</p>
+                  )}
+
+                  {testResult.considered.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Остальные сценарии</p>
+                      <ul className="space-y-1.5">
+                        {testResult.considered.map(item => (
+                          <li key={item.id} className="text-xs text-gray-500">
+                            <span className="font-medium text-gray-700">{item.title}</span> — {item.reason}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </BuilderSection>
           </main>
 
@@ -476,8 +656,12 @@ const AutomationsPage: React.FC = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
         <Metric label="Активные сценарии" value={activeRules} icon={<BoltIcon className="w-5 h-5" />} />
-        <Metric label="Доставлено" value={sentCount} icon={<PaperAirplaneIcon className="w-5 h-5" />} />
-        <Metric label="Конверсия" value={`${conversion}%`} icon={<CheckCircleIcon className="w-5 h-5" />} />
+        <Metric label="Доставлено в Direct" value={sentCount} icon={<PaperAirplaneIcon className="w-5 h-5" />} />
+        <Metric
+          label={failedCount ? `Доставляемость · ${failedCount} с ошибкой` : 'Доставляемость'}
+          value={attempts ? `${deliverability}%` : '—'}
+          icon={<CheckCircleIcon className="w-5 h-5" />}
+        />
         <Metric label="Аккаунты готовы" value={`${readyAccounts}/${accounts.length}`} icon={<ChatBubbleLeftRightIcon className="w-5 h-5" />} />
       </div>
 
@@ -496,7 +680,11 @@ const AutomationsPage: React.FC = () => {
               <article key={rule.id} className={`bg-white border border-gray-200 rounded-xl p-5 shadow-sm ${rule.is_active ? '' : 'opacity-60'}`}>
                 <div className="flex items-start gap-3"><div className="w-11 h-11 rounded-xl bg-teal-600 text-white flex items-center justify-center"><BoltIcon className="w-5 h-5" /></div><div className="min-w-0 flex-1"><h3 className="font-bold text-gray-900 truncate">{rule.title}</h3><p className="text-xs text-gray-500 mt-0.5">{accounts.find(account => account.id === rule.instagram_account_id)?.username ? `@${accounts.find(account => account.id === rule.instagram_account_id)?.username}` : 'Все аккаунты'} · {rule.media_scope === 'selected' ? `${rule.media_ids?.length || 0} публикаций` : 'Все публикации'}</p></div><button onClick={() => toggleRule(rule)} className={`relative w-11 h-6 rounded-full ${rule.is_active ? 'bg-green-500' : 'bg-gray-200'}`}><span className={`absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${rule.is_active ? 'translate-x-5' : ''}`} /></button></div>
                 <div className="flex items-center gap-2 my-5 overflow-hidden"><StepBadge text={(rule.keywords?.length ? rule.keywords : [rule.codeword]).join(', ')} tone="amber" /><ChevronRightIcon className="w-4 h-4 text-gray-300" /><StepBadge text="Ответ под Reels" tone="violet" /><ChevronRightIcon className="w-4 h-4 text-gray-300" /><StepBadge text="Direct" tone="teal" /></div>
-                <div className="flex items-center pt-4 border-t border-gray-100"><span className={`text-xs font-medium ${rule.is_active ? 'text-green-600' : 'text-gray-400'}`}>{rule.is_active ? '● Работает' : '○ Остановлен'}</span><div className="ml-auto flex gap-1"><button onClick={() => openEdit(rule)} className="p-2 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100"><PencilIcon className="w-4 h-4" /></button><button onClick={() => deleteRule(rule)} className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"><TrashIcon className="w-4 h-4" /></button></div></div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-4 border-t border-gray-100">
+                  <span className={`text-xs font-medium ${rule.is_active ? 'text-green-600' : 'text-gray-400'}`}>{rule.is_active ? '● Работает' : '○ Остановлен'}</span>
+                  <RuleStats stats={statsByRule.get(rule.id)} formatDate={formatDate} />
+                  <div className="ml-auto flex gap-1"><button onClick={() => openEdit(rule)} className="p-2 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100"><PencilIcon className="w-4 h-4" /></button><button onClick={() => deleteRule(rule)} className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50"><TrashIcon className="w-4 h-4" /></button></div>
+                </div>
               </article>
             ))}
           </div>
@@ -504,16 +692,45 @@ const AutomationsPage: React.FC = () => {
       </section>
 
       <section>
-        <div className="mb-3"><h2 className="text-lg font-bold text-gray-900">Последние срабатывания</h2><p className="text-sm text-gray-500">Видно отдельно: ответ под публикацией и доставка в Direct.</p></div>
+        <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Входящие события</h2>
+            <p className="text-sm text-gray-500">Сюда попадает каждый комментарий и Direct — и совпавшие, и пропущенные.</p>
+          </div>
+          {accounts.length > 1 && (
+            <select
+              value={eventAccountId}
+              onChange={event => { setEventAccountId(event.target.value); setEventLimit(EVENTS_PAGE_SIZE); }}
+              className="field max-w-56"
+            >
+              <option value="">Все аккаунты</option>
+              {accounts.map(account => <option key={account.id} value={account.id}>@{account.username}</option>)}
+            </select>
+          )}
+        </div>
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          {events.length === 0 ? <div className="py-12 text-center"><ClockIcon className="w-9 h-9 text-gray-300 mx-auto mb-2" /><p className="text-sm text-gray-500">Срабатываний пока нет</p><p className="text-xs text-gray-400 mt-1">Оставьте тестовый комментарий с другого аккаунта.</p></div> : events.map(event => { const meta = statusMeta[event.status]; return (
+          {events.length === 0 ? <div className="py-12 text-center"><ClockIcon className="w-9 h-9 text-gray-300 mx-auto mb-2" /><p className="text-sm text-gray-500">Событий пока нет</p><p className="text-xs text-gray-400 mt-1">Оставьте тестовый комментарий с другого аккаунта.</p></div> : events.map(event => { const meta = statusMeta[event.status]; return (
             <div key={event.id} className="grid sm:grid-cols-[minmax(0,1fr)_auto_auto] gap-3 items-center px-5 py-4 border-b last:border-b-0 border-gray-100">
-              <div className="min-w-0"><p className="text-sm font-semibold text-gray-900 truncate">{event.commenter_username ? `@${event.commenter_username}: ` : ''}{event.incoming_text}</p><p className="text-xs text-gray-400 mt-1">{event.instagram_accounts?.username ? `@${event.instagram_accounts.username}` : 'Instagram'} · {formatDate(event.created_at)}</p></div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">{event.commenter_username ? `@${event.commenter_username}: ` : ''}{event.incoming_text}</p>
+                <p className="text-xs text-gray-400 mt-1">{event.instagram_accounts?.username ? `@${event.instagram_accounts.username}` : 'Instagram'} · {formatDate(event.created_at)}</p>
+                {event.error_message && <p className="text-xs text-amber-700 mt-1.5">{event.error_message}</p>}
+              </div>
               <div className="flex gap-2"><DeliveryBadge label="Под Reels" status={event.public_reply_status} /><DeliveryBadge label="Direct" status={event.dm_status} /></div>
-              <span title={event.error_message || ''} className={`px-2.5 py-1 rounded-lg border text-xs font-medium ${meta.className}`}>{meta.label}</span>
+              <span className={`px-2.5 py-1 rounded-lg border text-xs font-medium ${meta.className}`}>{meta.label}</span>
             </div>
           ); })}
         </div>
+        {events.length < eventsTotal && (
+          <button
+            onClick={() => setEventLimit(current => current + EVENTS_PAGE_SIZE)}
+            disabled={refreshing}
+            className="btn btn-secondary w-full mt-3"
+          >
+            {refreshing && <ArrowPathIcon className="w-4 h-4 animate-spin" />}
+            Показать ещё — {events.length} из {eventsTotal}
+          </button>
+        )}
       </section>
     </div>
   );
@@ -535,6 +752,21 @@ const ChoiceCard: React.FC<{ active: boolean; title: string; description: string
 const Metric: React.FC<{ label: string; value: string | number; icon: React.ReactNode }> = ({ label, value, icon }) => (
   <div className="bg-white border border-gray-200 rounded-xl p-4"><div className="text-teal-600">{icon}</div><p className="text-2xl font-bold text-gray-900 mt-3">{value}</p><p className="text-xs text-gray-500 mt-0.5">{label}</p></div>
 );
+
+const RuleStats: React.FC<{ stats?: LeadMagnetStats; formatDate: (value: string) => string }> = ({ stats, formatDate }) => {
+  const sent = Number(stats?.sent_count || 0);
+  const failed = Number(stats?.failed_count || 0);
+
+  if (!sent && !failed) return <span className="text-xs text-gray-400">Ещё не срабатывал</span>;
+
+  return (
+    <span className="text-xs text-gray-500 flex items-center gap-3">
+      <span className="tabular"><b className="text-gray-900">{sent}</b> доставлено</span>
+      {failed > 0 && <span className="tabular text-red-600">{failed} с ошибкой</span>}
+      {stats?.last_sent_at && <span className="text-gray-400">последнее {formatDate(stats.last_sent_at)}</span>}
+    </span>
+  );
+};
 
 const StepBadge: React.FC<{ text: string; tone: 'amber' | 'violet' | 'teal' }> = ({ text, tone }) => {
   const styles = { amber: 'bg-amber-50 text-amber-700 border-amber-200', violet: 'bg-teal-50 text-teal-700 border-teal-200', teal: 'bg-teal-50 text-teal-700 border-teal-200' };

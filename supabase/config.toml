@@ -56,3 +56,7 @@ verify_jwt = true
 [functions.meta-legal]
 enabled = true
 verify_jwt = false
+
+[functions.test-automation]
+enabled = true
+verify_jwt = true

@@ -172,9 +172,19 @@ export interface LeadMagnet {
   media_scope: 'all' | 'selected';
   media_ids: string[];
   repeat_delay_hours: number;
+  reply_delay_seconds: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** Aggregated per rule by the `lead_magnet_stats` view. */
+export interface LeadMagnetStats {
+  lead_magnet_id: string;
+  sent_count: number;
+  failed_count: number;
+  ignored_count: number;
+  last_sent_at: string | null;
 }
 
 export interface LeadMagnetInfo {
