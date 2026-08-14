@@ -4,6 +4,8 @@
  * every page.
  */
 export { cn } from './cn';
+export { default as Logo } from './Logo';
+export type { LogoProps } from './Logo';
 export { default as Button } from './Button';
 export type { ButtonProps, ButtonSize, ButtonVariant } from './Button';
 export { default as Card, Card as CardRoot, Section } from './Card';

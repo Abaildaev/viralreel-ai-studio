@@ -1,12 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    Brand mark. The gradient is brand-600 -> brand-400 from tailwind.config.js;
+    it used to be teal, left over from the palette the app stopped using, so the
+    browser tab advertised a colour that appeared nowhere in the interface.
+    components/ui/Logo.tsx draws the same shape.
+  -->
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#0d9488"/>
-      <stop offset="100%" style="stop-color:#14b8a6"/>
+      <stop offset="0%" style="stop-color:#1E60FF"/>
+      <stop offset="100%" style="stop-color:#5D8DFF"/>
     </linearGradient>
     <linearGradient id="play" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#ffffff"/>
-      <stop offset="100%" style="stop-color:#e0f2f1"/>
+      <stop offset="100%" style="stop-color:#EFF4FF"/>
     </linearGradient>
   </defs>
   <!-- Rounded square background -->

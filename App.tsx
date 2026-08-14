@@ -1,7 +1,8 @@
 import React, { lazy, Suspense, useState } from 'react';
 import { AppView } from './types';
-import Sidebar from './components/Sidebar';
+import Sidebar, { MobileTopBar, viewTitle } from './components/Sidebar';
 import { useAuth } from './contexts/AuthContext';
+import { SkeletonList } from './components/ui';
 
 const AccountsPage = lazy(() => import('./pages/AccountsPage'));
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
@@ -18,45 +19,46 @@ const InstagramScheduler = lazy(() => import('./components/InstagramScheduler'))
 const MainApp: React.FC = () => {
   const { user, signOut } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>('generator');
+  const [navOpen, setNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-canvas text-gray-900 flex">
+    <div className="flex min-h-screen bg-canvas text-gray-900">
       <Sidebar
         currentView={currentView}
         onViewChange={setCurrentView}
         userEmail={user?.email || ''}
         onSignOut={signOut}
+        mobileOpen={navOpen}
+        onMobileClose={() => setNavOpen(false)}
       />
 
-      <main className="flex-1 min-h-screen overflow-y-auto">
-        <Suspense fallback={<div className="p-8 text-gray-500">Загрузка раздела…</div>}>
-          {currentView === 'accounts' && <AccountsPage />}
-          {currentView === 'automations' && <AutomationsPage />}
-          {currentView === 'settings' && <SettingsPage />}
-          {currentView === 'scheduler' && <InstagramScheduler />}
-          {currentView === 'audio' && <AudioPage />}
-          {currentView === 'templates' && <TemplatesPage />}
-          {currentView === 'batch' && <BatchGeneratorPage />}
-          {currentView === 'history' && <HistoryPage />}
-          {currentView === 'budget' && <BudgetReelsPage />}
-          {currentView === 'aishowcase' && <AiShowcasePage />}
+      {/* min-w-0 stops a wide table or calendar from stretching the flex row
+          and pushing the page sideways. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <MobileTopBar title={viewTitle(currentView)} onOpenNav={() => setNavOpen(true)} />
 
-          {currentView === 'generator' && <GeneratorPage />}
-        </Suspense>
-      </main>
-
-      {/* Floating ChatPlace Assistant Widget */}
-      <button
-        type="button"
-        onClick={() => setCurrentView('automations')}
-        className="fixed bottom-5 right-5 z-40 w-12 h-12 rounded-full bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center shadow-lg shadow-brand-600/25 hover:shadow-xl hover:scale-105 active:scale-95 transition-all"
-        title="ИИ-Менеджер & Чат"
-      >
-        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-          <path d="M12 2C6.477 2 2 6.477 2 12c0 1.821.487 3.53 1.338 5L2.1 21.9l5.056-1.208A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm-3 11a1 1 0 110-2 1 1 0 010 2zm3 0a1 1 0 110-2 1 1 0 010 2zm3 0a1 1 0 110-2 1 1 0 010 2z" />
-        </svg>
-      </button>
-
+        <main className="min-h-0 flex-1">
+          <Suspense
+            fallback={
+              <div className="p-4 sm:p-6 lg:p-8">
+                <SkeletonList rows={4} className="mx-auto max-w-5xl" />
+              </div>
+            }
+          >
+            {currentView === 'accounts' && <AccountsPage />}
+            {currentView === 'automations' && <AutomationsPage />}
+            {currentView === 'settings' && <SettingsPage />}
+            {currentView === 'scheduler' && <InstagramScheduler />}
+            {currentView === 'audio' && <AudioPage />}
+            {currentView === 'templates' && <TemplatesPage />}
+            {currentView === 'batch' && <BatchGeneratorPage />}
+            {currentView === 'history' && <HistoryPage />}
+            {currentView === 'budget' && <BudgetReelsPage />}
+            {currentView === 'aishowcase' && <AiShowcasePage />}
+            {currentView === 'generator' && <GeneratorPage />}
+          </Suspense>
+        </main>
+      </div>
     </div>
   );
 };
