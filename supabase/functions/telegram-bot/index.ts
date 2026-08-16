@@ -24,6 +24,7 @@ import {
 } from "../_shared/telegram-api.ts";
 import { parseStartPayload } from "../_shared/start-payload.ts";
 import { clearBotFault, reportBotFault } from "../_shared/bot-health.ts";
+import { advanceSequence } from "../_shared/step-sender.ts";
 
 interface BotRow {
   id: string;
@@ -51,19 +52,13 @@ interface FunnelRow {
   subscribe_button_text: string;
   check_button_text: string;
   not_subscribed_text: string;
-  delivery_text: string;
-  delivery_url: string;
-  delivery_button_text: string;
-  cta_text: string;
-  cta_url: string;
-  cta_button_text: string;
+  /* Everything the funnel sends now lives in telegram_funnel_steps. */
   is_default: boolean;
 }
 
 const FUNNEL_COLUMNS =
   "id,user_id,telegram_bot_id,slug,welcome_text,require_subscription,subscribe_button_text," +
-  "check_button_text,not_subscribed_text,delivery_text,delivery_url,delivery_button_text," +
-  "cta_text,cta_url,cta_button_text,is_default";
+  "check_button_text,not_subscribed_text,is_default";
 
 interface TelegramUser {
   id: number;
@@ -142,37 +137,30 @@ async function selectFunnel(
   return (fallback?.[0] as FunnelRow) ?? null;
 }
 
-/** Hands over the material and makes the follow-up ask. */
+/**
+ * Starts the funnel's sequence.
+ *
+ * Everything after the subscription gate is now a list of steps, so this only
+ * marks the gate cleared and hands over to the shared sender — which posts the
+ * immediate steps and schedules the first delayed one. The drip worker takes
+ * it from there, possibly days later.
+ */
 async function deliver(
   supabase: ReturnType<typeof createAdminClient>,
   botToken: string,
   funnel: FunnelRow,
-  subscriberId: string,
-  chatId: number,
+  subscriber: { id: string; telegram_user_id: string; telegram_bot_id: string },
 ): Promise<void> {
   const now = new Date().toISOString();
 
-  if (funnel.delivery_text.trim() || funnel.delivery_url.trim()) {
-    await sendMessage(botToken, {
-      chatId,
-      text: funnel.delivery_text.trim() || "Держите ваш материал 👇",
-      buttons: [{ text: funnel.delivery_button_text, url: funnel.delivery_url }],
-    });
-  }
-
   await supabase
     .from("telegram_subscribers")
-    .update({ subscribed_at: now, delivered_at: now, updated_at: now })
-    .eq("id", subscriberId)
-    .is("delivered_at", null);
+    .update({ subscribed_at: now, updated_at: now })
+    .eq("id", subscriber.id)
+    .is("subscribed_at", null);
 
-  if (funnel.cta_text.trim()) {
-    await sendMessage(botToken, {
-      chatId,
-      text: funnel.cta_text,
-      buttons: [{ text: funnel.cta_button_text, url: funnel.cta_url }],
-    });
-  }
+  // Below every position, so the plan starts from the first step.
+  await advanceSequence(supabase, botToken, subscriber, funnel.id, 0);
 }
 
 /** Asks for the subscription and leaves a button to re-check it. */
@@ -262,13 +250,19 @@ async function handleStart(
     subscriberId = created.id as string;
   }
 
+  const subscriber = {
+    id: subscriberId,
+    telegram_user_id: String(from.id),
+    telegram_bot_id: bot.id,
+  };
+
   if (funnel.welcome_text.trim()) {
     await sendMessage(botToken, { chatId, text: funnel.welcome_text });
   }
 
   const gated = funnel.require_subscription && Boolean(bot.channel_id) && Boolean(channelUrl(bot));
   if (!gated) {
-    await deliver(supabase, botToken, funnel, subscriberId, chatId);
+    await deliver(supabase, botToken, funnel, subscriber);
     return;
   }
 
@@ -286,7 +280,7 @@ async function handleStart(
   }
 
   if (membership.subscribed) {
-    await deliver(supabase, botToken, funnel, subscriberId, chatId);
+    await deliver(supabase, botToken, funnel, subscriber);
     return;
   }
 
@@ -318,7 +312,7 @@ async function handleSubscriptionCheck(
 
   const { data: subscriber } = await supabase
     .from("telegram_subscribers")
-    .select("id,delivered_at")
+    .select("id,delivered_at,telegram_user_id,telegram_bot_id")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
@@ -352,10 +346,18 @@ async function handleSubscriptionCheck(
     return;
   }
 
-  // Someone tapping the button twice should not receive the material twice.
+  /*
+    Tapping the button twice must not restart the course. The delivery table's
+    unique constraint would catch a duplicate step anyway, but returning early
+    keeps the second tap from re-running the whole plan.
+  */
   if (subscriber.delivered_at) return;
 
-  await deliver(supabase, botToken, funnel as FunnelRow, subscriber.id as string, chatId);
+  await deliver(supabase, botToken, funnel as FunnelRow, {
+    id: subscriber.id as string,
+    telegram_user_id: subscriber.telegram_user_id as string,
+    telegram_bot_id: subscriber.telegram_bot_id as string,
+  });
 }
 
 /**
@@ -373,7 +375,7 @@ async function handleChannelJoin(
 ): Promise<void> {
   const { data: subscriber } = await supabase
     .from("telegram_subscribers")
-    .select("id,funnel_id,delivered_at,telegram_user_id")
+    .select("id,funnel_id,delivered_at,telegram_user_id,telegram_bot_id")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
@@ -388,7 +390,11 @@ async function handleChannelJoin(
 
   if (!funnel) return;
 
-  await deliver(supabase, botToken, funnel as FunnelRow, subscriber.id as string, Number(from.id));
+  await deliver(supabase, botToken, funnel as FunnelRow, {
+    id: subscriber.id as string,
+    telegram_user_id: subscriber.telegram_user_id as string,
+    telegram_bot_id: subscriber.telegram_bot_id as string,
+  });
 }
 
 async function processUpdate(

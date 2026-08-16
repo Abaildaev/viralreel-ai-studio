@@ -1,0 +1,163 @@
+/*
+  Moving one subscriber through a funnel's steps.
+
+  Shared by the webhook, which starts the sequence the moment someone clears
+  the subscription gate, and by the drip worker, which continues it days later.
+  One implementation, because the two differ only in what woke them up.
+
+  The ordering here is deliberate and is the whole safety story: a delivery row
+  is claimed before the message is sent, never after. A crash between the two
+  leaves a `pending` row that the worker retries — the reader gets the lesson
+  late instead of never. Writing the row afterwards would invert that into the
+  failure nobody forgives: a lesson sent twice, or a course that silently stops.
+*/
+
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
+import { sendMessage } from "./telegram-api.ts";
+import { type FunnelStep, planSequence } from "./funnel-sequence.ts";
+
+export const STEP_COLUMNS =
+  "id,position,title,body,button_text,button_url,delay_minutes,is_active";
+
+export interface SequenceSubscriber {
+  id: string;
+  telegram_user_id: string;
+  telegram_bot_id: string;
+}
+
+async function loadSteps(
+  supabase: SupabaseClient,
+  funnelId: string,
+): Promise<FunnelStep[]> {
+  const { data } = await supabase
+    .from("telegram_funnel_steps")
+    .select(STEP_COLUMNS)
+    .eq("funnel_id", funnelId)
+    .order("position", { ascending: true });
+
+  return (data ?? []) as FunnelStep[];
+}
+
+/**
+ * Claims a step for this subscriber.
+ *
+ * Returns false when the row already exists, which means some other path has
+ * this step in hand — a concurrent webhook call, or a retry of a tick that
+ * already got there. The unique constraint on (subscriber, step) is what makes
+ * the claim atomic, so this is a real lock and not a check-then-act.
+ */
+async function claimStep(
+  supabase: SupabaseClient,
+  subscriber: SequenceSubscriber,
+  stepId: string,
+  dueAt: Date,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("telegram_step_deliveries")
+    .insert({
+      telegram_bot_id: subscriber.telegram_bot_id,
+      subscriber_id: subscriber.id,
+      step_id: stepId,
+      due_at: dueAt.toISOString(),
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    // 23505: someone already claimed it. Anything else is a real failure.
+    if (error.code === "23505") return null;
+    throw error;
+  }
+
+  return data.id as string;
+}
+
+export interface AdvanceResult {
+  sent: number;
+  scheduledFor: Date | null;
+  finished: boolean;
+}
+
+/**
+ * Sends whatever is due now and schedules whatever comes next.
+ *
+ * `afterPosition` is the last step this person has already received; pass a
+ * number below every position to start the sequence from the top.
+ */
+export async function advanceSequence(
+  supabase: SupabaseClient,
+  botToken: string,
+  subscriber: SequenceSubscriber,
+  funnelId: string,
+  afterPosition: number,
+  now: Date = new Date(),
+): Promise<AdvanceResult> {
+  const steps = await loadSteps(supabase, funnelId);
+  const plan = planSequence(steps, afterPosition, now);
+
+  let sent = 0;
+
+  for (const step of plan.sendNow) {
+    const deliveryId = await claimStep(supabase, subscriber, step.id, now);
+    if (!deliveryId) continue;
+
+    if (!step.body.trim() && !step.button_url.trim()) {
+      // An empty step is a placeholder the author has not written yet. Skip it
+      // rather than sending a blank message, but keep the claim so the
+      // sequence moves on instead of stalling here forever.
+      await supabase
+        .from("telegram_step_deliveries")
+        .update({ status: "cancelled", error_message: "Шаг пустой" })
+        .eq("id", deliveryId);
+      continue;
+    }
+
+    await sendMessage(botToken, {
+      chatId: subscriber.telegram_user_id,
+      text: step.body.trim() || "…",
+      buttons: [{ text: step.button_text, url: step.button_url }],
+    });
+
+    await supabase
+      .from("telegram_step_deliveries")
+      .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
+      .eq("id", deliveryId);
+
+    sent++;
+  }
+
+  if (plan.schedule) {
+    await claimStep(supabase, subscriber, plan.schedule.step.id, plan.schedule.dueAt);
+  }
+
+  /*
+    Two separate writes, because each is guarded by its own "only if still
+    unset" condition. Combining them would mean a subscriber who already has a
+    `delivered_at` never gets `sequence_done_at` written — the guard for the
+    first field would suppress the second.
+  */
+  if (sent > 0) {
+    // Marks when the funnel first kept its promise, so it is written once and
+    // never moved forward by a later lesson.
+    await supabase
+      .from("telegram_subscribers")
+      .update({ delivered_at: now.toISOString(), updated_at: now.toISOString() })
+      .eq("id", subscriber.id)
+      .is("delivered_at", null);
+  }
+
+  if (!plan.schedule) {
+    await supabase
+      .from("telegram_subscribers")
+      .update({ sequence_done_at: now.toISOString(), updated_at: now.toISOString() })
+      .eq("id", subscriber.id)
+      .is("sequence_done_at", null);
+  }
+
+  return {
+    sent,
+    scheduledFor: plan.schedule?.dueAt ?? null,
+    finished: !plan.schedule,
+  };
+}

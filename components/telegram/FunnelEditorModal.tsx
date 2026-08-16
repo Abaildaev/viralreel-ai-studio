@@ -8,6 +8,8 @@ import type { LeadMagnet, TelegramBot } from '../../types';
 import { Button, Callout, Field, Input, Select, Switch, Textarea } from '../ui';
 import { funnelDeepLink, slugify, type FunnelDraft } from '../../services/telegramService';
 import TelegramChatPreview, { type PreviewMessage } from './TelegramChatPreview';
+import FunnelStepsEditor, { newStep, type StepDraft } from './FunnelStepsEditor';
+import { formatDelay, orderedSteps } from '../../supabase/functions/_shared/funnel-sequence';
 
 export const blankFunnel = (botId: string): FunnelDraft => ({
   id: null,
@@ -20,27 +22,39 @@ export const blankFunnel = (botId: string): FunnelDraft => ({
   subscribe_button_text: 'Подписаться на канал',
   check_button_text: 'Я подписался',
   not_subscribed_text: 'Остался один шаг: подпишитесь на канал, и я сразу пришлю материал 👇',
-  delivery_text: 'Готово! Забирайте материал по кнопке ниже 🎁',
-  delivery_url: '',
-  delivery_button_text: 'Забрать материал',
-  cta_text: 'Кстати, такие Reels можно собирать автоматически — попробуйте в сервисе.',
-  cta_url: '',
-  cta_button_text: 'Открыть сервис',
   is_active: true,
   is_default: false,
 });
 
+/** What a brand-new funnel sends: the material, then one follow-up ask. */
+export const defaultSteps = (): StepDraft[] => [
+  {
+    ...newStep(1, 0),
+    title: 'Выдача материала',
+    body: 'Готово! Забирайте материал по кнопке ниже 🎁',
+    button_text: 'Забрать материал',
+  },
+  {
+    ...newStep(2, 1440),
+    title: 'Целевое действие',
+    body: 'Как вам материал? Кстати, такие Reels можно собирать автоматически — покажу, если интересно.',
+    button_text: 'Открыть сервис',
+  },
+];
+
 interface FunnelEditorModalProps {
   initial: FunnelDraft;
+  initialSteps: StepDraft[];
   bot: TelegramBot;
   leadMagnets: LeadMagnet[];
   saving: boolean;
   onClose: () => void;
-  onSave: (draft: FunnelDraft) => void;
+  onSave: (draft: FunnelDraft, steps: StepDraft[]) => void;
 }
 
 const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
   initial,
+  initialSteps,
   bot,
   leadMagnets,
   saving,
@@ -48,6 +62,7 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
   onSave,
 }) => {
   const [form, setForm] = useState<FunnelDraft>(initial);
+  const [steps, setSteps] = useState<StepDraft[]>(initialSteps);
   const [copied, setCopied] = useState(false);
   /* An edited funnel keeps the slug its links already point at; only a new one
      tracks the name, and only until the owner types a slug of their own. */
@@ -88,24 +103,30 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
       });
     }
 
-    list.push({
-      id: 'delivery',
-      step: `Шаг ${gated ? 3 : 2} · Выдача лид-магнита`,
-      text: form.delivery_text,
-      buttons: [{ text: form.delivery_button_text, url: form.delivery_url }],
+    /*
+      The sequence, rendered as the conversation it becomes. Inactive steps are
+      kept but dimmed rather than hidden — an author toggling a lesson off wants
+      to see the hole it leaves, not have it silently vanish from the preview.
+    */
+    const offset = gated ? 2 : 1;
+    const active = new Set(orderedSteps(
+      steps.map((step) => ({ ...step, id: step.id ?? step.key })),
+    ).map((step) => step.id));
+
+    steps.forEach((step, index) => {
+      const key = step.id ?? step.key;
+      list.push({
+        id: key,
+        step: `Шаг ${offset + index + 1} · ${step.title || 'без названия'}`,
+        text: step.body,
+        buttons: [{ text: step.button_text, url: step.button_url }],
+        delay: step.delay_minutes > 0 ? formatDelay(step.delay_minutes) : undefined,
+        muted: !active.has(key),
+      });
     });
 
-    if (form.cta_text.trim()) {
-      list.push({
-        id: 'cta',
-        step: `Шаг ${gated ? 4 : 3} · Целевое действие`,
-        text: form.cta_text,
-        buttons: [{ text: form.cta_button_text, url: form.cta_url }],
-      });
-    }
-
     return list;
-  }, [form, gated, bot]);
+  }, [form, gated, bot, steps]);
 
   const handleCopy = async () => {
     try {
@@ -121,7 +142,7 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
     event.preventDefault();
     const slug = slugify(form.slug || form.name);
     if (!form.name.trim() || slug.length < 2) return;
-    onSave({ ...form, slug });
+    onSave({ ...form, slug }, steps);
   };
 
   const slugError = form.slug && slugify(form.slug).length < 2
@@ -317,83 +338,8 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
               )}
             </div>
 
-            <div className="space-y-4 rounded-xl border border-gray-200 p-4">
-              <p className="text-sm font-semibold text-gray-900">Выдача материала</p>
-
-              <Field label="Текст">
-                {({ id }) => (
-                  <Textarea
-                    id={id}
-                    rows={2}
-                    value={form.delivery_text}
-                    onChange={(event) => set('delivery_text', event.target.value)}
-                  />
-                )}
-              </Field>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Ссылка на материал" hint="PDF, Notion, папка — что угодно">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      type="url"
-                      placeholder="https://"
-                      value={form.delivery_url}
-                      onChange={(event) => set('delivery_url', event.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label="Текст кнопки">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      value={form.delivery_button_text}
-                      onChange={(event) => set('delivery_button_text', event.target.value)}
-                    />
-                  )}
-                </Field>
-              </div>
-            </div>
-
-            <div className="space-y-4 rounded-xl border border-gray-200 p-4">
-              <p className="text-sm font-semibold text-gray-900">
-                Целевое действие
-                <span className="ml-2 text-xs font-normal text-gray-500">необязательно</span>
-              </p>
-
-              <Field label="Текст" hint="Второе сообщение, когда материал уже у человека">
-                {({ id }) => (
-                  <Textarea
-                    id={id}
-                    rows={2}
-                    value={form.cta_text}
-                    onChange={(event) => set('cta_text', event.target.value)}
-                  />
-                )}
-              </Field>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Ссылка">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      type="url"
-                      placeholder="https://"
-                      value={form.cta_url}
-                      onChange={(event) => set('cta_url', event.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label="Текст кнопки">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      value={form.cta_button_text}
-                      onChange={(event) => set('cta_button_text', event.target.value)}
-                    />
-                  )}
-                </Field>
-              </div>
+            <div className="rounded-xl border border-gray-200 p-4">
+              <FunnelStepsEditor steps={steps} onChange={setSteps} />
             </div>
 
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

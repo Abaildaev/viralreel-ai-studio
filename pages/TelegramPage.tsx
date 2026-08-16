@@ -21,7 +21,8 @@ import type {
 import { Button, Callout, PageHeader, PageShell, cn } from '../components/ui';
 import BotSetupTab from '../components/telegram/BotSetupTab';
 import FunnelsTab from '../components/telegram/FunnelsTab';
-import FunnelEditorModal, { blankFunnel } from '../components/telegram/FunnelEditorModal';
+import FunnelEditorModal, { blankFunnel, defaultSteps } from '../components/telegram/FunnelEditorModal';
+import { newStep, type StepDraft } from '../components/telegram/FunnelStepsEditor';
 import BroadcastsTab from '../components/telegram/BroadcastsTab';
 import BroadcastComposerModal, { blankBroadcast } from '../components/telegram/BroadcastComposerModal';
 import SubscribersTab from '../components/telegram/SubscribersTab';
@@ -34,6 +35,8 @@ import {
   loadBroadcasts,
   loadFunnels,
   loadFunnelStats,
+  loadFunnelSteps,
+  saveFunnelSteps,
   loadSignupDates,
   loadSubscriberTotals,
   loadSubscribers,
@@ -84,6 +87,7 @@ export default function TelegramPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [funnelDraft, setFunnelDraft] = useState<FunnelDraft | null>(null);
+  const [funnelSteps, setFunnelSteps] = useState<StepDraft[]>([]);
   const [broadcastDraft, setBroadcastDraft] = useState<BroadcastDraft | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -156,11 +160,65 @@ export default function TelegramPage() {
     return () => clearInterval(timer);
   }, [broadcasts, bot]);
 
-  const handleSaveFunnel = async (draft: FunnelDraft) => {
+  const openNewFunnel = () => {
+    if (!bot) return;
+    setFunnelDraft(blankFunnel(bot.id));
+    setFunnelSteps(defaultSteps());
+  };
+
+  /*
+    Steps are fetched before the editor opens, not after. The modal seeds its
+    own state from `initialSteps` on mount, so opening first and filling in
+    afterwards would show whichever funnel was edited last — and then save
+    those steps onto this funnel.
+
+    Loaded here rather than with the funnel list because the editor is the only
+    place steps are read; a page with twenty funnels should not fetch every
+    sequence just to render summaries.
+  */
+  const openFunnel = async (funnel: TelegramFunnel) => {
+    let steps: StepDraft[];
+
+    try {
+      const rows = await loadFunnelSteps(funnel.id);
+      steps = rows.map((row) => ({
+        id: row.id,
+        key: row.id,
+        position: row.position,
+        title: row.title,
+        body: row.body,
+        button_text: row.button_text,
+        button_url: row.button_url,
+        delay_minutes: row.delay_minutes,
+        is_active: row.is_active,
+      }));
+    } catch (error) {
+      toast({
+        message: error instanceof Error ? error.message : 'Не удалось загрузить шаги воронки',
+        tone: 'error',
+      });
+      return;
+    }
+
+    setFunnelSteps(steps.length > 0 ? steps : [newStep(1, 0)]);
+    setFunnelDraft({ ...funnel });
+  };
+
+  const handleSaveFunnel = async (draft: FunnelDraft, steps: StepDraft[]) => {
     if (!user) return;
     setSaving(true);
     try {
-      await saveFunnel(draft, user.id);
+      const funnelId = await saveFunnel(draft, user.id);
+      await saveFunnelSteps(funnelId, user.id, steps.map((step) => ({
+        id: step.id,
+        position: step.position,
+        title: step.title,
+        body: step.body,
+        button_text: step.button_text,
+        button_url: step.button_url,
+        delay_minutes: step.delay_minutes,
+        is_active: step.is_active,
+      })));
       setFunnelDraft(null);
       await refresh();
       toast(draft.id ? 'Воронка сохранена' : 'Воронка создана');
@@ -260,7 +318,7 @@ export default function TelegramPage() {
             <Button
               variant="primary"
               icon={<PlusIcon className="h-4 w-4" />}
-              onClick={() => setFunnelDraft(blankFunnel(bot.id))}
+              onClick={openNewFunnel}
             >
               Создать воронку
             </Button>
@@ -317,8 +375,8 @@ export default function TelegramPage() {
           funnels={funnels}
           stats={stats}
           loading={loading}
-          onCreate={() => setFunnelDraft(blankFunnel(bot.id))}
-          onEdit={(funnel) => setFunnelDraft({ ...funnel })}
+          onCreate={openNewFunnel}
+          onEdit={openFunnel}
           onDelete={handleDeleteFunnel}
           onToggleActive={handleToggleFunnel}
         />
@@ -355,6 +413,7 @@ export default function TelegramPage() {
       {funnelDraft && bot && (
         <FunnelEditorModal
           initial={funnelDraft}
+          initialSteps={funnelSteps}
           bot={bot}
           leadMagnets={leadMagnets}
           saving={saving}

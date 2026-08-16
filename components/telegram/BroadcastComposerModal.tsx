@@ -6,6 +6,8 @@ import type {
   TelegramFunnel,
 } from '../../types';
 import { Badge, Button, Callout, Field, Input, Select, Switch, Textarea } from '../ui';
+import CustomDatePicker from '../CustomDatePicker';
+import CustomTimePicker from '../CustomTimePicker';
 import {
   countSegment,
   SEGMENT_LABELS,
@@ -27,12 +29,58 @@ export const blankBroadcast = (botId: string): BroadcastDraft => ({
   status: 'draft',
 });
 
-/** `datetime-local` wants local wall-clock time, the database wants UTC. */
-function toLocalInputValue(iso: string | null): string {
-  if (!iso) return '';
-  const date = new Date(iso);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+const pad = (value: number) => String(value).padStart(2, '0');
+
+/** The pickers speak local wall-clock time; the database stores UTC. */
+function toLocalParts(iso: string | null): { date: string; time: string } {
+  const value = iso ? new Date(iso) : null;
+  const base = value && !Number.isNaN(value.getTime()) ? value : null;
+  if (!base) return { date: '', time: '' };
+
+  return {
+    date: `${base.getFullYear()}-${pad(base.getMonth() + 1)}-${pad(base.getDate())}`,
+    time: `${pad(base.getHours())}:${pad(base.getMinutes())}`,
+  };
+}
+
+/**
+ * Rebuilds an instant from the two pickers.
+ *
+ * Constructed field by field rather than by parsing a joined string, because
+ * `new Date("2026-08-16T09:00")` is interpreted differently across engines —
+ * and a broadcast that goes out at the wrong hour is not a bug anyone catches
+ * before the readers do.
+ */
+function toIso(date: string, time: string): string | null {
+  if (!date) return null;
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = (time || '12:00').split(':').map(Number);
+  if (!year || !month || !day) return null;
+
+  return new Date(year, month - 1, day, hour || 0, minute || 0, 0, 0).toISOString();
+}
+
+function todayString(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * A default that is never already in the past.
+ *
+ * Opening the scheduler on "today at noon" greets anyone working in the
+ * afternoon with a warning about a time that has gone — the form complaining
+ * about a value it chose itself. An hour from now, rounded up to the half
+ * hour, is always valid and usually close to what was meant.
+ */
+function defaultWhen(): { date: string; time: string } {
+  const when = new Date(Date.now() + 60 * 60 * 1000);
+  when.setMinutes(when.getMinutes() > 30 ? 60 : 30, 0, 0);
+
+  return {
+    date: `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`,
+    time: `${pad(when.getHours())}:${pad(when.getMinutes())}`,
+  };
 }
 
 interface BroadcastComposerModalProps {
@@ -55,7 +103,12 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
 }) => {
   const [form, setForm] = useState<BroadcastDraft>(initial);
   const [later, setLater] = useState(Boolean(initial.scheduled_at));
-  const [when, setWhen] = useState(toLocalInputValue(initial.scheduled_at));
+  const [when, setWhen] = useState(() => {
+    const parts = toLocalParts(initial.scheduled_at);
+    // A fresh schedule opens on a valid moment rather than empty, so turning
+    // the switch on is one decision instead of three.
+    return parts.date ? parts : defaultWhen();
+  });
   const [recipients, setRecipients] = useState<number | null>(null);
 
   const set = <K extends keyof BroadcastDraft>(key: K, value: BroadcastDraft[K]) =>
@@ -95,7 +148,8 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
     buttons: [{ text: form.button_text, url: form.button_url }],
   }], [form.message_text, form.button_text, form.button_url]);
 
-  const scheduledAt = later && when ? new Date(when).toISOString() : null;
+  const scheduledAt = later ? toIso(when.date, when.time) : null;
+  const inThePast = Boolean(scheduledAt && new Date(scheduledAt).getTime() < Date.now());
   const canSend = form.message_text.trim().length > 0 && (recipients ?? 0) > 0;
 
   const submit = (send: boolean) => {
@@ -231,16 +285,31 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
               />
 
               {later && (
-                <Field label="Дата и время" hint="В вашем часовом поясе">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      type="datetime-local"
-                      value={when}
-                      onChange={(event) => setWhen(event.target.value)}
+                <div className="space-y-2">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <CustomDatePicker
+                      label="Дата"
+                      value={when.date}
+                      minDate={todayString()}
+                      onChange={(date) => setWhen((current) => ({ ...current, date }))}
                     />
+                    <CustomTimePicker
+                      label="Время"
+                      value={when.time}
+                      onChange={(time) => setWhen((current) => ({ ...current, time }))}
+                    />
+                  </div>
+
+                  <p className="text-2xs text-gray-500">
+                    Время местное — {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                  </p>
+
+                  {inThePast && (
+                    <Callout tone="warning">
+                      Это время уже прошло — рассылка уйдёт сразу после сохранения.
+                    </Callout>
                   )}
-                </Field>
+                </div>
               )}
 
               <Switch

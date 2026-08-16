@@ -12,6 +12,7 @@ import type {
   TelegramBroadcast,
   TelegramFunnel,
   TelegramFunnelStats,
+  TelegramFunnelStep,
   TelegramSubscriber,
 } from '../types';
 
@@ -119,7 +120,95 @@ export type FunnelDraft = Omit<
   'id' | 'user_id' | 'created_at' | 'updated_at' | 'lead_magnets'
 > & { id?: string | null };
 
-export async function saveFunnel(draft: FunnelDraft, userId: string): Promise<void> {
+export const FUNNEL_STEP_COLUMNS =
+  'id,user_id,funnel_id,position,title,body,button_text,button_url,delay_minutes,is_active,created_at,updated_at';
+
+export async function loadFunnelSteps(funnelId: string): Promise<TelegramFunnelStep[]> {
+  const { data, error } = await supabase
+    .from('telegram_funnel_steps')
+    .select(FUNNEL_STEP_COLUMNS)
+    .eq('funnel_id', funnelId)
+    .order('position', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as unknown as TelegramFunnelStep[];
+}
+
+export interface StepInput {
+  id: string | null;
+  position: number;
+  title: string;
+  body: string;
+  button_text: string;
+  button_url: string;
+  delay_minutes: number;
+  is_active: boolean;
+}
+
+/**
+ * Replaces a funnel's steps with the edited list.
+ *
+ * Deletions run first and positions are written in two passes. The table has a
+ * unique index on (funnel, position), so writing a reordered list directly
+ * collides the moment two steps swap places — the first update would claim a
+ * position the second still holds. Parking everything on negative positions
+ * first sidesteps that without dropping and recreating rows, which would lose
+ * the delivery history pointing at them.
+ */
+export async function saveFunnelSteps(
+  funnelId: string,
+  userId: string,
+  steps: StepInput[],
+): Promise<void> {
+  const existing = await loadFunnelSteps(funnelId);
+  const keptIds = new Set(steps.map((step) => step.id).filter(Boolean));
+
+  const removed = existing.filter((step) => !keptIds.has(step.id));
+  if (removed.length > 0) {
+    const { error } = await supabase
+      .from('telegram_funnel_steps')
+      .delete()
+      .in('id', removed.map((step) => step.id));
+    if (error) throw error;
+  }
+
+  const survivors = steps.filter((step) => step.id);
+  if (survivors.length > 0) {
+    // Negative positions cannot collide with the final ones, so this pass is
+    // always safe regardless of how the list was reordered.
+    for (const [index, step] of survivors.entries()) {
+      const { error } = await supabase
+        .from('telegram_funnel_steps')
+        .update({ position: -(index + 1) })
+        .eq('id', step.id!);
+      if (error) throw error;
+    }
+  }
+
+  for (const step of steps) {
+    const payload = {
+      user_id: userId,
+      funnel_id: funnelId,
+      position: step.position,
+      title: step.title,
+      body: step.body,
+      button_text: step.button_text,
+      button_url: step.button_url,
+      delay_minutes: step.delay_minutes,
+      is_active: step.is_active,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = step.id
+      ? await supabase.from('telegram_funnel_steps').update(payload).eq('id', step.id)
+      : await supabase.from('telegram_funnel_steps').insert(payload);
+
+    if (error) throw error;
+  }
+}
+
+/** Returns the funnel's id, which a brand-new funnel does not have until saved. */
+export async function saveFunnel(draft: FunnelDraft, userId: string): Promise<string> {
   const { id, ...fields } = draft;
   const payload = { ...fields, user_id: userId, updated_at: new Date().toISOString() };
 
@@ -135,9 +224,9 @@ export async function saveFunnel(draft: FunnelDraft, userId: string): Promise<vo
     if (error) throw error;
   }
 
-  const { error } = id
-    ? await supabase.from('telegram_funnels').update(payload).eq('id', id)
-    : await supabase.from('telegram_funnels').insert(payload);
+  const { data, error } = id
+    ? await supabase.from('telegram_funnels').update(payload).eq('id', id).select('id').single()
+    : await supabase.from('telegram_funnels').insert(payload).select('id').single();
 
   if (error) {
     if (error.code === '23505') {
@@ -145,6 +234,8 @@ export async function saveFunnel(draft: FunnelDraft, userId: string): Promise<vo
     }
     throw error;
   }
+
+  return data.id as string;
 }
 
 export async function deleteFunnel(funnelId: string): Promise<void> {

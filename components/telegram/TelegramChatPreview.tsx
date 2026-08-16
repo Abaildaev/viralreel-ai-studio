@@ -17,6 +17,10 @@ export interface PreviewMessage {
   step?: string;
   /** Marks a message that only some readers will see. */
   conditional?: boolean;
+  /** "через 2 дня" — drawn as a gap in the conversation before this message. */
+  delay?: string;
+  /** Dims a step the author has switched off. */
+  muted?: boolean;
 }
 
 export interface TelegramChatPreviewProps {
@@ -76,7 +80,18 @@ const TelegramChatPreview: React.FC<TelegramChatPreviewProps> = ({
         )}
 
         {visible.map((message) => (
-          <div key={message.id} className="space-y-1.5">
+          <div key={message.id} className={cn('space-y-1.5', message.muted && 'opacity-45')}>
+            {/* The wait is part of what the reader experiences, so the preview
+                shows it as a break in the conversation rather than as a number
+                hidden in the form. */}
+            {message.delay && (
+              <div className="flex items-center gap-2 py-1" aria-label={`Пауза ${message.delay}`}>
+                <span className="h-px flex-1 bg-gray-200" />
+                <span className="badge badge-neutral">{message.delay}</span>
+                <span className="h-px flex-1 bg-gray-200" />
+              </div>
+            )}
+
             {message.step && (
               <p className="flex items-center gap-1.5 pl-1 text-2xs font-medium uppercase tracking-wide text-gray-400">
                 {message.step}

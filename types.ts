@@ -283,17 +283,34 @@ export interface TelegramFunnel {
   subscribe_button_text: string;
   check_button_text: string;
   not_subscribed_text: string;
-  delivery_text: string;
-  delivery_url: string;
-  delivery_button_text: string;
-  cta_text: string;
-  cta_url: string;
-  cta_button_text: string;
   is_active: boolean;
   is_default: boolean;
   created_at: string;
   updated_at: string;
   lead_magnets?: LeadMagnetInfo | null;
+}
+
+/**
+ * One message in a funnel's sequence.
+ *
+ * Everything the funnel says after the subscription gate is a step, which is
+ * what lets one funnel be a single lead magnet and another a week-long course.
+ */
+export interface TelegramFunnelStep {
+  id: string;
+  user_id: string;
+  funnel_id: string;
+  position: number;
+  /** Internal label. Never sent. */
+  title: string;
+  body: string;
+  button_text: string;
+  button_url: string;
+  /** Wait before this step, counted from the previous one. */
+  delay_minutes: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export type TelegramSubscriberSource = 'instagram' | 'link' | 'channel';
@@ -312,6 +329,8 @@ export interface TelegramSubscriber {
   subscribed_at: string | null;
   delivered_at: string | null;
   signed_up_at: string | null;
+  /** Reached the end of the funnel's sequence. */
+  sequence_done_at: string | null;
   unsubscribed_at: string | null;
   /** Left the channel. Distinct from `unsubscribed_at`, which means left the bot. */
   channel_left_at: string | null;

@@ -89,3 +89,8 @@ verify_jwt = true
 [functions.telegram-broadcast]
 enabled = true
 verify_jwt = false
+
+# Also pg_cron: delivers scheduled funnel steps.
+[functions.telegram-drip]
+enabled = true
+verify_jwt = false
