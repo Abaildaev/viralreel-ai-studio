@@ -18,9 +18,12 @@ import { decryptCredential } from "../_shared/credentials.ts";
 import {
   isChannelMember,
   sendMessage,
+  SUBSCRIBED_STATUSES,
   TelegramApiError,
   callTelegram,
 } from "../_shared/telegram-api.ts";
+import { parseStartPayload } from "../_shared/start-payload.ts";
+import { clearBotFault, reportBotFault } from "../_shared/bot-health.ts";
 
 interface BotRow {
   id: string;
@@ -31,7 +34,12 @@ interface BotRow {
   channel_username: string;
   channel_invite_url: string;
   is_active: boolean;
+  health_alert_at: string | null;
 }
+
+const BOT_COLUMNS =
+  "id,user_id,bot_token_encrypted,webhook_secret,channel_id,channel_username," +
+  "channel_invite_url,is_active,health_alert_at";
 
 interface FunnelRow {
   id: string;
@@ -69,26 +77,6 @@ function jsonResponse(body: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
-}
-
-/**
- * Splits `<slug>_<automation_event_id>` back into its halves.
- *
- * The slug is constrained to `[a-z0-9]` by the database precisely so the first
- * underscore is an unambiguous separator, and the UUID that follows it never
- * contains one.
- */
-function parseStartPayload(payload: string): { slug: string; eventId: string | null } {
-  const trimmed = payload.trim();
-  if (!trimmed) return { slug: "", eventId: null };
-
-  const separator = trimmed.indexOf("_");
-  if (separator === -1) return { slug: trimmed.toLowerCase(), eventId: null };
-
-  const slug = trimmed.slice(0, separator).toLowerCase();
-  const rest = trimmed.slice(separator + 1);
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rest);
-  return { slug, eventId: isUuid ? rest : null };
 }
 
 /**
@@ -284,7 +272,20 @@ async function handleStart(
     return;
   }
 
-  if (await isChannelMember(botToken, bot.channel_id, String(from.id))) {
+  const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
+
+  /*
+    A fault here means nobody is getting through, not that this person declined
+    to subscribe. Tell the owner, then still show the prompt — if the rights
+    come back the reader's own button will work without them starting over.
+  */
+  if (membership.fault) {
+    await reportBotFault(supabase, bot, `Не удалось проверить подписку на канал: ${membership.fault}`);
+  } else {
+    await clearBotFault(supabase, bot.id);
+  }
+
+  if (membership.subscribed) {
     await deliver(supabase, botToken, funnel, subscriberId, chatId);
     return;
   }
@@ -327,15 +328,20 @@ async function handleSubscriptionCheck(
     return;
   }
 
-  const subscribed = await isChannelMember(botToken, bot.channel_id, String(from.id));
+  const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
+  if (membership.fault) {
+    await reportBotFault(supabase, bot, `Не удалось проверить подписку на канал: ${membership.fault}`);
+  } else {
+    await clearBotFault(supabase, bot.id);
+  }
 
   await callTelegram(botToken, "answerCallbackQuery", {
     callback_query_id: callbackId,
-    text: subscribed ? "Спасибо! Отправляю материал 🙌" : "Подписка пока не видна",
+    text: membership.subscribed ? "Спасибо! Отправляю материал 🙌" : "Подписка пока не видна",
     show_alert: false,
   });
 
-  if (!subscribed) {
+  if (!membership.subscribed) {
     await sendMessage(botToken, {
       chatId,
       text: (funnel as FunnelRow).not_subscribed_text.trim() ||
@@ -449,13 +455,38 @@ async function processUpdate(
   }
 
   if (update.chat_member) {
-    const status = update.chat_member.new_chat_member?.status;
-    const joined = status === "member" || status === "administrator" || status === "creator";
+    const status = String(update.chat_member.new_chat_member?.status ?? "");
     const chatId = String(update.chat_member.chat?.id ?? "");
+    const member: TelegramUser = update.chat_member.new_chat_member?.user ?? {};
 
-    if (joined && chatId && chatId === bot.channel_id) {
-      await handleChannelJoin(supabase, bot, botToken, update.chat_member.new_chat_member?.user ?? {});
+    if (!chatId || chatId !== bot.channel_id || !member.id) return;
+
+    if (SUBSCRIBED_STATUSES.has(status)) {
+      await supabase
+        .from("telegram_subscribers")
+        .update({ channel_left_at: null, updated_at: now })
+        .eq("telegram_bot_id", bot.id)
+        .eq("telegram_user_id", String(member.id));
+
+      await handleChannelJoin(supabase, bot, botToken, member);
+      return;
     }
+
+    /*
+      They left the channel. `subscribed_at` deliberately stays: they did
+      subscribe, and the funnel's history should keep saying so — otherwise the
+      conversion rate silently rewrites itself every time someone leaves. The
+      departure is a second fact, recorded alongside.
+
+      This does not touch `unsubscribed_at`, which means leaving the bot. A
+      channel leaver still receives broadcasts, and should.
+    */
+    await supabase
+      .from("telegram_subscribers")
+      .update({ channel_left_at: now, updated_at: now })
+      .eq("telegram_bot_id", bot.id)
+      .eq("telegram_user_id", String(member.id))
+      .is("channel_left_at", null);
   }
 }
 
@@ -468,7 +499,7 @@ Deno.serve(async (req: Request) => {
   const supabase = createAdminClient();
   const { data: bot } = await supabase
     .from("telegram_bots")
-    .select("id,user_id,bot_token_encrypted,webhook_secret,channel_id,channel_username,channel_invite_url,is_active")
+    .select(BOT_COLUMNS)
     .eq("id", botId)
     .maybeSingle();
 

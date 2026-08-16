@@ -21,6 +21,11 @@ import {
   sendMessage,
   TelegramApiError,
 } from "../_shared/telegram-api.ts";
+import {
+  applyAudienceFilters,
+  audienceFilters,
+  type BroadcastSegment,
+} from "../_shared/broadcast-segments.ts";
 
 /* Telegram tolerates about 30 messages a second to distinct users. Sending a
    little under that keeps the run clear of 429s, which cost more time than the
@@ -81,31 +86,19 @@ async function materialiseRecipients(
     filters accumulated on it, so reusing one instance across pages would append
     a second `order` on every iteration instead of just moving the window.
   */
-  const pageQuery = (page: number) => {
-    let query = supabase
-      .from("telegram_subscribers")
-      .select("id,telegram_user_id")
-      .eq("telegram_bot_id", broadcast.telegram_bot_id)
-      .eq("is_blocked", false)
-      .is("unsubscribed_at", null);
+  const filters = audienceFilters(
+    broadcast.segment as BroadcastSegment,
+    broadcast.segment_funnel_id,
+  );
 
-    switch (broadcast.segment) {
-      case "subscribed":
-        query = query.not("subscribed_at", "is", null);
-        break;
-      case "delivered":
-        query = query.not("delivered_at", "is", null);
-        break;
-      case "not_delivered":
-        query = query.is("delivered_at", null);
-        break;
-      case "from_instagram":
-        query = query.eq("source", "instagram");
-        break;
-      case "funnel":
-        if (broadcast.segment_funnel_id) query = query.eq("funnel_id", broadcast.segment_funnel_id);
-        break;
-    }
+  const pageQuery = (page: number) => {
+    const query = applyAudienceFilters(
+      supabase
+        .from("telegram_subscribers")
+        .select("id,telegram_user_id")
+        .eq("telegram_bot_id", broadcast.telegram_bot_id),
+      filters,
+    );
 
     // A stable sort key is what makes the windows disjoint; without it the
     // database may return the same person on two pages and miss another.

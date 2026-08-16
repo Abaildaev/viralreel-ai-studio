@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "schema:build": "node scripts/build-full-schema.mjs",
     "schema:check": "node scripts/build-full-schema.mjs --check",
-    "test": "npm run typecheck && npm run schema:check && npm run build"
+    "test:unit": "vitest run",
+    "test": "npm run typecheck && npm run schema:check && npm run test:unit && npm run build"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
@@ -31,6 +32,7 @@
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^3.2.7"
   }
 }

@@ -1,4 +1,11 @@
 import { supabase } from '../lib/supabase';
+/* Imported straight from the Edge Function's shared folder so the browser and
+   the worker run the same rule. The module is deliberately dependency-free,
+   which is what makes it loadable by both Vite and Deno. */
+import {
+  applyAudienceFilters,
+  audienceFilters,
+} from '../supabase/functions/_shared/broadcast-segments';
 import type {
   BroadcastSegment,
   TelegramBot,
@@ -211,6 +218,8 @@ export interface SubscriberTotals {
   fromInstagram: number;
   blocked: number;
   active: number;
+  /** Confirmed a channel subscription and later left it. */
+  channelLeft: number;
 }
 
 /**
@@ -229,7 +238,7 @@ export async function loadSubscriberTotals(botId: string): Promise<SubscriberTot
       .select('id', { count: 'exact', head: true })
       .eq('telegram_bot_id', botId);
 
-  const [started, subscribed, delivered, signedUp, fromInstagram, blocked, active] =
+  const [started, subscribed, delivered, signedUp, fromInstagram, blocked, active, channelLeft] =
     await Promise.all([
       base(),
       base().not('subscribed_at', 'is', null),
@@ -238,6 +247,7 @@ export async function loadSubscriberTotals(botId: string): Promise<SubscriberTot
       base().eq('source', 'instagram'),
       base().eq('is_blocked', true),
       base().eq('is_blocked', false).is('unsubscribed_at', null),
+      base().not('channel_left_at', 'is', null),
     ]);
 
   return {
@@ -248,6 +258,7 @@ export async function loadSubscriberTotals(botId: string): Promise<SubscriberTot
     fromInstagram: fromInstagram.count ?? 0,
     blocked: blocked.count ?? 0,
     active: active.count ?? 0,
+    channelLeft: channelLeft.count ?? 0,
   };
 }
 
@@ -398,26 +409,26 @@ export async function deleteBroadcast(broadcastId: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Live recipient count for the composer, using the worker's own filters. */
+/**
+ * Live recipient count for the composer.
+ *
+ * Literally the worker's filters, not a second implementation of them — the
+ * number shown before sending and the audience actually written to come from
+ * one description, so they cannot drift apart.
+ */
 export async function countSegment(
   botId: string,
   segment: BroadcastSegment,
   funnelId: string | null,
 ): Promise<number> {
-  let query = supabase
-    .from('telegram_subscribers')
-    .select('id', { count: 'exact', head: true })
-    .eq('telegram_bot_id', botId)
-    .eq('is_blocked', false)
-    .is('unsubscribed_at', null);
+  const { count, error } = await applyAudienceFilters(
+    supabase
+      .from('telegram_subscribers')
+      .select('id', { count: 'exact', head: true })
+      .eq('telegram_bot_id', botId),
+    audienceFilters(segment, funnelId),
+  );
 
-  if (segment === 'subscribed') query = query.not('subscribed_at', 'is', null);
-  if (segment === 'delivered') query = query.not('delivered_at', 'is', null);
-  if (segment === 'not_delivered') query = query.is('delivered_at', null);
-  if (segment === 'from_instagram') query = query.eq('source', 'instagram');
-  if (segment === 'funnel' && funnelId) query = query.eq('funnel_id', funnelId);
-
-  const { count, error } = await query;
   if (error) throw error;
   return count ?? 0;
 }

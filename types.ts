@@ -313,19 +313,20 @@ export interface TelegramSubscriber {
   delivered_at: string | null;
   signed_up_at: string | null;
   unsubscribed_at: string | null;
+  /** Left the channel. Distinct from `unsubscribed_at`, which means left the bot. */
+  channel_left_at: string | null;
   is_blocked: boolean;
   last_message_at: string | null;
   created_at: string;
   telegram_funnels?: { name: string; slug: string } | null;
 }
 
-export type BroadcastSegment =
-  | 'all'
-  | 'subscribed'
-  | 'delivered'
-  | 'not_delivered'
-  | 'from_instagram'
-  | 'funnel';
+/* Defined next to the filters it selects, so a new segment cannot be added to
+   one and forgotten in the other. Imported as well as re-exported, because the
+   interfaces below refer to it by name. */
+import type { BroadcastSegment } from './supabase/functions/_shared/broadcast-segments';
+
+export type { BroadcastSegment };
 
 export type BroadcastStatus =
   | 'draft'
@@ -369,5 +370,6 @@ export interface TelegramFunnelStats {
   signed_up_count: number;
   from_instagram_count: number;
   blocked_count: number;
+  channel_left_count: number;
   last_subscriber_at: string | null;
 }

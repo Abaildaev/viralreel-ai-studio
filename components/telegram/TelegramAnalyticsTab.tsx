@@ -87,14 +87,21 @@ const TelegramAnalyticsTab: React.FC<TelegramAnalyticsTabProps> = ({
     <div className="animate-in fade-in space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Активных подписчиков', value: totals.active },
-          { label: 'Из Instagram', value: totals.fromInstagram },
-          { label: 'Получили материал', value: totals.delivered },
-          { label: 'Заблокировали бота', value: totals.blocked },
+          { label: 'Активных подписчиков', value: totals.active, hint: '' },
+          { label: 'Из Instagram', value: totals.fromInstagram, hint: '' },
+          { label: 'Получили материал', value: totals.delivered, hint: '' },
+          {
+            label: 'Ушли из канала',
+            value: totals.channelLeft,
+            // Two different departures, and conflating them would hide the one
+            // that costs money: a channel leaver still receives broadcasts.
+            hint: totals.blocked > 0 ? `+ ${totals.blocked} заблокировали бота` : '',
+          },
         ].map((tile) => (
           <Card key={tile.label} className="p-4">
             <p className="text-2xs uppercase tracking-wide text-gray-500">{tile.label}</p>
             <p className="tabular mt-1.5 text-2xl font-semibold text-gray-900">{tile.value}</p>
+            {tile.hint && <p className="mt-0.5 text-2xs text-gray-500">{tile.hint}</p>}
           </Card>
         ))}
       </div>

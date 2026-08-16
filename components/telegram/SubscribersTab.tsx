@@ -142,8 +142,15 @@ const SubscribersTab: React.FC<SubscribersTabProps> = ({
                           ? <Badge tone="danger">заблокировал</Badge>
                           : (
                             <>
-                              <Badge tone={subscriber.subscribed_at ? 'success' : 'neutral'}>
-                                подписка
+                              <Badge
+                                tone={
+                                  subscriber.channel_left_at
+                                    ? 'warning'
+                                    : subscriber.subscribed_at ? 'success' : 'neutral'
+                                }
+                                title={subscriber.channel_left_at ? 'Подписался, но вышел из канала' : undefined}
+                              >
+                                {subscriber.channel_left_at ? 'вышел' : 'подписка'}
                               </Badge>
                               <Badge tone={subscriber.delivered_at ? 'success' : 'neutral'}>
                                 материал

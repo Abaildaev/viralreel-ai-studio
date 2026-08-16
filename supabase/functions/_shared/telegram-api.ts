@@ -151,31 +151,44 @@ export async function sendMessage(
   }
 }
 
-const SUBSCRIBED_STATUSES = new Set(["member", "administrator", "creator"]);
+export const SUBSCRIBED_STATUSES = new Set(["member", "administrator", "creator"]);
+
+export interface MembershipCheck {
+  subscribed: boolean;
+  /**
+   * Set when the answer is "no" because the question could not be asked —
+   * almost always the bot having lost its administrator rights. Distinct from
+   * a plain "no", because one is the reader's doing and the other is ours.
+   */
+  fault: string | null;
+}
 
 /**
  * Whether someone is currently in the channel.
  *
- * Treats an API failure as "not subscribed" rather than throwing: the bot may
- * have been demoted, and refusing to hand over the material is a recoverable
- * disappointment, while crashing the update handler loses the lead entirely.
+ * Treats an API failure as "not subscribed" rather than throwing: crashing the
+ * update handler would lose the lead entirely. But it reports the failure
+ * separately, because a fault means every visitor is being turned away and the
+ * owner needs to hear about it — silently answering "not subscribed" forever
+ * is how a funnel dies without anyone noticing.
  */
 export async function isChannelMember(
   botToken: string,
   channelId: string,
   telegramUserId: string,
-): Promise<boolean> {
-  if (!channelId) return true;
+): Promise<MembershipCheck> {
+  if (!channelId) return { subscribed: true, fault: null };
 
   try {
     const member = await callTelegram<{ status: string }>(botToken, "getChatMember", {
       chat_id: channelId,
       user_id: telegramUserId,
     });
-    return SUBSCRIBED_STATUSES.has(member.status);
+    return { subscribed: SUBSCRIBED_STATUSES.has(member.status), fault: null };
   } catch (error) {
-    console.warn("getChatMember failed", error instanceof Error ? error.message : error);
-    return false;
+    const described = describeTelegramError(error);
+    console.warn("getChatMember failed", described);
+    return { subscribed: false, fault: described };
   }
 }
 

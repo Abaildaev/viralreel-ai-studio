@@ -54,6 +54,7 @@ const EMPTY_TOTALS: SubscriberTotals = {
   fromInstagram: 0,
   blocked: 0,
   active: 0,
+  channelLeft: 0,
 };
 
 type Tab = 'bot' | 'funnels' | 'broadcasts' | 'subscribers' | 'analytics';

@@ -105,7 +105,9 @@ npm test
 npm test --prefix video-renderer
 ```
 
-`npm test` — это проверка типов, сверка `supabase/full_schema.sql` с миграциями и сборка.
+`npm test` — это проверка типов, сверка `supabase/full_schema.sql` с миграциями, юнит-тесты и сборка. Отдельно тесты запускаются через `npm run test:unit`.
+
+Тесты покрывают чистые модули в `supabase/functions/_shared/`, которые импортируют и браузер, и Edge Functions: разбор deep-link `?start=` и сегменты рассылок. Эти модули намеренно без зависимостей — поэтому они одинаково загружаются в Deno, в браузерном бандле и в Node под Vitest, и правило существует ровно в одном экземпляре.
 
 `supabase/full_schema.sql` генерируется из `supabase/migrations/` и нужен только для ручного bootstrap через SQL Editor, когда недоступен CLI. Руками его не правят — после добавления миграции выполните:
 
