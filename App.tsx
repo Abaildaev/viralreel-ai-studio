@@ -6,6 +6,7 @@ import { SkeletonList } from './components/ui';
 
 const AccountsPage = lazy(() => import('./pages/AccountsPage'));
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
+const TelegramPage = lazy(() => import('./pages/TelegramPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AudioPage = lazy(() => import('./pages/AudioPage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
@@ -47,6 +48,7 @@ const MainApp: React.FC = () => {
           >
             {currentView === 'accounts' && <AccountsPage />}
             {currentView === 'automations' && <AutomationsPage />}
+            {currentView === 'telegram' && <TelegramPage />}
             {currentView === 'settings' && <SettingsPage />}
             {currentView === 'scheduler' && <InstagramScheduler />}
             {currentView === 'audio' && <AudioPage />}

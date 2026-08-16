@@ -50,7 +50,7 @@ npm run dev
 3. Разверните Edge Functions:
 
    ```bash
-   npx supabase functions deploy auto-publish publish-reels publish-telegram verify-instagram-token check-tokens cleanup-storage connect-instagram-account instagram-webhook list-instagram-media subscribe-instagram-webhooks test-automation meta-legal
+   npx supabase functions deploy auto-publish publish-reels publish-telegram verify-instagram-token check-tokens cleanup-storage connect-instagram-account instagram-webhook list-instagram-media subscribe-instagram-webhooks test-automation meta-legal telegram-bot telegram-setup telegram-broadcast
    ```
 
 4. Для cron-задач создайте случайный секрет и выполните в SQL Editor:
@@ -66,7 +66,26 @@ npm run dev
    npx supabase secrets set CRON_SECRET=YOUR_LONG_RANDOM_SECRET
    ```
 
+5. Задайте ключ шифрования пользовательских секретов — им шифруются ключ DeepSeek и токен Telegram-бота. Без него ни ИИ-продавец, ни Telegram-воронки не подключаются:
+
+   ```bash
+   npx supabase secrets set CREDENTIALS_ENCRYPTION_KEY=$(openssl rand -base64 32)
+   ```
+
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` и `SUPABASE_SERVICE_ROLE_KEY` доступны Edge Functions в среде Supabase. Никогда не добавляйте service role key в `.env.local` или в клиентский код.
+
+## Telegram: воронки и рассылки
+
+Раздел «Telegram» продолжает воронку Instagram там, где та упирается в лимит платформы: писать в Direct можно только 24 часа после сообщения человека, а подписчик в Telegram остаётся доступен всегда.
+
+1. Создайте бота в @BotFather и вставьте токен на вкладке «Бот». Токен шифруется на сервере и в браузер не возвращается.
+2. Добавьте бота администратором в канал и подключите канал там же — без прав администратора он не сможет проверять подписку.
+3. Создайте воронку: приветствие, просьба подписаться, выдача материала, целевое действие. Рядом с формой идёт живое превью переписки.
+4. Скопируйте ссылку воронки и вставьте её в поле «Ссылка» правила Comment-to-DM на вкладке «Автоматизации».
+
+К ссылке автоматически добавляется идентификатор события, поэтому в аналитике видно, какое кодовое слово и какой Reels привели каждого подписчика.
+
+Рассылки отправляет `telegram-broadcast` по расписанию pg_cron: аудитория фиксируется в очередь при запуске, отправка идёт около 25 сообщений в секунду и переживает перезапуск воркера.
 
 ## Настройка ключей и публикации
 

@@ -72,3 +72,20 @@ verify_jwt = true
 [functions.sync-instagram-contacts]
 enabled = true
 verify_jwt = true
+
+# Telegram calls this one directly and has no Supabase JWT to offer. It
+# authenticates the caller itself, by comparing the secret Telegram echoes in
+# X-Telegram-Bot-Api-Secret-Token against the one stored for the bot.
+[functions.telegram-bot]
+enabled = true
+verify_jwt = false
+
+# Called from the browser with the user's session.
+[functions.telegram-setup]
+enabled = true
+verify_jwt = true
+
+# Driven by pg_cron, which sends only X-Cron-Secret.
+[functions.telegram-broadcast]
+enabled = true
+verify_jwt = false

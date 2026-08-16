@@ -11,6 +11,7 @@ import {
   ClockIcon,
   CurrencyDollarIcon,
   ChatBubbleLeftRightIcon,
+  PaperAirplaneIcon,
   UserGroupIcon,
   HomeIcon,
   ChevronLeftIcon,
@@ -27,6 +28,7 @@ import {
   ClockIcon as ClockSolid,
   CurrencyDollarIcon as CurrencyDollarSolid,
   ChatBubbleLeftRightIcon as ChatBubbleLeftRightSolid,
+  PaperAirplaneIcon as PaperAirplaneSolid,
   UserGroupIcon as UserGroupSolid,
   HomeIcon as HomeSolid,
   MusicalNoteIcon as MusicalNoteSolid,
@@ -45,6 +47,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'generator', label: 'Генератор Reels', icon: <HomeIcon className="h-5 w-5" />, iconActive: <HomeSolid className="h-5 w-5" /> },
   { id: 'automations', label: 'Автоматизации & CRM', icon: <SparklesIcon className="h-5 w-5" />, iconActive: <SparklesSolid className="h-5 w-5" /> },
+  { id: 'telegram', label: 'Telegram', icon: <PaperAirplaneIcon className="h-5 w-5" />, iconActive: <PaperAirplaneSolid className="h-5 w-5" /> },
   { id: 'scheduler', label: 'Планировщик постов', icon: <CalendarDaysIcon className="h-5 w-5" />, iconActive: <CalendarSolid className="h-5 w-5" /> },
   { id: 'budget', label: 'Бюджет Reels', icon: <CurrencyDollarIcon className="h-5 w-5" />, iconActive: <CurrencyDollarSolid className="h-5 w-5" /> },
   { id: 'aishowcase', label: 'AI Showcase', icon: <ChatBubbleLeftRightIcon className="h-5 w-5" />, iconActive: <ChatBubbleLeftRightSolid className="h-5 w-5" /> },

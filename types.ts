@@ -90,7 +90,7 @@ export enum AppState {
   PREVIEW = 'PREVIEW',
 }
 
-export type AppView = 'generator' | 'scheduler' | 'accounts' | 'automations' | 'audio' | 'settings' | 'templates' | 'batch' | 'history' | 'budget' | 'aishowcase';
+export type AppView = 'generator' | 'scheduler' | 'accounts' | 'automations' | 'telegram' | 'audio' | 'settings' | 'templates' | 'batch' | 'history' | 'budget' | 'aishowcase';
 
 export type AudioMode = 'from_video' | 'random' | 'specific';
 
@@ -242,4 +242,132 @@ export interface AiSalesMessage {
   content: string;
   timestamp: string;
   detectedIntent?: 'question' | 'objection' | 'ready_to_buy' | 'handoff_request' | 'greeting';
+}
+
+/* -------------------------------------------------------------------------- */
+/* Telegram                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Shape returned to the browser. `bot_token_encrypted` and `webhook_secret` are
+ * intentionally missing — column-level grants hide them from `authenticated`,
+ * so `select('*')` fails and every query goes through TELEGRAM_BOT_COLUMNS.
+ */
+export interface TelegramBot {
+  id: string;
+  user_id: string;
+  bot_username: string;
+  bot_name: string;
+  channel_id: string;
+  channel_title: string;
+  channel_username: string;
+  channel_invite_url: string;
+  is_active: boolean;
+  webhook_set_at: string | null;
+  last_error: string | null;
+  subscriber_goal: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TelegramFunnel {
+  id: string;
+  user_id: string;
+  telegram_bot_id: string;
+  lead_magnet_id: string | null;
+  name: string;
+  /** Deep-link prefix: `t.me/<bot>?start=<slug>_<automation_event_id>`. */
+  slug: string;
+  welcome_text: string;
+  require_subscription: boolean;
+  subscribe_button_text: string;
+  check_button_text: string;
+  not_subscribed_text: string;
+  delivery_text: string;
+  delivery_url: string;
+  delivery_button_text: string;
+  cta_text: string;
+  cta_url: string;
+  cta_button_text: string;
+  is_active: boolean;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+  lead_magnets?: LeadMagnetInfo | null;
+}
+
+export type TelegramSubscriberSource = 'instagram' | 'link' | 'channel';
+
+export interface TelegramSubscriber {
+  id: string;
+  telegram_bot_id: string;
+  funnel_id: string | null;
+  automation_event_id: string | null;
+  instagram_sender_igsid: string | null;
+  telegram_user_id: string;
+  username: string;
+  first_name: string;
+  source: TelegramSubscriberSource;
+  started_at: string;
+  subscribed_at: string | null;
+  delivered_at: string | null;
+  signed_up_at: string | null;
+  unsubscribed_at: string | null;
+  is_blocked: boolean;
+  last_message_at: string | null;
+  created_at: string;
+  telegram_funnels?: { name: string; slug: string } | null;
+}
+
+export type BroadcastSegment =
+  | 'all'
+  | 'subscribed'
+  | 'delivered'
+  | 'not_delivered'
+  | 'from_instagram'
+  | 'funnel';
+
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed'
+  | 'cancelled';
+
+export interface TelegramBroadcast {
+  id: string;
+  user_id: string;
+  telegram_bot_id: string;
+  title: string;
+  message_text: string;
+  button_text: string;
+  button_url: string;
+  disable_notification: boolean;
+  segment: BroadcastSegment;
+  segment_funnel_id: string | null;
+  scheduled_at: string | null;
+  status: BroadcastStatus;
+  total_recipients: number;
+  sent_count: number;
+  failed_count: number;
+  started_at: string | null;
+  finished_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Aggregated per funnel by the `telegram_funnel_stats` view. */
+export interface TelegramFunnelStats {
+  funnel_id: string;
+  name: string;
+  slug: string;
+  started_count: number;
+  subscribed_count: number;
+  delivered_count: number;
+  signed_up_count: number;
+  from_instagram_count: number;
+  blocked_count: number;
+  last_subscriber_at: string | null;
 }

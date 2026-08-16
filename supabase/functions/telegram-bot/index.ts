@@ -1,0 +1,509 @@
+/*
+  The Telegram side of the funnel.
+
+  A person taps the button in the Instagram Direct message, lands on
+  `t.me/<bot>?start=<slug>_<automation_event_id>`, and this function runs the
+  scenario the owner configured: greet, optionally gate on a channel
+  subscription, hand over the material, then make the second ask.
+
+  The payload is what makes the two halves one product. Without it a Telegram
+  subscriber is an anonymous arrival; with it, every subscriber is traceable to
+  the codeword and the Reel that produced them.
+*/
+
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createAdminClient } from "../_shared/auth.ts";
+import { secretEquals } from "../_shared/crypto.ts";
+import { decryptCredential } from "../_shared/credentials.ts";
+import {
+  isChannelMember,
+  sendMessage,
+  TelegramApiError,
+  callTelegram,
+} from "../_shared/telegram-api.ts";
+
+interface BotRow {
+  id: string;
+  user_id: string;
+  bot_token_encrypted: string;
+  webhook_secret: string;
+  channel_id: string;
+  channel_username: string;
+  channel_invite_url: string;
+  is_active: boolean;
+}
+
+interface FunnelRow {
+  id: string;
+  user_id: string;
+  telegram_bot_id: string;
+  slug: string;
+  welcome_text: string;
+  require_subscription: boolean;
+  subscribe_button_text: string;
+  check_button_text: string;
+  not_subscribed_text: string;
+  delivery_text: string;
+  delivery_url: string;
+  delivery_button_text: string;
+  cta_text: string;
+  cta_url: string;
+  cta_button_text: string;
+  is_default: boolean;
+}
+
+const FUNNEL_COLUMNS =
+  "id,user_id,telegram_bot_id,slug,welcome_text,require_subscription,subscribe_button_text," +
+  "check_button_text,not_subscribed_text,delivery_text,delivery_url,delivery_button_text," +
+  "cta_text,cta_url,cta_button_text,is_default";
+
+interface TelegramUser {
+  id: number;
+  username?: string;
+  first_name?: string;
+  language_code?: string;
+}
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/**
+ * Splits `<slug>_<automation_event_id>` back into its halves.
+ *
+ * The slug is constrained to `[a-z0-9]` by the database precisely so the first
+ * underscore is an unambiguous separator, and the UUID that follows it never
+ * contains one.
+ */
+function parseStartPayload(payload: string): { slug: string; eventId: string | null } {
+  const trimmed = payload.trim();
+  if (!trimmed) return { slug: "", eventId: null };
+
+  const separator = trimmed.indexOf("_");
+  if (separator === -1) return { slug: trimmed.toLowerCase(), eventId: null };
+
+  const slug = trimmed.slice(0, separator).toLowerCase();
+  const rest = trimmed.slice(separator + 1);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rest);
+  return { slug, eventId: isUuid ? rest : null };
+}
+
+/**
+ * Resolves the attribution payload to an event this bot's owner actually owns.
+ *
+ * A start payload is public — anyone can type one. Without this check a
+ * stranger could paste someone else's event id and attach their subscriber to
+ * another tenant's campaign, quietly corrupting the analytics that the whole
+ * feature exists to produce.
+ */
+async function resolveAttribution(
+  supabase: ReturnType<typeof createAdminClient>,
+  bot: BotRow,
+  eventId: string | null,
+): Promise<{ eventId: string | null; senderIgsid: string | null }> {
+  if (!eventId) return { eventId: null, senderIgsid: null };
+
+  const { data } = await supabase
+    .from("instagram_automation_events")
+    .select("id,sender_igsid,instagram_accounts!inner(user_id)")
+    .eq("id", eventId)
+    .maybeSingle();
+
+  const owner = (data as any)?.instagram_accounts?.user_id;
+  if (!data || owner !== bot.user_id) return { eventId: null, senderIgsid: null };
+
+  return { eventId: data.id as string, senderIgsid: (data.sender_igsid as string) ?? null };
+}
+
+function channelUrl(bot: BotRow): string {
+  if (bot.channel_invite_url) return bot.channel_invite_url;
+  if (bot.channel_username) return `https://t.me/${bot.channel_username.replace(/^@/, "")}`;
+  return "";
+}
+
+async function selectFunnel(
+  supabase: ReturnType<typeof createAdminClient>,
+  bot: BotRow,
+  slug: string,
+): Promise<FunnelRow | null> {
+  if (slug) {
+    const { data } = await supabase
+      .from("telegram_funnels")
+      .select(FUNNEL_COLUMNS)
+      .eq("telegram_bot_id", bot.id)
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (data) return data as FunnelRow;
+  }
+
+  // A bare /start, an unknown slug, or a funnel that was switched off since the
+  // link went out — all land on the default rather than on silence.
+  const { data: fallback } = await supabase
+    .from("telegram_funnels")
+    .select(FUNNEL_COLUMNS)
+    .eq("telegram_bot_id", bot.id)
+    .eq("is_active", true)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  return (fallback?.[0] as FunnelRow) ?? null;
+}
+
+/** Hands over the material and makes the follow-up ask. */
+async function deliver(
+  supabase: ReturnType<typeof createAdminClient>,
+  botToken: string,
+  funnel: FunnelRow,
+  subscriberId: string,
+  chatId: number,
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  if (funnel.delivery_text.trim() || funnel.delivery_url.trim()) {
+    await sendMessage(botToken, {
+      chatId,
+      text: funnel.delivery_text.trim() || "Держите ваш материал 👇",
+      buttons: [{ text: funnel.delivery_button_text, url: funnel.delivery_url }],
+    });
+  }
+
+  await supabase
+    .from("telegram_subscribers")
+    .update({ subscribed_at: now, delivered_at: now, updated_at: now })
+    .eq("id", subscriberId)
+    .is("delivered_at", null);
+
+  if (funnel.cta_text.trim()) {
+    await sendMessage(botToken, {
+      chatId,
+      text: funnel.cta_text,
+      buttons: [{ text: funnel.cta_button_text, url: funnel.cta_url }],
+    });
+  }
+}
+
+/** Asks for the subscription and leaves a button to re-check it. */
+async function promptForSubscription(
+  botToken: string,
+  bot: BotRow,
+  funnel: FunnelRow,
+  chatId: number,
+  text: string,
+): Promise<void> {
+  await sendMessage(botToken, {
+    chatId,
+    text,
+    buttons: [{ text: funnel.subscribe_button_text, url: channelUrl(bot) }],
+    callbackButton: { text: funnel.check_button_text, data: `check:${funnel.id}` },
+  });
+}
+
+async function handleStart(
+  supabase: ReturnType<typeof createAdminClient>,
+  bot: BotRow,
+  botToken: string,
+  from: TelegramUser,
+  chatId: number,
+  payload: string,
+): Promise<void> {
+  const { slug, eventId } = parseStartPayload(payload);
+  const funnel = await selectFunnel(supabase, bot, slug);
+  if (!funnel) {
+    console.warn(`Bot ${bot.id} has no active funnel to answer /start`);
+    return;
+  }
+
+  const attribution = await resolveAttribution(supabase, bot, eventId);
+  const now = new Date().toISOString();
+
+  /*
+    Returning visitors keep their original attribution: the first campaign that
+    brought them is the one that earned them, and overwriting it on a second
+    /start would quietly move credit to whichever link they happened to reopen.
+  */
+  const { data: existing } = await supabase
+    .from("telegram_subscribers")
+    .select("id,delivered_at,automation_event_id,funnel_id")
+    .eq("telegram_bot_id", bot.id)
+    .eq("telegram_user_id", String(from.id))
+    .maybeSingle();
+
+  let subscriberId: string;
+
+  if (existing) {
+    subscriberId = existing.id as string;
+    await supabase
+      .from("telegram_subscribers")
+      .update({
+        username: from.username ?? "",
+        first_name: from.first_name ?? "",
+        is_blocked: false,
+        unsubscribed_at: null,
+        last_message_at: now,
+        updated_at: now,
+        funnel_id: existing.funnel_id ?? funnel.id,
+        automation_event_id: existing.automation_event_id ?? attribution.eventId,
+      })
+      .eq("id", subscriberId);
+  } else {
+    const { data: created, error } = await supabase
+      .from("telegram_subscribers")
+      .insert({
+        user_id: bot.user_id,
+        telegram_bot_id: bot.id,
+        funnel_id: funnel.id,
+        automation_event_id: attribution.eventId,
+        instagram_sender_igsid: attribution.senderIgsid,
+        telegram_user_id: String(from.id),
+        username: from.username ?? "",
+        first_name: from.first_name ?? "",
+        language_code: from.language_code ?? "",
+        source: attribution.eventId ? "instagram" : "link",
+        started_at: now,
+        last_message_at: now,
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    subscriberId = created.id as string;
+  }
+
+  if (funnel.welcome_text.trim()) {
+    await sendMessage(botToken, { chatId, text: funnel.welcome_text });
+  }
+
+  const gated = funnel.require_subscription && Boolean(bot.channel_id) && Boolean(channelUrl(bot));
+  if (!gated) {
+    await deliver(supabase, botToken, funnel, subscriberId, chatId);
+    return;
+  }
+
+  if (await isChannelMember(botToken, bot.channel_id, String(from.id))) {
+    await deliver(supabase, botToken, funnel, subscriberId, chatId);
+    return;
+  }
+
+  await promptForSubscription(
+    botToken,
+    bot,
+    funnel,
+    chatId,
+    funnel.not_subscribed_text.trim() ||
+      "Подпишитесь на канал, и я сразу пришлю материал 👇",
+  );
+}
+
+async function handleSubscriptionCheck(
+  supabase: ReturnType<typeof createAdminClient>,
+  bot: BotRow,
+  botToken: string,
+  callbackId: string,
+  funnelId: string,
+  from: TelegramUser,
+  chatId: number,
+): Promise<void> {
+  const { data: funnel } = await supabase
+    .from("telegram_funnels")
+    .select(FUNNEL_COLUMNS)
+    .eq("id", funnelId)
+    .eq("telegram_bot_id", bot.id)
+    .maybeSingle();
+
+  const { data: subscriber } = await supabase
+    .from("telegram_subscribers")
+    .select("id,delivered_at")
+    .eq("telegram_bot_id", bot.id)
+    .eq("telegram_user_id", String(from.id))
+    .maybeSingle();
+
+  if (!funnel || !subscriber) {
+    await callTelegram(botToken, "answerCallbackQuery", { callback_query_id: callbackId });
+    return;
+  }
+
+  const subscribed = await isChannelMember(botToken, bot.channel_id, String(from.id));
+
+  await callTelegram(botToken, "answerCallbackQuery", {
+    callback_query_id: callbackId,
+    text: subscribed ? "Спасибо! Отправляю материал 🙌" : "Подписка пока не видна",
+    show_alert: false,
+  });
+
+  if (!subscribed) {
+    await sendMessage(botToken, {
+      chatId,
+      text: (funnel as FunnelRow).not_subscribed_text.trim() ||
+        "Пока не вижу подписки. Подпишитесь и нажмите кнопку ещё раз 🙌",
+      buttons: [{ text: (funnel as FunnelRow).subscribe_button_text, url: channelUrl(bot) }],
+      callbackButton: { text: (funnel as FunnelRow).check_button_text, data: `check:${funnelId}` },
+    });
+    return;
+  }
+
+  // Someone tapping the button twice should not receive the material twice.
+  if (subscriber.delivered_at) return;
+
+  await deliver(supabase, botToken, funnel as FunnelRow, subscriber.id as string, chatId);
+}
+
+/**
+ * Someone joined the channel without pressing the check button.
+ *
+ * Telegram sends a `chat_member` update for that, so the material can go out
+ * the moment they join — which is both faster and one fewer instruction for
+ * the reader to follow.
+ */
+async function handleChannelJoin(
+  supabase: ReturnType<typeof createAdminClient>,
+  bot: BotRow,
+  botToken: string,
+  from: TelegramUser,
+): Promise<void> {
+  const { data: subscriber } = await supabase
+    .from("telegram_subscribers")
+    .select("id,funnel_id,delivered_at,telegram_user_id")
+    .eq("telegram_bot_id", bot.id)
+    .eq("telegram_user_id", String(from.id))
+    .maybeSingle();
+
+  if (!subscriber || subscriber.delivered_at || !subscriber.funnel_id) return;
+
+  const { data: funnel } = await supabase
+    .from("telegram_funnels")
+    .select(FUNNEL_COLUMNS)
+    .eq("id", subscriber.funnel_id)
+    .maybeSingle();
+
+  if (!funnel) return;
+
+  await deliver(supabase, botToken, funnel as FunnelRow, subscriber.id as string, Number(from.id));
+}
+
+async function processUpdate(
+  supabase: ReturnType<typeof createAdminClient>,
+  bot: BotRow,
+  botToken: string,
+  update: any,
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  if (update.message?.text && update.message.chat?.type === "private") {
+    const from: TelegramUser = update.message.from ?? {};
+    const chatId = Number(update.message.chat.id);
+    const text = String(update.message.text);
+
+    if (text.startsWith("/start")) {
+      await handleStart(supabase, bot, botToken, from, chatId, text.slice("/start".length));
+      return;
+    }
+
+    await supabase
+      .from("telegram_subscribers")
+      .update({ last_message_at: now, updated_at: now })
+      .eq("telegram_bot_id", bot.id)
+      .eq("telegram_user_id", String(from.id));
+    return;
+  }
+
+  if (update.callback_query?.data) {
+    const query = update.callback_query;
+    const data = String(query.data);
+    if (data.startsWith("check:")) {
+      await handleSubscriptionCheck(
+        supabase,
+        bot,
+        botToken,
+        String(query.id),
+        data.slice("check:".length),
+        query.from ?? {},
+        Number(query.message?.chat?.id ?? query.from?.id),
+      );
+      return;
+    }
+    await callTelegram(botToken, "answerCallbackQuery", { callback_query_id: String(query.id) });
+    return;
+  }
+
+  // The bot itself being blocked or unblocked in a private chat.
+  if (update.my_chat_member?.chat?.type === "private") {
+    const status = update.my_chat_member.new_chat_member?.status;
+    const from: TelegramUser = update.my_chat_member.from ?? {};
+    const blocked = status === "kicked" || status === "left";
+
+    await supabase
+      .from("telegram_subscribers")
+      .update({
+        is_blocked: blocked,
+        unsubscribed_at: blocked ? now : null,
+        updated_at: now,
+      })
+      .eq("telegram_bot_id", bot.id)
+      .eq("telegram_user_id", String(from.id));
+    return;
+  }
+
+  if (update.chat_member) {
+    const status = update.chat_member.new_chat_member?.status;
+    const joined = status === "member" || status === "administrator" || status === "creator";
+    const chatId = String(update.chat_member.chat?.id ?? "");
+
+    if (joined && chatId && chatId === bot.channel_id) {
+      await handleChannelJoin(supabase, bot, botToken, update.chat_member.new_chat_member?.user ?? {});
+    }
+  }
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
+
+  const botId = new URL(req.url).searchParams.get("bot");
+  if (!botId) return jsonResponse({ error: "Bot is not identified" }, 400);
+
+  const supabase = createAdminClient();
+  const { data: bot } = await supabase
+    .from("telegram_bots")
+    .select("id,user_id,bot_token_encrypted,webhook_secret,channel_id,channel_username,channel_invite_url,is_active")
+    .eq("id", botId)
+    .maybeSingle();
+
+  // A wrong id and a wrong secret answer identically, so the endpoint cannot be
+  // used to discover which bot ids exist.
+  const authorised = bot
+    ? await secretEquals(req.headers.get("X-Telegram-Bot-Api-Secret-Token"), bot.webhook_secret)
+    : false;
+  if (!bot || !authorised) return jsonResponse({ error: "Invalid webhook secret" }, 401);
+
+  if (!(bot as BotRow).is_active) return jsonResponse({ ok: true });
+
+  const update = await req.json().catch(() => null);
+  if (!update) return jsonResponse({ error: "Invalid JSON payload" }, 400);
+
+  /*
+    Always 200, even on failure. Telegram retries a non-2xx update, and a retry
+    of a half-finished funnel step would send the material a second time; the
+    error belongs in the logs, not in the reader's chat.
+  */
+  try {
+    const botToken = await decryptCredential((bot as BotRow).bot_token_encrypted);
+    await processUpdate(supabase, bot as BotRow, botToken, update);
+  } catch (error) {
+    const message = error instanceof TelegramApiError
+      ? `${error.message}${error.code ? ` (${error.code})` : ""}`
+      : error instanceof Error
+      ? error.message
+      : String(error);
+    console.error("Telegram update failed", message);
+    await supabase
+      .from("telegram_bots")
+      .update({ last_error: message, updated_at: new Date().toISOString() })
+      .eq("id", bot.id);
+  }
+
+  return jsonResponse({ ok: true });
+});
