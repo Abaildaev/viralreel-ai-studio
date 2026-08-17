@@ -53,11 +53,11 @@ npm run dev
    npx supabase functions deploy auto-publish publish-reels publish-telegram verify-instagram-token check-tokens cleanup-storage connect-instagram-account instagram-webhook list-instagram-media subscribe-instagram-webhooks test-automation meta-legal telegram-bot telegram-setup telegram-broadcast telegram-drip
    ```
 
-4. Для cron-задач создайте случайный секрет и выполните в SQL Editor:
+4. Для cron-задач создайте случайный секрет и положите его вместе с адресом проекта в Vault (SQL Editor):
 
    ```sql
-   alter database postgres set app.settings.supabase_url = 'https://YOUR_PROJECT_REF.supabase.co';
-   alter database postgres set app.settings.cron_secret = 'YOUR_LONG_RANDOM_SECRET';
+   select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co', 'project_url');
+   select vault.create_secret('YOUR_LONG_RANDOM_SECRET', 'cron_secret');
    ```
 
    Затем добавьте этот же секрет в Edge Functions:
@@ -65,6 +65,8 @@ npm run dev
    ```bash
    npx supabase secrets set CRON_SECRET=YOUR_LONG_RANDOM_SECRET
    ```
+
+   > Раньше здесь предлагалось `alter database postgres set app.settings.…`. Так делать нельзя: на Supabase роль `postgres` не суперпользователь, команда отклоняется, и все задачи молча падают с `url = null`. Ошибки видны только в `cron.job_run_details`, куда никто не смотрит. Vault работает без повышенных прав, а функция `invoke_edge_function` падает с внятным сообщением, если секретов нет.
 
 5. Задайте ключ шифрования пользовательских секретов — им шифруются ключ DeepSeek и токен Telegram-бота. Без него ни ИИ-продавец, ни Telegram-воронки не подключаются:
 

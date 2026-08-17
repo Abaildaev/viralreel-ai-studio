@@ -42,9 +42,19 @@ const GRAPH_API_BASE_URL = "https://graph.instagram.com/v26.0";
 /* Short of the 150s free-plan wall clock, so progress is always written back. */
 const RUN_BUDGET_MS = 100_000;
 
-/* Rows claimed per tick. Comfortably above 1000 events a day even if they all
-   arrive in one hour. */
-const BATCH_SIZE = 120;
+/*
+  Rows claimed per tick.
+
+  Sized against the CPU budget rather than the clock. An Edge Function gets two
+  seconds of CPU — I/O does not count, but parsing, matching and building
+  payloads does — and a tick that exceeds it is killed outright, leaving its
+  claimed rows to sit until the claim expires. That is recoverable but slow, so
+  the batch is deliberately smaller than a tick could theoretically manage.
+
+  Fifty a minute is three thousand an hour: far above a thousand events a day
+  even if every one of them arrives inside the same hour.
+*/
+const BATCH_SIZE = 50;
 
 /* How many events are in flight at once. Kept low deliberately: the point is
    to stay well inside Meta's per-second limits while still draining a burst in
@@ -59,7 +69,12 @@ const CONCURRENCY = 4;
 const HOURLY_SEND_CAP = 700;
 
 /* A row claimed but never finished — the worker died — is retried after this. */
-const CLAIM_TIMEOUT_MINUTES = 5;
+/*
+  A tick killed mid-batch leaves its rows claimed. Two minutes is long enough
+  that a slow but living worker is never overtaken, and short enough that a
+  dead one does not strand a burst for long.
+*/
+const CLAIM_TIMEOUT_MINUTES = 2;
 
 const MAX_ATTEMPTS = 5;
 
