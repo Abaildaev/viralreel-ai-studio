@@ -204,7 +204,7 @@ async function handleStart(
   */
   const { data: existing } = await supabase
     .from("telegram_subscribers")
-    .select("id,delivered_at,automation_event_id,funnel_id")
+    .select("id,delivered_at,automation_event_id,funnel_id,source,instagram_sender_igsid")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
@@ -213,6 +213,17 @@ async function handleStart(
 
   if (existing) {
     subscriberId = existing.id as string;
+
+    /*
+      Attribution is adopted only when there is none yet, and then all of it at
+      once. Someone who first arrived on a bare link and later returns through
+      a tracked one is an Instagram lead we simply had not identified — so the
+      event, the Instagram id and the source all move together. Filling in only
+      the event id, as this did before, left an attributed subscriber that the
+      "from Instagram" segment still refused to count.
+    */
+    const adopting = !existing.automation_event_id && Boolean(attribution.eventId);
+
     await supabase
       .from("telegram_subscribers")
       .update({
@@ -223,7 +234,13 @@ async function handleStart(
         last_message_at: now,
         updated_at: now,
         funnel_id: existing.funnel_id ?? funnel.id,
-        automation_event_id: existing.automation_event_id ?? attribution.eventId,
+        ...(adopting
+          ? {
+            automation_event_id: attribution.eventId,
+            instagram_sender_igsid: attribution.senderIgsid,
+            source: "instagram",
+          }
+          : {}),
       })
       .eq("id", subscriberId);
   } else {
