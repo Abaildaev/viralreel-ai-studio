@@ -1,30 +1,28 @@
+/*
+  The Instagram webhook: validate, write down, answer.
+
+  It used to do the whole job inside the request — match the keyword, wait out
+  the humanising delay, call the Graph API, run the sales agent — one event at
+  a time. That works at a trickle and fails at exactly the moment worth caring
+  about. Comments on a Reel that takes off arrive in bursts; an Edge Function
+  worker lives 150 seconds; and with a delay of thirty seconds per event, a
+  batch of more than half a dozen was cut off partway through. The rows were
+  already written, so Meta's retry deduplicated against them, and the rest of
+  the burst was gone. Silently.
+
+  Now the only job here is to be fast and to lose nothing: verify the
+  signature, record each event, return 200. `instagram-worker` does the rest on
+  a schedule, with retries, so a failure costs a few minutes instead of a lead.
+
+  The unique constraint on (account, meta_event_id) still provides idempotency
+  for Meta's retries — but now a crash before processing leaves a row the
+  worker will pick up, rather than a row nobody will ever look at again.
+*/
+
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient } from "../_shared/auth.ts";
 import { constantTimeEqual, secretEquals } from "../_shared/crypto.ts";
-import { describeInstagramError, InstagramApiError } from "../_shared/instagram.ts";
-import {
-  buildDirectMessage,
-  buildReplyText,
-  LEAD_MAGNET_COLUMNS,
-  LeadMagnetRow,
-  normalizeText,
-  pickPublicReply,
-  selectLeadMagnet,
-  TriggerType,
-  truncateUtf8,
-} from "../_shared/keyword-match.ts";
-import {
-  decideAgentReply,
-  SALES_AGENT_COLUMNS,
-  SalesAgentRow,
-  TranscriptMessage,
-} from "../_shared/sales-agent.ts";
-import { decryptCredential } from "../_shared/credentials.ts";
-
-const GRAPH_API_BASE_URL = "https://graph.instagram.com/v26.0";
-
-/** Upper bound for the humanising delay, to stay inside the background-task budget. */
-const MAX_REPLY_DELAY_SECONDS = 60;
+import { normalizeText, TriggerType } from "../_shared/keyword-match.ts";
 
 interface IncomingEvent {
   accountIgId: string;
@@ -32,7 +30,6 @@ interface IncomingEvent {
   triggerType: TriggerType;
   senderIgsid: string | null;
   text: string;
-  commentId?: string;
   mediaId?: string;
   commenterUsername?: string;
   rawEvent: Record<string, unknown>;
@@ -56,7 +53,8 @@ function extractEvents(payload: any): IncomingEvent[] {
       if (!messaging?.message?.text || messaging.message.is_echo || messaging.is_self) continue;
       const senderIgsid = messaging?.sender?.id ? String(messaging.sender.id) : null;
       const eventId = String(
-        messaging.message.mid ?? `dm:${accountIgId}:${senderIgsid ?? "unknown"}:${messaging.timestamp ?? 0}`,
+        messaging.message.mid ??
+          `dm:${accountIgId}:${senderIgsid ?? "unknown"}:${messaging.timestamp ?? 0}`,
       );
       events.push({
         accountIgId,
@@ -73,11 +71,15 @@ function extractEvents(payload: any): IncomingEvent[] {
       const value = change.value;
       events.push({
         accountIgId,
+        /*
+          The comment id doubles as the event id. The worker needs it to call
+          the private-reply endpoint, which is addressed by comment rather than
+          by person.
+        */
         eventId: String(value.id),
         triggerType: "comment",
         senderIgsid: value?.from?.id ? String(value.from.id) : null,
         text: String(value.text),
-        commentId: String(value.id),
         mediaId: value?.media?.id ? String(value.media.id) : undefined,
         commenterUsername: value?.from?.username ? String(value.from.username) : undefined,
         rawEvent: change,
@@ -112,257 +114,70 @@ async function hasValidSignature(rawBody: string, signatureHeader: string | null
   return constantTimeEqual(expected, provided);
 }
 
-async function graphPost(url: string, accessToken: string, body: unknown): Promise<any> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await response.json().catch(() => null);
-  if (!response.ok || data?.error) {
-    throw new InstagramApiError(
-      data?.error?.message ?? `Instagram API returned HTTP ${response.status}`,
-      data?.error?.code,
-      data?.error?.error_subcode,
-    );
-  }
-  return data;
-}
-
-async function sendInstagramReply(
-  accountIgId: string,
-  accessToken: string,
-  event: IncomingEvent,
-  message: Record<string, unknown>,
-): Promise<string> {
-  if (event.triggerType === "dm" && !event.senderIgsid) {
-    throw new Error("Instagram sender ID is missing");
-  }
-
-  // Comment-triggered DMs go through the private-reply endpoint, which is the
-  // only way to message someone who has not written to us first.
-  const recipient = event.triggerType === "comment"
-    ? { comment_id: event.commentId }
-    : { id: event.senderIgsid };
-
-  const data = await graphPost(
-    `${GRAPH_API_BASE_URL}/${accountIgId}/messages`,
-    accessToken,
-    { recipient, message },
-  );
-  return String(data.message_id ?? "");
-}
-
-async function sendPublicCommentReply(
-  commentId: string,
-  accessToken: string,
-  text: string,
-): Promise<string> {
-  const data = await graphPost(
-    `${GRAPH_API_BASE_URL}/${commentId}/replies`,
-    accessToken,
-    { message: truncateUtf8(text, 300) },
-  );
-  return String(data.id ?? "");
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-interface AccountRow {
-  id: string;
-  user_id: string;
-  ig_user_id: string;
-  access_token: string;
-}
-
-interface InstagramContactProfile {
-  name?: string | null;
-  username?: string | null;
-  profile_pic?: string | null;
-}
-
-async function fetchInstagramContactProfile(
-  senderIgsid: string,
-  accessToken: string,
-): Promise<InstagramContactProfile | null> {
-  try {
-    const response = await fetch(
-      `${GRAPH_API_BASE_URL}/${senderIgsid}?fields=name,username,profile_pic`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    const data = await response.json().catch(() => null);
-    if (!response.ok || data?.error) {
-      console.warn("Instagram profile lookup failed", data?.error?.message ?? response.status);
-      return null;
-    }
-    return data as InstagramContactProfile;
-  } catch (error) {
-    console.warn("Instagram profile lookup failed", error);
-    return null;
-  }
-}
-
 /**
- * Runs the AI sales agent for one incoming Direct message.
+ * Records a batch of events for the worker.
  *
- * Returns true when it owned the outcome (replied, or deliberately stayed
- * silent and recorded why), false when no agent is configured and the caller
- * should fall through to its normal "ignored" path.
+ * The reply delay is resolved to a `next_attempt_at` here rather than slept
+ * through later. It is read from whichever rule has the longest delay for this
+ * account, because the actual matching rule is not known until the worker runs
+ * — and waiting slightly too long is invisible, while replying too soon is the
+ * behaviour the setting exists to prevent.
  */
-async function runSalesAgent(
-  supabase: ReturnType<typeof createAdminClient>,
-  account: AccountRow,
-  event: IncomingEvent,
-  finish: (patch: Record<string, unknown>) => unknown,
-): Promise<boolean> {
-  // An account-specific agent wins over the user's account-agnostic fallback.
-  const { data: agents } = await supabase
-    .from("ai_sales_agents")
-    .select(SALES_AGENT_COLUMNS)
-    .eq("user_id", account.user_id)
-    .eq("is_enabled", true)
-    .or(`instagram_account_id.eq.${account.id},instagram_account_id.is.null`);
-
-  const agent = (agents ?? []).sort((left, right) =>
-    Number(Boolean(right.instagram_account_id)) - Number(Boolean(left.instagram_account_id))
-  )[0] as SalesAgentRow | undefined;
-
-  if (!agent) return false;
-
-  const senderIgsid = event.senderIgsid!;
-
-  // Oldest-first, so the model reads the conversation in order.
-  const { data: history } = await supabase
-    .from("ai_sales_messages")
-    .select("role,content,handed_off")
-    .eq("instagram_account_id", account.id)
-    .eq("sender_igsid", senderIgsid)
-    .order("created_at", { ascending: true })
-    .limit(20);
-
-  const transcript: TranscriptMessage[] = (history ?? []).map((row) => ({
-    role: row.role as "user" | "agent",
-    content: row.content as string,
-  }));
-  const alreadyHandedOff = (history ?? []).some((row) => row.handed_off);
-
-  const { data: credential } = await supabase
-    .from("user_ai_credentials")
-    .select("deepseek_api_key_encrypted")
-    .eq("user_id", account.user_id)
-    .maybeSingle();
-
-  let apiKey: string | null = null;
-  if (credential?.deepseek_api_key_encrypted) {
-    try {
-      apiKey = await decryptCredential(credential.deepseek_api_key_encrypted);
-    } catch (error) {
-      console.error("Could not decrypt DeepSeek credential", error);
-    }
-  }
-
-  const decision = await decideAgentReply(agent, transcript, event.text, alreadyHandedOff, apiKey);
-
-  // The incoming message is recorded either way — a thread the agent declined
-  // to answer is exactly the one a human needs to see.
-  await supabase.from("ai_sales_messages").insert({
-    instagram_account_id: account.id,
-    sender_igsid: senderIgsid,
-    role: "user",
-    content: event.text,
-    detected_intent: decision.intent,
-  });
-
-  if (!decision.reply) {
-    await finish({
-      status: "ignored",
-      public_reply_status: "skipped",
-      dm_status: "skipped",
-      error_message: decision.skippedReason ?? null,
-    });
-    return true;
-  }
-
-  let messageId: string;
-  try {
-    messageId = await sendInstagramReply(account.ig_user_id, account.access_token, event, {
-      text: decision.reply,
-    });
-  } catch (error) {
-    await finish({
-      status: "failed",
-      public_reply_status: "skipped",
-      dm_status: "failed",
-      error_message: describeInstagramError(error),
-    });
-    return true;
-  }
-
-  await supabase.from("ai_sales_messages").insert({
-    instagram_account_id: account.id,
-    sender_igsid: senderIgsid,
-    role: "agent",
-    content: decision.reply,
-    detected_intent: decision.intent,
-    handed_off: decision.handOff,
-  });
-
-  await finish({
-    status: "sent",
-    public_reply_status: "skipped",
-    dm_status: "sent",
-    response_message_id: messageId,
-    error_message: decision.handOff ? "Диалог передан человеку" : null,
-  });
-  return true;
-}
-
-async function processEvent(event: IncomingEvent): Promise<void> {
+async function enqueue(payload: unknown): Promise<number> {
   const supabase = createAdminClient();
-  const { data: account, error: accountError } = await supabase
+  const events = extractEvents(payload);
+  if (events.length === 0) return 0;
+
+  const accountIds = [...new Set(events.map((event) => event.accountIgId))];
+  const { data: accountRows } = await supabase
     .from("instagram_accounts")
-    .select("id,user_id,ig_user_id,username,access_token,is_active")
-    .eq("ig_user_id", event.accountIgId)
-    .eq("is_active", true)
-    .maybeSingle();
+    .select("id,ig_user_id,username,user_id")
+    .in("ig_user_id", accountIds)
+    .eq("is_active", true);
 
-  if (accountError) throw accountError;
-  if (!account) {
-    console.warn(`No active Instagram account found for webhook entry ${event.accountIgId}`);
-    return;
+  const accounts = new Map(
+    (accountRows ?? []).map((row) => [String(row.ig_user_id), row]),
+  );
+
+  const delays = new Map<string, number>();
+  for (const account of accounts.values()) {
+    const { data: rules } = await supabase
+      .from("lead_magnets")
+      .select("reply_delay_seconds")
+      .eq("user_id", account.user_id)
+      .eq("is_active", true)
+      .order("reply_delay_seconds", { ascending: false })
+      .limit(1);
+    delays.set(account.id as string, rules?.[0]?.reply_delay_seconds ?? 0);
   }
 
-  if (event.triggerType === "dm" && event.senderIgsid) {
-    const profile = await fetchInstagramContactProfile(event.senderIgsid, account.access_token);
-    if (profile) {
-      event.commenterUsername = profile.username ?? undefined;
-      const { error: contactError } = await supabase.from("instagram_contacts").upsert({
-        instagram_account_id: account.id,
-        sender_igsid: event.senderIgsid,
-        username: profile.username ?? null,
-        display_name: profile.name ?? null,
-        profile_picture_url: profile.profile_pic ?? null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "instagram_account_id,sender_igsid" });
-      if (contactError) console.error("Could not cache Instagram contact", contactError);
+  const rows: Record<string, unknown>[] = [];
+
+  for (const event of events) {
+    const account = accounts.get(event.accountIgId);
+    if (!account) {
+      console.warn(`No active Instagram account for webhook entry ${event.accountIgId}`);
+      continue;
     }
-  }
 
-  // Our own public replies come back as comment events; without this the
-  // automation would answer itself in a loop.
-  if (
-    event.senderIgsid === String(account.ig_user_id) ||
-    normalizeText(event.commenterUsername ?? "") === normalizeText(String(account.username ?? ""))
-  ) {
-    return;
-  }
+    /*
+      Our own public replies come back as comment events. Without this the
+      automation would answer itself in a loop.
+    */
+    if (
+      event.senderIgsid === String(account.ig_user_id) ||
+      normalizeText(event.commenterUsername ?? "") === normalizeText(String(account.username ?? ""))
+    ) {
+      continue;
+    }
 
-  const { data: eventRow, error: eventInsertError } = await supabase
-    .from("instagram_automation_events")
-    .insert({
+    const delaySeconds = delays.get(account.id as string) ?? 0;
+    // Jitter, so a burst of replies does not go out at a metronomic interval.
+    const wait = delaySeconds > 0
+      ? (delaySeconds * 0.5 + Math.random() * delaySeconds * 0.5) * 1000
+      : 0;
+
+    rows.push({
       instagram_account_id: account.id,
       meta_event_id: event.eventId,
       trigger_type: event.triggerType,
@@ -372,177 +187,28 @@ async function processEvent(event: IncomingEvent): Promise<void> {
       commenter_username: event.commenterUsername ?? null,
       public_reply_status: event.triggerType === "comment" ? "pending" : "skipped",
       dm_status: "pending",
+      status: "received",
+      next_attempt_at: new Date(Date.now() + wait).toISOString(),
       raw_event: event.rawEvent,
-    })
-    .select("id")
-    .single();
-
-  if (eventInsertError?.code === "23505") return;
-  if (eventInsertError) throw eventInsertError;
-
-  const finish = (patch: Record<string, unknown>) =>
-    supabase
-      .from("instagram_automation_events")
-      .update({ ...patch, processed_at: new Date().toISOString() })
-      .eq("id", eventRow.id);
-
-  const { data: leadMagnets, error: leadMagnetError } = await supabase
-    .from("lead_magnets")
-    .select(LEAD_MAGNET_COLUMNS)
-    .eq("user_id", account.user_id)
-    .eq("is_active", true)
-    .or(`instagram_account_id.eq.${account.id},instagram_account_id.is.null`);
-
-  if (leadMagnetError) throw leadMagnetError;
-
-  const match = selectLeadMagnet((leadMagnets ?? []) as LeadMagnetRow[], {
-    triggerType: event.triggerType,
-    text: event.text,
-    mediaId: event.mediaId,
-  });
-
-  if (!match) {
-    /*
-      No keyword rule matched. Before giving up, the AI sales agent gets a turn —
-      this is the branch that makes it a real feature rather than a simulator.
-
-      Direct messages only. A comment is answered through the private-reply
-      endpoint, which Instagram permits exactly once per comment; spending that
-      one allowance on an open-ended chat reply would burn it for the lead
-      magnet that the person may be about to ask for.
-    */
-    if (event.triggerType === "dm" && event.senderIgsid) {
-      const handled = await runSalesAgent(supabase, account, event, finish);
-      if (handled) return;
-    }
-
-    await finish({ status: "ignored", public_reply_status: "skipped", dm_status: "skipped" });
-    return;
-  }
-
-  const matched = match.leadMagnet;
-
-  // Keyword replies are a real part of a Direct thread too. Persist both sides
-  // so the owner can read one coherent conversation in the CRM, not only the
-  // messages handled by the open-ended sales agent.
-  if (event.triggerType === "dm" && event.senderIgsid) {
-    await supabase.from("ai_sales_messages").insert({
-      instagram_account_id: account.id,
-      sender_igsid: event.senderIgsid,
-      role: "user",
-      content: event.text,
-      detected_intent: "lead_magnet",
     });
   }
 
-  if (event.senderIgsid && matched.repeat_delay_hours > 0) {
-    const cutoff = new Date(Date.now() - matched.repeat_delay_hours * 60 * 60 * 1000).toISOString();
-    const { count } = await supabase
-      .from("instagram_automation_events")
-      .select("id", { count: "exact", head: true })
-      .eq("lead_magnet_id", matched.id)
-      .eq("sender_igsid", event.senderIgsid)
-      .eq("status", "sent")
-      .gte("created_at", cutoff);
-    if ((count ?? 0) > 0) {
-      await finish({
-        lead_magnet_id: matched.id,
-        status: "ignored",
-        public_reply_status: "skipped",
-        dm_status: "skipped",
-        error_message: `Этот человек уже получал материал — повтор доступен через ${matched.repeat_delay_hours} ч.`,
-      });
-      return;
-    }
-  }
+  if (rows.length === 0) return 0;
 
-  if (!String(account.access_token).startsWith("IGAA")) {
-    await finish({
-      lead_magnet_id: matched.id,
-      status: "failed",
-      public_reply_status: "skipped",
-      dm_status: "failed",
-      error_message:
-        "Автоответы требуют токен Instagram Login (IGAA). Переподключите аккаунт через Instagram, а не через Facebook.",
+  /*
+    One insert for the whole batch, ignoring duplicates. `ignoreDuplicates`
+    turns Meta's redelivery into a no-op instead of an error, which is exactly
+    the idempotency the unique constraint was added for.
+  */
+  const { error } = await supabase
+    .from("instagram_automation_events")
+    .upsert(rows, {
+      onConflict: "instagram_account_id,meta_event_id",
+      ignoreDuplicates: true,
     });
-    return;
-  }
 
-  const delaySeconds = Math.min(Math.max(matched.reply_delay_seconds ?? 0, 0), MAX_REPLY_DELAY_SECONDS);
-  if (delaySeconds > 0) {
-    // Jitter so repeated triggers do not answer at a metronomic interval.
-    await sleep((delaySeconds * 0.5 + Math.random() * delaySeconds * 0.5) * 1000);
-  }
-
-  // The Direct message is the promise; the public comment merely announces it.
-  // Sending the announcement first would publicly claim a delivery that may
-  // never happen, so the DM goes out first and gates everything else.
-  const directReplyText = buildReplyText(matched);
-  let messageId: string;
-  try {
-    messageId = await sendInstagramReply(
-      account.ig_user_id,
-      account.access_token,
-      event,
-      buildDirectMessage(matched, directReplyText),
-    );
-  } catch (error) {
-    await finish({
-      lead_magnet_id: matched.id,
-      status: "failed",
-      public_reply_status: "skipped",
-      dm_status: "failed",
-      error_message: describeInstagramError(error),
-    });
-    return;
-  }
-
-  if (event.triggerType === "dm" && event.senderIgsid) {
-    await supabase.from("ai_sales_messages").insert({
-      instagram_account_id: account.id,
-      sender_igsid: event.senderIgsid,
-      role: "agent",
-      content: directReplyText,
-      detected_intent: "lead_magnet",
-    });
-  }
-
-  let publicReplyStatus = "skipped";
-  let publicReplyId = "";
-  let publicReplyError = "";
-  if (event.triggerType === "comment" && matched.public_reply_enabled && event.commentId) {
-    try {
-      publicReplyId = await sendPublicCommentReply(
-        event.commentId,
-        account.access_token,
-        pickPublicReply(matched),
-      );
-      publicReplyStatus = "sent";
-    } catch (error) {
-      publicReplyStatus = "failed";
-      publicReplyError = describeInstagramError(error);
-    }
-  }
-
-  await finish({
-    lead_magnet_id: matched.id,
-    status: "sent",
-    public_reply_status: publicReplyStatus,
-    public_reply_id: publicReplyId || null,
-    dm_status: "sent",
-    response_message_id: messageId,
-    error_message: publicReplyError ? `Direct доставлен, но публичный ответ не отправлен: ${publicReplyError}` : null,
-  });
-}
-
-async function processPayload(payload: unknown): Promise<void> {
-  for (const event of extractEvents(payload)) {
-    try {
-      await processEvent(event);
-    } catch (error) {
-      console.error("Instagram automation event failed", error);
-    }
-  }
+  if (error) throw error;
+  return rows.length;
 }
 
 Deno.serve(async (req: Request) => {
@@ -564,8 +230,9 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   const rawBody = await req.text();
-  const validSignature = await hasValidSignature(rawBody, req.headers.get("X-Hub-Signature-256"));
-  if (!validSignature) return jsonResponse({ error: "Invalid webhook signature" }, 401);
+  if (!await hasValidSignature(rawBody, req.headers.get("X-Hub-Signature-256"))) {
+    return jsonResponse({ error: "Invalid webhook signature" }, 401);
+  }
 
   let payload: unknown;
   try {
@@ -574,6 +241,17 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: "Invalid JSON payload" }, 400);
   }
 
-  EdgeRuntime.waitUntil(processPayload(payload));
-  return jsonResponse({ received: true });
+  /*
+    Answered synchronously, unlike the old background task. Writing rows is
+    fast, and a non-2xx now means Meta retries an event that was genuinely not
+    recorded — which is the behaviour we want, and could not have before,
+    because the work continued after the response was sent.
+  */
+  try {
+    const queued = await enqueue(payload);
+    return jsonResponse({ received: true, queued });
+  } catch (error) {
+    console.error("Could not enqueue Instagram events", error);
+    return jsonResponse({ error: "Could not record events" }, 500);
+  }
 });

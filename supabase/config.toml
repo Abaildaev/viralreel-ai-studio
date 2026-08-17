@@ -94,3 +94,8 @@ verify_jwt = false
 [functions.telegram-drip]
 enabled = true
 verify_jwt = false
+
+# pg_cron: drains the Instagram comment/DM queue.
+[functions.instagram-worker]
+enabled = true
+verify_jwt = false
