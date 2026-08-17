@@ -145,6 +145,22 @@ function backoffSeconds(attempts: number): number {
   return Math.min(30 * 2 ** Math.max(attempts - 1, 0), 1800);
 }
 
+/**
+ * Meta throttling this account, as opposed to refusing this one message.
+ *
+ * Worth separating, because the response differs in kind: a rate limit applies
+ * to everything the account is about to send, so the right move is to stop
+ * sending for it entirely rather than to work through the rest of the batch
+ * collecting the same rejection — which prolongs the penalty it caused.
+ */
+function isRateLimited(error: unknown): boolean {
+  const code = error instanceof InstagramApiError ? error.code : undefined;
+  if (code === 613 || code === 4 || code === 17 || code === 32) return true;
+
+  const text = (error instanceof Error ? error.message : String(error)).toLowerCase();
+  return text.includes("rate limit") || text.includes("too many");
+}
+
 async function graphPost(url: string, accessToken: string, body: unknown): Promise<any> {
   const response = await fetch(url, {
     method: "POST",
@@ -201,11 +217,31 @@ async function sendPublicCommentReply(
   return String(data.id ?? "");
 }
 
+/* How long a cached profile is considered good enough. Names and avatars
+   change rarely; an extra Graph call per incoming DM does not. */
+const CONTACT_CACHE_DAYS = 7;
+
 async function cacheContactProfile(
   supabase: ReturnType<typeof createAdminClient>,
   account: AccountRow,
   senderIgsid: string,
 ): Promise<string | null> {
+  /*
+    A profile lookup is a Graph call, and at high message volume it doubles the
+    API traffic for no new information — the same handful of people write
+    repeatedly. A recent cache entry answers just as well.
+  */
+  const fresh = new Date(Date.now() - CONTACT_CACHE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { data: cached } = await supabase
+    .from("instagram_contacts")
+    .select("username")
+    .eq("instagram_account_id", account.id)
+    .eq("sender_igsid", senderIgsid)
+    .gte("updated_at", fresh)
+    .maybeSingle();
+
+  if (cached) return (cached.username as string) ?? null;
+
   try {
     const response = await fetch(
       `${GRAPH_API_BASE_URL}/${senderIgsid}?fields=name,username,profile_pic`,
@@ -338,6 +374,7 @@ async function processEvent(
   supabase: ReturnType<typeof createAdminClient>,
   account: AccountRow,
   event: QueuedEvent,
+  leadMagnets: LeadMagnetRow[],
 ): Promise<void> {
   const finish = (patch: Record<string, unknown>) =>
     supabase
@@ -350,16 +387,7 @@ async function processEvent(
     if (username) event.commenter_username = username;
   }
 
-  const { data: leadMagnets, error: leadMagnetError } = await supabase
-    .from("lead_magnets")
-    .select(LEAD_MAGNET_COLUMNS)
-    .eq("user_id", account.user_id)
-    .eq("is_active", true)
-    .or(`instagram_account_id.eq.${account.id},instagram_account_id.is.null`);
-
-  if (leadMagnetError) throw leadMagnetError;
-
-  const match = selectLeadMagnet((leadMagnets ?? []) as LeadMagnetRow[], {
+  const match = selectLeadMagnet(leadMagnets, {
     triggerType: event.trigger_type,
     text: event.incoming_text,
     mediaId: event.media_id ?? undefined,
@@ -585,13 +613,41 @@ Deno.serve(async (req: Request) => {
       .select("id", { count: "exact", head: true })
       .eq("instagram_account_id", accountId)
       .eq("status", "sent")
-      .gte("created_at", hourAgo);
+      /*
+        Counted by when the reply went out, not when the comment arrived. Meta
+        limits sends per hour, and once a backlog forms the two stop agreeing:
+        an event received two hours ago and answered a minute ago is a send
+        that happened just now. Counting by `created_at` would leave it out,
+        understate the hour, and let the account sail past the limit exactly
+        during the burst the cap exists to survive.
+      */
+      .gte("processed_at", hourAgo);
     remaining.set(accountId, Math.max(HOURLY_SEND_CAP - (count ?? 0), 0));
+  }
+
+  /*
+    Rules are the same for every event belonging to an account, so they are
+    fetched once per tick rather than once per event. At fifty events that is
+    one query instead of fifty, and the saving grows with the batch.
+  */
+  const rulesByAccount = new Map<string, LeadMagnetRow[]>();
+  for (const account of accounts.values()) {
+    const { data } = await supabase
+      .from("lead_magnets")
+      .select(LEAD_MAGNET_COLUMNS)
+      .eq("user_id", account.user_id)
+      .eq("is_active", true)
+      .or(`instagram_account_id.eq.${account.id},instagram_account_id.is.null`);
+    rulesByAccount.set(account.id, (data ?? []) as LeadMagnetRow[]);
   }
 
   let processed = 0;
   let deferred = 0;
   let throttled = 0;
+
+  /* Accounts Meta is currently throttling. Nothing more is sent for them this
+     tick; their events go back to the queue with the hour's cooldown. */
+  const rateLimited = new Set<string>();
 
   for (let index = 0; index < events.length; index += CONCURRENCY) {
     if (Date.now() >= deadline) break;
@@ -615,14 +671,19 @@ Deno.serve(async (req: Request) => {
       }
 
       const budget = remaining.get(account.id) ?? 0;
-      if (budget <= 0) {
-        // Pushed past the hour boundary, where the budget refills.
+      const stopped = rateLimited.has(account.id);
+
+      if (stopped || budget <= 0) {
+        // Pushed past the hour boundary, where both the budget and Meta's own
+        // window refill.
         await supabase
           .from("instagram_automation_events")
           .update({
             claimed_at: null,
             next_attempt_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-            error_message: "Достигнут часовой лимит отправок — отложено",
+            error_message: stopped
+              ? "Instagram ограничил частоту — отложено до следующего окна"
+              : "Достигнут часовой лимит отправок — отложено",
           })
           .eq("id", event.id);
         throttled++;
@@ -632,10 +693,18 @@ Deno.serve(async (req: Request) => {
       remaining.set(account.id, budget - 1);
 
       try {
-        await processEvent(supabase, account, event);
+        await processEvent(supabase, account, event, rulesByAccount.get(account.id) ?? []);
         processed++;
       } catch (error) {
         console.error(`Instagram event ${event.id} failed`, error);
+
+        /*
+          One rate-limit answer speaks for the whole account, so the rest of
+          its batch is stood down rather than sent into the same wall. Working
+          through them would earn nothing but a longer penalty.
+        */
+        if (isRateLimited(error)) rateLimited.add(account.id);
+
         await deferOrFail(supabase, event, error);
         deferred++;
       }

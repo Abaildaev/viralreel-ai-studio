@@ -10,6 +10,7 @@ import AiSalesAgentSimulator from '../components/AiSalesAgentSimulator';
 import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
+import AutomationQueueHealth from '../components/automations/AutomationQueueHealth';
 import ConversationsTab from '../components/automations/ConversationsTab';
 import { Button, PageHeader, PageShell } from '../components/ui';
 import {
@@ -292,6 +293,10 @@ export default function AutomationsPage() {
           ) : undefined
         }
       />
+
+      {/* Above the tabs on purpose: a queue that has stopped draining is worth
+          seeing whichever tab is open. */}
+      <AutomationQueueHealth />
 
       {/* Tabs Navigation */}
       <div className="flex items-center gap-1 p-1 bg-gray-100/90 rounded-2xl w-fit border border-gray-200/60 overflow-x-auto max-w-full">

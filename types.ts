@@ -195,6 +195,27 @@ export interface LeadMagnetStats {
   last_sent_at: string | null;
 }
 
+/**
+ * Per-account state of the comment/DM queue, from `instagram_queue_health`.
+ *
+ * Since processing moved out of the webhook, a backlog is a state the account
+ * can sit in — throttled by Meta, expired token, stopped worker — and all of
+ * those look the same from the outside: events simply stop appearing.
+ */
+export interface InstagramQueueHealth {
+  instagram_account_id: string;
+  username: string;
+  pending_count: number;
+  /** Pending but not yet due — a reply delay or a backoff, not a stall. */
+  waiting_count: number;
+  next_due_at: string | null;
+  oldest_pending_at: string | null;
+  failed_24h: number;
+  sent_last_hour: number;
+  sent_24h: number;
+  max_attempts_pending: number | null;
+}
+
 export interface LeadMagnetInfo {
   id: string;
   title: string;
