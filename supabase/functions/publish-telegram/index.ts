@@ -1,114 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, getAuthenticatedUser } from "../_shared/auth.ts";
 import { createSignedVideoUrl } from "../_shared/storage.ts";
+import { loadChannel, publishReelToChannel } from "../_shared/telegram-publish.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function formatCaptionHtml(caption: string): string {
-  let text = escapeHtml(caption);
-
-  text = text.replace(/^(\d+\.\s+)(.+)$/gm, (_: string, num: string, title: string) => {
-    return `${num}<b>${title}</b>`;
-  });
-
-  return text;
-}
-
-async function sendVideoToTelegram(
-  botToken: string,
-  chatId: string,
-  videoUrl: string,
-  caption?: string
-): Promise<{ ok: boolean; message_id?: number; error?: string }> {
-  try {
-    const videoResponse = await fetch(videoUrl);
-    if (!videoResponse.ok) {
-      throw new Error("Failed to fetch video");
-    }
-    const videoBlob = await videoResponse.blob();
-
-    const formData = new FormData();
-    formData.append("chat_id", chatId);
-    formData.append("video", videoBlob, "reel.mp4");
-    formData.append("supports_streaming", "true");
-    formData.append("width", "720");
-    formData.append("height", "1280");
-
-    if (caption) {
-      const trimmed = caption.length > 1024 ? caption.substring(0, 1021) + "..." : caption;
-      formData.append("caption", trimmed);
-    }
-
-    const response = await fetch(
-      `https://api.telegram.org/bot${botToken}/sendVideo`,
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    const data = await response.json();
-
-    if (!data.ok) {
-      return { ok: false, error: data.description || "Unknown Telegram error" };
-    }
-
-    return { ok: true, message_id: data.result.message_id };
-  } catch (error: any) {
-    return { ok: false, error: error.message };
-  }
-}
-
-async function sendTextToTelegram(
-  botToken: string,
-  chatId: string,
-  text: string,
-  replyToMessageId?: number
-): Promise<{ ok: boolean; error?: string }> {
-  try {
-    const body: Record<string, unknown> = {
-      chat_id: chatId,
-      text: text,
-      parse_mode: "HTML",
-    };
-
-    if (replyToMessageId) {
-      body.reply_parameters = {
-        message_id: replyToMessageId,
-      };
-    }
-
-    const response = await fetch(
-      `https://api.telegram.org/bot${botToken}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }
-    );
-
-    const data = await response.json();
-
-    if (!data.ok) {
-      return { ok: false, error: data.description || "Unknown Telegram error" };
-    }
-
-    return { ok: true };
-  } catch (error: any) {
-    return { ok: false, error: error.message };
-  }
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -136,14 +35,8 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const { force, post_id } = body;
 
-    const { data: telegramSettings, error: telegramError } = await supabase
-      .from("telegram_settings")
-      .select("bot_token, chat_id, is_active")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (telegramError) throw telegramError;
-    if (!telegramSettings?.is_active || !telegramSettings.bot_token || !telegramSettings.chat_id) {
+    const channel = await loadChannel(supabase, user.id);
+    if (!channel) {
       return new Response(
         JSON.stringify({ error: "Telegram is not configured for this user" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -210,19 +103,12 @@ Deno.serve(async (req: Request) => {
 
       const videoUrl = await createSignedVideoUrl(supabase, post.video_path);
 
-      const videoCaption = post.hook_text || undefined;
-
-      const result = await sendVideoToTelegram(
-        telegramSettings.bot_token,
-        telegramSettings.chat_id,
+      const result = await publishReelToChannel(
+        channel,
         videoUrl,
-        videoCaption
+        post.hook_text ?? null,
+        post.caption ?? null,
       );
-
-      if (result.ok && post.caption && result.message_id) {
-        const formattedCaption = formatCaptionHtml(post.caption);
-        await sendTextToTelegram(telegramSettings.bot_token, telegramSettings.chat_id, formattedCaption, result.message_id);
-      }
 
       if (result.ok) {
         await supabase
@@ -246,7 +132,7 @@ Deno.serve(async (req: Request) => {
         }
 
         publishedCount++;
-        results.push({ post_id: post.id, status: "published", message_id: result.message_id });
+        results.push({ post_id: post.id, status: "published", message_id: result.messageId });
       } else {
         await supabase
           .from("scheduled_posts")

@@ -7,6 +7,7 @@ import { AccountProvider } from './contexts/AccountContext';
 import { BatchGenerationProvider } from './contexts/BatchGenerationContext';
 import { ModalProvider } from './contexts/ModalContext';
 import AuthPage from './pages/AuthPage';
+import ErrorBoundary from './components/ErrorBoundary';
 import { ArrowPathIcon } from '@heroicons/react/24/solid';
 
 const AppWithAuth: React.FC = () => {
@@ -41,10 +42,14 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AuthProvider>
-      <ModalProvider>
-        <AppWithAuth />
-      </ModalProvider>
-    </AuthProvider>
+    {/* The outer net: anything that fails above the page level — auth, the
+        modal host, the sidebar — still lands on a readable screen. */}
+    <ErrorBoundary title="Приложение не запустилось">
+      <AuthProvider>
+        <ModalProvider>
+          <AppWithAuth />
+        </ModalProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );

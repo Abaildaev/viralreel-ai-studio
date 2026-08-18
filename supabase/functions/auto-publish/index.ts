@@ -7,6 +7,7 @@ import {
   waitForProcessing,
 } from "../_shared/instagram.ts";
 import { notifyUser } from "../_shared/telegram.ts";
+import { loadChannel, publishReelToChannel } from "../_shared/telegram-publish.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -130,6 +131,26 @@ Deno.serve(async (req: Request) => {
           published_at: new Date().toISOString(),
         })
         .eq("id", post.id);
+
+      /*
+        Mirror to the owner's Telegram channel before the source is removed —
+        this is the last moment the file exists. Failing here must not undo a
+        successful Instagram publish, so the outcome is only recorded.
+
+        Silent when no channel is configured, which is the common case.
+      */
+      const channel = await loadChannel(supabase, account.user_id);
+      if (channel) {
+        const mirrored = await publishReelToChannel(
+          channel,
+          videoUrl,
+          post.hook_text ?? null,
+          post.caption ?? null,
+        );
+        if (!mirrored.ok) {
+          console.error(`Telegram mirror failed for post ${post.id}`, mirrored.error);
+        }
+      }
 
       // Remove the source only after Instagram has accepted the post. Keep the
       // path when cleanup fails so the scheduled cleanup job can retry it.

@@ -3,6 +3,7 @@ import Sidebar, { MobileTopBar, viewTitle } from './components/Sidebar';
 import { useAuth } from './contexts/AuthContext';
 import { SkeletonList } from './components/ui';
 import { useAppView } from './hooks/useAppView';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const AccountsPage = lazy(() => import('./pages/AccountsPage'));
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
@@ -41,6 +42,10 @@ const MainApp: React.FC = () => {
         <MobileTopBar title={viewTitle(currentView)} onOpenNav={() => setNavOpen(true)} />
 
         <main className="min-h-0 flex-1">
+          {/* Scoped to the page rather than the whole app: a section that fails
+              to render should not take the navigation with it, and keying on
+              the section clears the error as soon as the reader moves away. */}
+          <ErrorBoundary resetKey={currentView} title={`Раздел «${viewTitle(currentView)}» не открылся`}>
           <Suspense
             fallback={
               <div className="p-4 sm:p-6 lg:p-8">
@@ -61,6 +66,7 @@ const MainApp: React.FC = () => {
             {currentView === 'aishowcase' && <AiShowcasePage />}
             {currentView === 'generator' && <GeneratorPage />}
           </Suspense>
+          </ErrorBoundary>
         </main>
       </div>
     </div>

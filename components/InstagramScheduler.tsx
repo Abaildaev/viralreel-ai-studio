@@ -3,6 +3,7 @@ import { getAuthenticatedHeaders, supabase, INSTAGRAM_ACCOUNT_COLUMNS } from '..
 import { ScheduledPost } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
+import VideoThumb from './scheduler/VideoThumb';
 import { useSignedUrls } from '../hooks/useSignedUrl';
 import { useConfirm } from '../contexts/ModalContext';
 import CustomDatePicker from './CustomDatePicker';
@@ -436,56 +437,6 @@ const InstagramScheduler: React.FC = () => {
 
   const getVideoUrl = (path: string | null) => (path ? videoUrls[path] : undefined);
 
-  const VideoThumb: React.FC<{ post: ScheduledPost; isActive: boolean }> = ({ post, isActive }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [loaded, setLoaded] = useState(false);
-    const url = getVideoUrl(post.video_path);
-    const preservesSourceAspect = post.font_settings?.variantKind === 'clean';
-
-    const handleMouseEnter = () => {
-      if (!post.video_path || !url) return;
-      if (!loaded && videoRef.current) {
-        videoRef.current.src = url;
-        setLoaded(true);
-      }
-      videoRef.current?.play().catch(() => {});
-    };
-
-    const handleMouseLeave = () => {
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      }
-    };
-
-    return (
-      <div
-        className={`w-full bg-gray-800 relative overflow-hidden ${preservesSourceAspect ? 'aspect-video' : 'h-36'}`}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-      >
-        {!loaded && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            {post.video_path ? <PlayIcon className="w-8 h-8 text-white/30" /> : <span className="text-xs text-white/40">Файл очищен</span>}
-          </div>
-        )}
-        <video
-          ref={videoRef}
-          className={`w-full h-full ${preservesSourceAspect ? 'object-contain' : 'object-cover'}`}
-          muted
-          loop
-          playsInline
-          preload="none"
-        />
-        {isActive && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-            <ArrowPathIcon className="w-8 h-8 text-white animate-spin" />
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const togglePostSelection = (id: string) => {
     setSelectedPostIds(prev =>
       prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
@@ -718,7 +669,7 @@ const InstagramScheduler: React.FC = () => {
                         }`}
                         title="Кликните для выбора, перетащите мышкой для смены порядка в очереди"
                       >
-                        <VideoThumb post={post} isActive={false} />
+                        <VideoThumb post={post} url={getVideoUrl(post.video_path)} isActive={false} />
 
                         {/* Drag Handle Indicator */}
                         <div
