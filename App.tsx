@@ -1,8 +1,8 @@
 import React, { lazy, Suspense, useState } from 'react';
-import { AppView } from './types';
 import Sidebar, { MobileTopBar, viewTitle } from './components/Sidebar';
 import { useAuth } from './contexts/AuthContext';
 import { SkeletonList } from './components/ui';
+import { useAppView } from './hooks/useAppView';
 
 const AccountsPage = lazy(() => import('./pages/AccountsPage'));
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
@@ -19,14 +19,16 @@ const InstagramScheduler = lazy(() => import('./components/InstagramScheduler'))
 
 const MainApp: React.FC = () => {
   const { user, signOut } = useAuth();
-  const [currentView, setCurrentView] = useState<AppView>('generator');
+  // The open section lives in the address bar, so every view is linkable and
+  // the back button steps through sections instead of leaving the app.
+  const { view: currentView, navigate } = useAppView();
   const [navOpen, setNavOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-canvas text-gray-900">
       <Sidebar
         currentView={currentView}
-        onViewChange={setCurrentView}
+        onViewChange={navigate}
         userEmail={user?.email || ''}
         onSignOut={signOut}
         mobileOpen={navOpen}

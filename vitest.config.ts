@@ -11,7 +11,11 @@ import { defineConfig } from 'vitest/config';
 */
 export default defineConfig({
   test: {
-    include: ['supabase/functions/_shared/**/*.test.ts', 'utils/**/*.test.ts'],
+    include: [
+      'supabase/functions/_shared/**/*.test.ts',
+      'hooks/**/*.test.ts',
+      'utils/**/*.test.ts',
+    ],
     environment: 'node',
   },
 });
