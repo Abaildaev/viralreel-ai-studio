@@ -6,6 +6,8 @@ import type {
   TelegramFunnel,
 } from '../../types';
 import { Badge, Button, Callout, Field, Input, Select, Switch, Textarea } from '../ui';
+import AttachmentPicker from '../AttachmentPicker';
+import { NO_ATTACHMENT, type MessageAttachment } from '../../types';
 import CustomDatePicker from '../CustomDatePicker';
 import CustomTimePicker from '../CustomTimePicker';
 import {
@@ -27,6 +29,7 @@ export const blankBroadcast = (botId: string): BroadcastDraft => ({
   segment_funnel_id: null,
   scheduled_at: null,
   status: 'draft',
+  ...NO_ATTACHMENT,
 });
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -146,14 +149,29 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
     id: 'broadcast',
     text: form.message_text,
     buttons: [{ text: form.button_text, url: form.button_url }],
-  }], [form.message_text, form.button_text, form.button_url]);
+    attachment: {
+      attachment_type: form.attachment_type,
+      attachment_path: form.attachment_path,
+      attachment_name: form.attachment_name,
+    },
+  }], [
+    form.message_text,
+    form.button_text,
+    form.button_url,
+    form.attachment_type,
+    form.attachment_path,
+    form.attachment_name,
+  ]);
 
   const scheduledAt = later ? toIso(when.date, when.time) : null;
   const inThePast = Boolean(scheduledAt && new Date(scheduledAt).getTime() < Date.now());
-  const canSend = form.message_text.trim().length > 0 && (recipients ?? 0) > 0;
+  /* A photo with no words is a legitimate broadcast, so "has something to
+     say" means text or a file — not text alone. */
+  const hasContent = form.message_text.trim().length > 0 || form.attachment_type !== 'none';
+  const canSend = hasContent && (recipients ?? 0) > 0;
 
   const submit = (send: boolean) => {
-    if (!form.message_text.trim()) return;
+    if (!hasContent) return;
     onSave({ ...form, scheduled_at: scheduledAt }, send);
   };
 
@@ -201,6 +219,17 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
                   value={form.message_text}
                   placeholder="Что вы хотите сказать подписчикам?"
                   onChange={(event) => set('message_text', event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field label="Вложение">
+              {({ id }) => (
+                <AttachmentPicker
+                  id={id}
+                  value={form}
+                  onChange={(attachment: MessageAttachment) =>
+                    setForm((current) => ({ ...current, ...attachment }))}
                 />
               )}
             </Field>
@@ -350,7 +379,7 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
                   <Button
                     variant="secondary"
                     fullWidth
-                    disabled={saving || !form.message_text.trim()}
+                    disabled={saving || !hasContent}
                     onClick={() => submit(false)}
                   >
                     Сохранить черновик

@@ -26,18 +26,24 @@ export interface FunnelStep {
   is_active: boolean;
 }
 
-export interface SequencePlan {
+/*
+  Generic over the row rather than fixed to `FunnelStep`, so a caller that
+  selected more columns than the arithmetic needs — the sender, which also
+  reads the attachment — gets its own row type back out instead of a narrowed
+  one it would have to cast.
+*/
+export interface SequencePlan<T extends FunnelStep = FunnelStep> {
   /**
    * Steps to send right now, in order. More than one only when consecutive
    * steps have no delay between them — a lesson plus its worksheet, say.
    */
-  sendNow: FunnelStep[];
+  sendNow: T[];
   /** The next step that has to wait, and when it is due. */
-  schedule: { step: FunnelStep; dueAt: Date } | null;
+  schedule: { step: T; dueAt: Date } | null;
 }
 
 /** Active steps in send order. Inactive ones are skipped, not renumbered. */
-export function orderedSteps(steps: FunnelStep[]): FunnelStep[] {
+export function orderedSteps<T extends FunnelStep>(steps: T[]): T[] {
   return steps
     .filter((step) => step.is_active)
     .slice()
@@ -56,14 +62,14 @@ export function orderedSteps(steps: FunnelStep[]): FunnelStep[] {
  * minute for a cron tick to deliver something promised as instant is the
  * difference between a funnel that converts and one that does not.
  */
-export function planSequence(
-  steps: FunnelStep[],
+export function planSequence<T extends FunnelStep>(
+  steps: T[],
   afterPosition: number,
   now: Date = new Date(),
-): SequencePlan {
+): SequencePlan<T> {
   const remaining = orderedSteps(steps).filter((step) => step.position > afterPosition);
 
-  const sendNow: FunnelStep[] = [];
+  const sendNow: T[] = [];
 
   for (const step of remaining) {
     if (step.delay_minutes > 0) {
@@ -88,10 +94,10 @@ export function planSequence(
  * next step — but a course author writing "через 3 дня" on step five is
  * really asking when step five arrives, and the preview should answer.
  */
-export function cumulativeSchedule(
-  steps: FunnelStep[],
+export function cumulativeSchedule<T extends FunnelStep>(
+  steps: T[],
   start: Date = new Date(),
-): { step: FunnelStep; at: Date }[] {
+): { step: T; at: Date }[] {
   let offset = 0;
 
   return orderedSteps(steps).map((step) => {

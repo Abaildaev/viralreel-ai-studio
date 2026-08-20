@@ -4,8 +4,9 @@ import {
   ClipboardDocumentIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
-import type { LeadMagnet, TelegramBot } from '../../types';
+import { NO_ATTACHMENT, type LeadMagnet, type TelegramBot } from '../../types';
 import { Button, Callout, Field, Input, Select, Switch, Textarea } from '../ui';
+import AttachmentPicker from '../AttachmentPicker';
 import { funnelDeepLink, slugify, type FunnelDraft } from '../../services/telegramService';
 import TelegramChatPreview, { type PreviewMessage } from './TelegramChatPreview';
 import FunnelStepsEditor, { newStep, type StepDraft } from './FunnelStepsEditor';
@@ -24,6 +25,7 @@ export const blankFunnel = (botId: string): FunnelDraft => ({
   not_subscribed_text: 'Остался один шаг: подпишитесь на канал, и я сразу пришлю материал 👇',
   is_active: true,
   is_default: false,
+  ...NO_ATTACHMENT,
 });
 
 /** What a brand-new funnel sends: the material, then one follow-up ask. */
@@ -87,7 +89,16 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
       (bot.channel_username ? `https://t.me/${bot.channel_username.replace(/^@/, '')}` : '');
 
     const list: PreviewMessage[] = [
-      { id: 'welcome', step: 'Шаг 1 · Приветствие', text: form.welcome_text },
+      {
+        id: 'welcome',
+        step: 'Шаг 1 · Приветствие',
+        text: form.welcome_text,
+        attachment: {
+          attachment_type: form.attachment_type,
+          attachment_path: form.attachment_path,
+          attachment_name: form.attachment_name,
+        },
+      },
     ];
 
     if (gated) {
@@ -120,6 +131,11 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
         step: `Шаг ${offset + index + 1} · ${step.title || 'без названия'}`,
         text: step.body,
         buttons: [{ text: step.button_text, url: step.button_url }],
+        attachment: {
+          attachment_type: step.attachment_type,
+          attachment_path: step.attachment_path,
+          attachment_name: step.attachment_name,
+        },
         delay: step.delay_minutes > 0 ? formatDelay(step.delay_minutes) : undefined,
         muted: !active.has(key),
       });
@@ -278,6 +294,19 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
                   rows={3}
                   value={form.welcome_text}
                   onChange={(event) => set('welcome_text', event.target.value)}
+                />
+              )}
+            </Field>
+
+            <Field
+              label="Вложение к приветствию"
+              hint="Придёт до просьбы подписаться — часто это фото того, что вы обещали"
+            >
+              {({ id }) => (
+                <AttachmentPicker
+                  id={id}
+                  value={form}
+                  onChange={(attachment) => setForm((current) => ({ ...current, ...attachment }))}
                 />
               )}
             </Field>

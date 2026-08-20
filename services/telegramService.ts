@@ -6,8 +6,11 @@ import {
   applyAudienceFilters,
   audienceFilters,
 } from '../supabase/functions/_shared/broadcast-segments';
+import { transliterate } from '../utils/translit';
+import { attachmentFields } from './attachmentService';
 import type {
   BroadcastSegment,
+  MessageAttachment,
   TelegramBot,
   TelegramBroadcast,
   TelegramFunnel,
@@ -120,8 +123,38 @@ export type FunnelDraft = Omit<
   'id' | 'user_id' | 'created_at' | 'updated_at' | 'lead_magnets'
 > & { id?: string | null };
 
+/**
+ * Turns a loaded funnel into an editable draft.
+ *
+ * A loaded row carries more than the funnel's own columns: `FUNNEL_COLUMNS`
+ * joins `lead_magnets`, and the server maintains `user_id` and the timestamps.
+ * Spreading the row into the editor carried all of that back out again, and
+ * PostgREST rejects a body naming a column the table does not have — so every
+ * edit of an existing funnel failed while creating one worked. Naming the
+ * fields is what keeps the two directions in step; a spread cannot, because
+ * TypeScript does not excess-property-check one.
+ */
+export function toFunnelDraft(funnel: TelegramFunnel): FunnelDraft {
+  return {
+    id: funnel.id,
+    telegram_bot_id: funnel.telegram_bot_id,
+    lead_magnet_id: funnel.lead_magnet_id,
+    name: funnel.name,
+    slug: funnel.slug,
+    welcome_text: funnel.welcome_text,
+    require_subscription: funnel.require_subscription,
+    subscribe_button_text: funnel.subscribe_button_text,
+    check_button_text: funnel.check_button_text,
+    not_subscribed_text: funnel.not_subscribed_text,
+    is_active: funnel.is_active,
+    is_default: funnel.is_default,
+    ...attachmentFields(funnel),
+  };
+}
+
 export const FUNNEL_STEP_COLUMNS =
-  'id,user_id,funnel_id,position,title,body,button_text,button_url,delay_minutes,is_active,created_at,updated_at';
+  'id,user_id,funnel_id,position,title,body,button_text,button_url,delay_minutes,is_active,' +
+  'attachment_type,attachment_path,attachment_name,created_at,updated_at';
 
 export async function loadFunnelSteps(funnelId: string): Promise<TelegramFunnelStep[]> {
   const { data, error } = await supabase
@@ -134,7 +167,7 @@ export async function loadFunnelSteps(funnelId: string): Promise<TelegramFunnelS
   return (data ?? []) as unknown as TelegramFunnelStep[];
 }
 
-export interface StepInput {
+export interface StepInput extends MessageAttachment {
   id: string | null;
   position: number;
   title: string;
@@ -196,6 +229,7 @@ export async function saveFunnelSteps(
       button_url: step.button_url,
       delay_minutes: step.delay_minutes,
       is_active: step.is_active,
+      ...attachmentFields(step),
       updated_at: new Date().toISOString(),
     };
 
@@ -209,8 +243,23 @@ export async function saveFunnelSteps(
 
 /** Returns the funnel's id, which a brand-new funnel does not have until saved. */
 export async function saveFunnel(draft: FunnelDraft, userId: string): Promise<string> {
-  const { id, ...fields } = draft;
-  const payload = { ...fields, user_id: userId, updated_at: new Date().toISOString() };
+  const { id } = draft;
+  const payload = {
+    user_id: userId,
+    telegram_bot_id: draft.telegram_bot_id,
+    lead_magnet_id: draft.lead_magnet_id,
+    name: draft.name,
+    slug: draft.slug,
+    welcome_text: draft.welcome_text,
+    require_subscription: draft.require_subscription,
+    subscribe_button_text: draft.subscribe_button_text,
+    check_button_text: draft.check_button_text,
+    not_subscribed_text: draft.not_subscribed_text,
+    is_active: draft.is_active,
+    is_default: draft.is_default,
+    ...attachmentFields(draft),
+    updated_at: new Date().toISOString(),
+  };
 
   /* The partial unique index allows one default per bot, so promoting a funnel
      has to demote the incumbent first or the write is rejected. */
@@ -266,18 +315,7 @@ export function funnelTrackedLink(botUsername: string, slug: string): string {
 
 /** Slugs are the deep-link separator's other half, so they cannot contain `_`. */
 export function slugify(value: string): string {
-  const translit: Record<string, string> = {
-    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i',
-    й: 'i', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't',
-    у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ы: 'y', э: 'e',
-    ю: 'yu', я: 'ya', ь: '', ъ: '',
-  };
-
-  return value
-    .toLowerCase()
-    .split('')
-    .map((character) => translit[character] ?? character)
-    .join('')
+  return transliterate(value)
     .replace(/[^a-z0-9]/g, '')
     .slice(0, 24);
 }
@@ -433,6 +471,9 @@ export type BroadcastDraft = Pick<
   | 'segment_funnel_id'
   | 'scheduled_at'
   | 'status'
+  | 'attachment_type'
+  | 'attachment_path'
+  | 'attachment_name'
 > & { id?: string | null };
 
 /**
@@ -443,8 +484,22 @@ export type BroadcastDraft = Pick<
  * anything else was created in between — a second tab, or a fast double-click.
  */
 export async function saveBroadcast(draft: BroadcastDraft, userId: string): Promise<string> {
-  const { id, ...fields } = draft;
-  const payload = { ...fields, user_id: userId, updated_at: new Date().toISOString() };
+  const { id } = draft;
+  const payload = {
+    user_id: userId,
+    telegram_bot_id: draft.telegram_bot_id,
+    title: draft.title,
+    message_text: draft.message_text,
+    button_text: draft.button_text,
+    button_url: draft.button_url,
+    disable_notification: draft.disable_notification,
+    segment: draft.segment,
+    segment_funnel_id: draft.segment_funnel_id,
+    scheduled_at: draft.scheduled_at,
+    status: draft.status,
+    ...attachmentFields(draft),
+    updated_at: new Date().toISOString(),
+  };
 
   const { data, error } = id
     ? await supabase.from('telegram_broadcasts').update(payload).eq('id', id).select('id').single()

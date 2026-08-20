@@ -25,6 +25,11 @@ import {
 import { parseStartPayload } from "../_shared/start-payload.ts";
 import { clearBotFault, reportBotFault } from "../_shared/bot-health.ts";
 import { advanceSequence } from "../_shared/step-sender.ts";
+import {
+  type AttachmentColumns,
+  ATTACHMENT_COLUMNS,
+  signRowAttachment,
+} from "../_shared/attachment.ts";
 
 interface BotRow {
   id: string;
@@ -42,7 +47,7 @@ const BOT_COLUMNS =
   "id,user_id,bot_token_encrypted,webhook_secret,channel_id,channel_username," +
   "channel_invite_url,is_active,health_alert_at";
 
-interface FunnelRow {
+interface FunnelRow extends AttachmentColumns {
   id: string;
   user_id: string;
   telegram_bot_id: string;
@@ -58,7 +63,7 @@ interface FunnelRow {
 
 const FUNNEL_COLUMNS =
   "id,user_id,telegram_bot_id,slug,welcome_text,require_subscription,subscribe_button_text," +
-  "check_button_text,not_subscribed_text,is_default";
+  "check_button_text,not_subscribed_text,is_default," + ATTACHMENT_COLUMNS;
 
 interface TelegramUser {
   id: number;
@@ -273,8 +278,16 @@ async function handleStart(
     telegram_bot_id: bot.id,
   };
 
-  if (funnel.welcome_text.trim()) {
-    await sendMessage(botToken, { chatId, text: funnel.welcome_text });
+  /* The greeting may now carry a file — often the photo of the thing being
+     promised, which is worth showing before the subscription gate has a
+     chance to lose the reader. A file with no words is a valid greeting. */
+  const welcomeAttachment = await signRowAttachment(supabase, funnel);
+  if (funnel.welcome_text.trim() || welcomeAttachment) {
+    await sendMessage(botToken, {
+      chatId,
+      text: funnel.welcome_text,
+      attachment: welcomeAttachment,
+    });
   }
 
   const gated = funnel.require_subscription && Boolean(bot.channel_id) && Boolean(channelUrl(bot));

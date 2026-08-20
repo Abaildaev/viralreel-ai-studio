@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { INSTAGRAM_ACCOUNT_COLUMNS, supabase } from '../lib/supabase';
-import { LeadMagnet, LeadMagnetStats, InstagramAccount } from '../types';
+import { LeadMagnet, LeadMagnetStats, InstagramAccount, NO_ATTACHMENT } from '../types';
+import { attachmentFields } from '../services/attachmentService';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../contexts/ModalContext';
 import AutomationAnalyticsDashboard from '../components/AutomationAnalyticsDashboard';
@@ -56,6 +57,7 @@ const blankForm: AutomationForm = {
   repeat_delay_hours: 24,
   reply_delay_seconds: 5,
   is_active: true,
+  ...NO_ATTACHMENT,
 };
 
 export default function AutomationsPage() {
@@ -197,6 +199,9 @@ export default function AutomationsPage() {
       repeat_delay_hours: rule.repeat_delay_hours ?? 24,
       reply_delay_seconds: rule.reply_delay_seconds ?? 5,
       is_active: rule.is_active,
+      attachment_type: rule.attachment_type ?? 'none',
+      attachment_path: rule.attachment_path ?? '',
+      attachment_name: rule.attachment_name ?? '',
     });
     setIsModalOpen(true);
   };
@@ -251,11 +256,19 @@ export default function AutomationsPage() {
         public_reply_variants: form.public_reply_variants,
         reply_text: form.reply_text.trim(),
         direct_reply_variants: form.direct_reply_variants.map((value) => value.trim()).filter(Boolean),
-        response_url: form.response_url.trim() || null,
-        button_text: form.button_text.trim() || null,
+        /*
+          Both columns are NOT NULL, and the worker calls `.trim()` on them
+          when it builds the Direct message, so an empty field has to travel as
+          an empty string. Sent as null it failed the constraint outright,
+          which is why saving any scenario without a link came back as an
+          error — and why a row that somehow held null would crash the worker.
+        */
+        response_url: form.response_url.trim(),
+        button_text: form.button_text.trim(),
         repeat_delay_hours: form.repeat_delay_hours,
         reply_delay_seconds: form.reply_delay_seconds,
         is_active: form.is_active,
+        ...attachmentFields(form),
       };
 
       if (form.id) {

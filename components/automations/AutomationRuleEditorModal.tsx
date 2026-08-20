@@ -12,9 +12,11 @@ import {
 } from '@heroicons/react/24/outline';
 import { Callout, Skeleton } from '../ui';
 import AppSelect from '../ui/AppSelect';
+import AttachmentPicker from '../AttachmentPicker';
+import type { MessageAttachment } from '../../types';
 import { generateLeadMagnetDirectVariants } from '../../services/ai/leadMagnetDirectGenerator';
 
-export interface AutomationForm {
+export interface AutomationForm extends MessageAttachment {
   id: string | null;
   instagram_account_id: string | null;
   title: string;
@@ -412,6 +414,30 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
                 onChange={(e) => setForm((c) => ({ ...c, response_url: e.target.value }))}
                 placeholder="Ссылка на материал (https://...)"
                 className="bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="rule-attachment" className="block text-xs font-semibold text-gray-700">
+                Файл в Direct
+              </label>
+              {/*
+                The caveat is stated here rather than discovered in the event
+                log. Instagram cannot put text and a file in one message, and a
+                comment buys exactly one private reply — so for comment
+                triggers the file is a second message the platform often
+                refuses, while for people who write to you first it always
+                arrives.
+              */}
+              <AttachmentPicker
+                id="rule-attachment"
+                value={form}
+                onChange={(attachment) => setForm((c) => ({ ...c, ...attachment }))}
+                hint={
+                  form.trigger_comments
+                    ? 'Уходит вторым сообщением после текста. По комментариям Instagram разрешает только один ответ, поэтому файл может не дойти — держите ссылку в кнопке как основной путь.'
+                    : 'Уходит вторым сообщением после текста.'
+                }
               />
             </div>
           </div>

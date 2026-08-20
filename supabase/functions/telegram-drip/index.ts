@@ -23,6 +23,11 @@ import {
   TelegramApiError,
 } from "../_shared/telegram-api.ts";
 import { advanceSequence } from "../_shared/step-sender.ts";
+import {
+  type AttachmentColumns,
+  ATTACHMENT_COLUMNS,
+  signRowAttachment,
+} from "../_shared/attachment.ts";
 
 /* Telegram tolerates about 30 messages a second; the drip shares that budget
    with broadcasts, so it paces itself well below. */
@@ -52,7 +57,7 @@ interface DueDelivery {
   telegram_bot_id: string;
   subscriber_id: string;
   step_id: string;
-  telegram_funnel_steps: {
+  telegram_funnel_steps: AttachmentColumns & {
     position: number;
     body: string;
     button_text: string;
@@ -71,7 +76,7 @@ interface DueDelivery {
 
 const DUE_COLUMNS = `
   id,attempts,telegram_bot_id,subscriber_id,step_id,
-  telegram_funnel_steps(position,body,button_text,button_url,is_active,funnel_id),
+  telegram_funnel_steps(position,body,button_text,button_url,is_active,funnel_id,${ATTACHMENT_COLUMNS}),
   telegram_subscribers(id,telegram_user_id,telegram_bot_id,is_blocked,unsubscribed_at)
 `;
 
@@ -173,10 +178,16 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
+      /* Signed per delivery rather than per tick: a batch is a hundred
+         different steps belonging to different funnels, so there is no shared
+         file to sign once the way a broadcast has. */
+      const attachment = await signRowAttachment(supabase, step);
+
       await sendMessage(botToken, {
         chatId: subscriber.telegram_user_id,
-        text: step.body.trim() || "…",
+        text: step.body.trim() || (attachment ? "" : "…"),
         buttons: [{ text: step.button_text, url: step.button_url }],
+        attachment,
       });
 
       await supabase

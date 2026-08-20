@@ -26,6 +26,12 @@ import {
   audienceFilters,
   type BroadcastSegment,
 } from "../_shared/broadcast-segments.ts";
+import {
+  type AttachmentColumns,
+  ATTACHMENT_COLUMNS,
+  type SignedAttachment,
+  signRowAttachment,
+} from "../_shared/attachment.ts";
 
 /* Telegram tolerates about 30 messages a second to distinct users. Sending a
    little under that keeps the run clear of 429s, which cost more time than the
@@ -46,7 +52,7 @@ const SELECT_PAGE_SIZE = 1000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-interface BroadcastRow {
+interface BroadcastRow extends AttachmentColumns {
   id: string;
   user_id: string;
   telegram_bot_id: string;
@@ -61,7 +67,8 @@ interface BroadcastRow {
 
 const BROADCAST_COLUMNS =
   "id,user_id,telegram_bot_id,message_text,button_text,button_url," +
-  "disable_notification,segment,segment_funnel_id,status";
+  "disable_notification,segment,segment_funnel_id,status," +
+  ATTACHMENT_COLUMNS;
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -150,6 +157,7 @@ async function drain(
   broadcast: BroadcastRow,
   botToken: string,
   deadline: number,
+  attachment: SignedAttachment | null,
 ): Promise<{ sent: number; failed: number; drained: boolean }> {
   let sent = 0;
   let failed = 0;
@@ -175,6 +183,7 @@ async function drain(
           text: broadcast.message_text,
           buttons: [{ text: broadcast.button_text, url: broadcast.button_url }],
           disableNotification: broadcast.disable_notification,
+          attachment,
         });
 
         await supabase
@@ -271,7 +280,21 @@ async function runBroadcast(
     }
   }
 
-  const { sent, failed, drained } = await drain(supabase, broadcast, botToken, deadline);
+  /*
+    Signed once for the whole tick, not once per recipient. A send to ten
+    thousand people would otherwise mint ten thousand identical URLs, and the
+    two-hour lifetime comfortably outlasts the hundred-second budget a tick is
+    allowed to spend.
+  */
+  const attachment = await signRowAttachment(supabase, broadcast);
+
+  const { sent, failed, drained } = await drain(
+    supabase,
+    broadcast,
+    botToken,
+    deadline,
+    attachment,
+  );
 
   // Counts are recomputed from the queue rather than incremented, so a tick
   // that dies after sending but before reporting cannot double-count.

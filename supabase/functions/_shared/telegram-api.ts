@@ -87,6 +87,13 @@ export function inlineKeyboard(buttons: InlineButton[]): Record<string, unknown>
   };
 }
 
+/** A file already signed and reachable — see `_shared/attachment.ts`. */
+export interface OutgoingAttachment {
+  type: "photo" | "video" | "document";
+  url: string;
+  name?: string;
+}
+
 export interface SendMessageOptions {
   chatId: string | number;
   text: string;
@@ -94,19 +101,89 @@ export interface SendMessageOptions {
   /** A callback button, for the "I subscribed" check. */
   callbackButton?: { text: string; data: string };
   disableNotification?: boolean;
+  /** Sent as one captioned message where it fits, two where it does not. */
+  attachment?: OutgoingAttachment | null;
 }
 
 /** Telegram truncates anything longer and returns an error for a bare overflow. */
 const MAX_MESSAGE_CHARS = 4096;
 
+/* A caption is a quarter of a message. Copy written for a plain message will
+   overrun it regularly, which is why the two-message path below exists. */
+const MAX_CAPTION_CHARS = 1024;
+
+const MEDIA_METHODS = {
+  photo: { method: "sendPhoto", field: "photo" },
+  video: { method: "sendVideo", field: "video" },
+  document: { method: "sendDocument", field: "document" },
+} as const;
+
 /**
- * Sends one message, formatted as HTML.
+ * Telegram could not turn the URL into a file.
+ *
+ * Distinct from every other 400 because it is the author's file that is wrong,
+ * not the message: retrying sends the same broken URL forever, and a funnel
+ * that stops at a bad PDF is worse than one that delivers the words without
+ * it. Callers fall back to text rather than failing the send.
+ */
+function isMediaFetchFailure(error: unknown): boolean {
+  if (!(error instanceof TelegramApiError) || error.code !== 400) return false;
+
+  const text = error.message.toLowerCase();
+  return (
+    text.includes("failed to get http url content") ||
+    text.includes("wrong file identifier") ||
+    text.includes("wrong type of the web page content") ||
+    text.includes("webpage_curl_failed") ||
+    text.includes("image_process_failed") ||
+    text.includes("photo_invalid_dimensions") ||
+    text.includes("file must be non-empty")
+  );
+}
+
+/**
+ * One call, with the HTML retried as plain text.
  *
  * Funnel copy is written by the account owner, who may reasonably use `<b>` —
  * so HTML parsing stays on. But a stray `<` in ordinary prose makes Telegram
  * reject the whole message, and losing a lead over a typo in an em-dash is a
- * bad trade. So a parse failure retries once as plain text: the reader loses
- * the bold, not the material.
+ * bad trade. So a parse failure retries once unformatted: the reader loses the
+ * bold, not the material.
+ */
+async function sendFormatted(
+  botToken: string,
+  method: string,
+  payload: Record<string, unknown>,
+): Promise<number> {
+  try {
+    const result = await callTelegram<{ message_id: number }>(botToken, method, {
+      ...payload,
+      parse_mode: "HTML",
+    });
+    return result.message_id;
+  } catch (error) {
+    const isParseFailure = error instanceof TelegramApiError &&
+      error.code === 400 &&
+      error.message.toLowerCase().includes("parse entities");
+    if (!isParseFailure) throw error;
+
+    const result = await callTelegram<{ message_id: number }>(botToken, method, payload);
+    return result.message_id;
+  }
+}
+
+/**
+ * Sends one message — text, or a file with the text on it.
+ *
+ * A photo, video or document goes as a single captioned message whenever the
+ * copy fits Telegram's 1024-character caption. Longer copy is sent as two: the
+ * file, then the words with the button under them. Splitting is what keeps the
+ * button on the message people actually read to the end; a caption silently
+ * truncated at 1024 loses whatever the author put last, which is usually the
+ * ask.
+ *
+ * Returns the id of the message carrying the text, since that is the one a
+ * caller would want to reference.
  */
 export async function sendMessage(
   botToken: string,
@@ -126,29 +203,46 @@ export async function sendMessage(
     }
     : inlineKeyboard(options.buttons ?? []);
 
-  const base: Record<string, unknown> = {
+  const disableNotification = options.disableNotification ?? false;
+
+  const textPayload = (text: string): Record<string, unknown> => ({
     chat_id: options.chatId,
-    text: options.text.slice(0, MAX_MESSAGE_CHARS),
+    text: text.slice(0, MAX_MESSAGE_CHARS),
     disable_web_page_preview: true,
-    disable_notification: options.disableNotification ?? false,
+    disable_notification: disableNotification,
     ...(keyboard ? { reply_markup: keyboard } : {}),
-  };
+  });
+
+  const attachment = options.attachment ?? null;
+  if (!attachment) return sendFormatted(botToken, "sendMessage", textPayload(options.text));
+
+  const media = MEDIA_METHODS[attachment.type];
+  const captioned = options.text.length <= MAX_CAPTION_CHARS;
 
   try {
-    const result = await callTelegram<{ message_id: number }>(botToken, "sendMessage", {
-      ...base,
-      parse_mode: "HTML",
+    const mediaMessageId = await sendFormatted(botToken, media.method, {
+      chat_id: options.chatId,
+      [media.field]: attachment.url,
+      disable_notification: disableNotification,
+      ...(attachment.type === "video" ? { supports_streaming: true } : {}),
+      ...(captioned && options.text.trim() ? { caption: options.text } : {}),
+      ...(captioned && keyboard ? { reply_markup: keyboard } : {}),
     });
-    return result.message_id;
-  } catch (error) {
-    const isParseFailure = error instanceof TelegramApiError &&
-      error.code === 400 &&
-      error.message.toLowerCase().includes("parse entities");
-    if (!isParseFailure) throw error;
 
-    const result = await callTelegram<{ message_id: number }>(botToken, "sendMessage", base);
-    return result.message_id;
+    if (captioned) return mediaMessageId;
+  } catch (error) {
+    if (!isMediaFetchFailure(error)) throw error;
+
+    /* A file-only message has nothing left to fall back to, and Telegram
+       rejects an empty one anyway. Report the real failure rather than
+       inventing a message the author never wrote. */
+    if (!options.text.trim()) throw error;
+
+    // The file is unusable, but the message is not. Say the words anyway.
+    console.warn(`Telegram rejected attachment ${attachment.url}: ${describeTelegramError(error)}`);
   }
+
+  return sendFormatted(botToken, "sendMessage", textPayload(options.text));
 }
 
 export const SUBSCRIBED_STATUSES = new Set(["member", "administrator", "creator"]);

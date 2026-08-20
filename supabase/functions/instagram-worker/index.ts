@@ -36,6 +36,12 @@ import {
   TranscriptMessage,
 } from "../_shared/sales-agent.ts";
 import { decryptCredential } from "../_shared/credentials.ts";
+import {
+  type Attachment,
+  instagramAttachmentType,
+  readAttachment,
+  signAttachment,
+} from "../_shared/attachment.ts";
 
 const GRAPH_API_BASE_URL = "https://graph.instagram.com/v26.0";
 
@@ -202,6 +208,109 @@ async function sendInstagramReply(
     { recipient, message },
   );
   return String(data.message_id ?? "");
+}
+
+/**
+ * Sends the lead magnet's file as a second Direct message.
+ *
+ * Second, and never first: Instagram cannot put text and a file in one
+ * message, and the text carries the button that is the actual promise. So the
+ * message that must arrive goes out on its own, and the file follows as an
+ * improvement that is allowed to fail.
+ *
+ * It does fail, predictably, for comment triggers. A comment buys exactly one
+ * private reply and nothing more — the reader has not written to us, so no
+ * 24-hour window is open for a follow-up. The editor says so; here we simply
+ * record what happened rather than pretending the delivery broke.
+ */
+async function sendInstagramAttachment(
+  account: AccountRow,
+  recipientIgsid: string,
+  type: Attachment["type"],
+  /* Either a reusable id Meta gave us earlier, or a fresh signed URL. */
+  payload: { attachment_id: string } | { url: string; is_reusable: true },
+): Promise<string> {
+  const data = await graphPost(
+    `${GRAPH_API_BASE_URL}/${account.ig_user_id}/messages`,
+    account.access_token,
+    {
+      recipient: { id: recipientIgsid },
+      message: { attachment: { type: instagramAttachmentType(type), payload } },
+    },
+  );
+
+  // Present for Messenger; whether Instagram returns it is undocumented, so
+  // the caller treats an empty string as "no cache this time".
+  return String(data.attachment_id ?? "");
+}
+
+/**
+ * Sends the file, uploading it to Meta at most once per account.
+ *
+ * The first delivery hands over a signed URL and keeps whatever reusable id
+ * comes back; later ones send the id, so the file never leaves our storage
+ * again. A cached id that Meta has since forgotten is dropped and the send
+ * retried from the URL — one wasted call, rather than a rule that quietly
+ * stops delivering its material.
+ */
+async function deliverAttachment(
+  supabase: ReturnType<typeof createAdminClient>,
+  account: AccountRow,
+  recipientIgsid: string,
+  attachment: Attachment,
+): Promise<void> {
+  const { data: cached } = await supabase
+    .from("instagram_attachment_cache")
+    .select("id,attachment_id")
+    .eq("instagram_account_id", account.id)
+    .eq("attachment_path", attachment.path)
+    .maybeSingle();
+
+  if (cached?.attachment_id) {
+    try {
+      await sendInstagramAttachment(account, recipientIgsid, attachment.type, {
+        attachment_id: cached.attachment_id as string,
+      });
+
+      await supabase
+        .from("instagram_attachment_cache")
+        .update({ last_used_at: new Date().toISOString() })
+        .eq("id", cached.id);
+      return;
+    } catch (error) {
+      console.warn(
+        `Reusable attachment ${cached.attachment_id} was rejected, falling back to the file`,
+        error,
+      );
+      await supabase.from("instagram_attachment_cache").delete().eq("id", cached.id);
+    }
+  }
+
+  const signed = await signAttachment(supabase, attachment);
+  if (!signed) throw new Error("файл не найден в хранилище");
+
+  const attachmentId = await sendInstagramAttachment(
+    account,
+    recipientIgsid,
+    attachment.type,
+    { url: signed.url, is_reusable: true },
+  );
+
+  if (!attachmentId) return;
+
+  /* Two events for the same rule can arrive in one batch and both miss the
+     cache, so the write has to tolerate the other one getting there first. */
+  await supabase
+    .from("instagram_attachment_cache")
+    .upsert(
+      {
+        instagram_account_id: account.id,
+        attachment_path: attachment.path,
+        attachment_id: attachmentId,
+        last_used_at: new Date().toISOString(),
+      },
+      { onConflict: "instagram_account_id,attachment_path" },
+    );
 }
 
 async function sendPublicCommentReply(
@@ -494,6 +603,23 @@ async function processEvent(
     });
   }
 
+  /*
+    The file, if the rule has one. Signed now and used immediately; Meta
+    fetches it while the call is open.
+  */
+  let attachmentError = "";
+  const attachment = readAttachment(matched);
+
+  if (attachment && event.sender_igsid) {
+    try {
+      await deliverAttachment(supabase, account, event.sender_igsid, attachment);
+    } catch (error) {
+      attachmentError = describeInstagramError(error);
+    }
+  } else if (attachment) {
+    attachmentError = "Instagram не сообщил отправителя, файл отправить некому";
+  }
+
   let publicReplyStatus = "skipped";
   let publicReplyId = "";
   let publicReplyError = "";
@@ -515,6 +641,13 @@ async function processEvent(
     }
   }
 
+  /* Both are notes on a delivery that succeeded, so they are reported
+     together rather than one overwriting the other. */
+  const notes = [
+    publicReplyError ? `публичный ответ не отправлен: ${publicReplyError}` : "",
+    attachmentError ? `файл не отправлен: ${attachmentError}` : "",
+  ].filter(Boolean);
+
   await finish({
     lead_magnet_id: matched.id,
     status: "sent",
@@ -522,9 +655,7 @@ async function processEvent(
     public_reply_id: publicReplyId || null,
     dm_status: "sent",
     response_message_id: messageId,
-    error_message: publicReplyError
-      ? `Direct доставлен, но публичный ответ не отправлен: ${publicReplyError}`
-      : null,
+    error_message: notes.length ? `Direct доставлен, но ${notes.join("; ")}` : null,
   });
 }
 

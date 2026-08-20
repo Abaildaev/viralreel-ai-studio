@@ -27,12 +27,19 @@ export interface LeadMagnetRow {
   media_ids: string[];
   repeat_delay_hours: number;
   reply_delay_seconds: number;
+  /* The file sent after the Direct message. Declared inline rather than
+     imported so this module stays dependency-free; the shape is the one in
+     _shared/attachment.ts and `readAttachment` accepts it structurally. */
+  attachment_type: string;
+  attachment_path: string;
+  attachment_name: string;
 }
 
 export const LEAD_MAGNET_COLUMNS =
   "id,instagram_account_id,title,description,codeword,keywords,reply_text,direct_reply_variants,response_url," +
   "button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled," +
-  "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds";
+  "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds," +
+  "attachment_type,attachment_path,attachment_name";
 
 export function normalizeText(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleUpperCase("ru-RU");

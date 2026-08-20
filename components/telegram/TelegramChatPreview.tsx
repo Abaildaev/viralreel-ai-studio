@@ -1,6 +1,13 @@
-import React from 'react';
-import { ChatBubbleLeftRightIcon, LinkIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useState } from 'react';
+import {
+  ChatBubbleLeftRightIcon,
+  DocumentIcon,
+  LinkIcon,
+  PlayCircleIcon,
+} from '@heroicons/react/24/outline';
 import { cn } from '../ui';
+import type { MessageAttachment } from '../../types';
+import { ATTACHMENT_LABELS, attachmentPreviewUrl } from '../../services/attachmentService';
 
 export interface PreviewButton {
   text: string;
@@ -13,6 +20,8 @@ export interface PreviewMessage {
   id: string;
   text: string;
   buttons?: PreviewButton[];
+  /** The file above the text, drawn the way the client will stack it. */
+  attachment?: MessageAttachment;
   /** Names the funnel step this message belongs to. */
   step?: string;
   /** Marks a message that only some readers will see. */
@@ -31,6 +40,69 @@ export interface TelegramChatPreviewProps {
   emptyHint?: string;
   className?: string;
 }
+
+/* Telegram's caption ceiling: past it the client gets two messages, and the
+   preview should show two. */
+const CAPTION_LIMIT = 1024;
+
+/**
+ * The file, drawn as the recipient will see it.
+ *
+ * Resolves its own signed URL rather than taking one as a prop: the callers
+ * are editors holding form state, and threading an async, expiring URL through
+ * them would put a refresh timer in three components instead of one.
+ */
+const AttachmentBubble: React.FC<{ attachment: MessageAttachment }> = ({ attachment }) => {
+  const [url, setUrl] = useState('');
+  const { attachment_type: type, attachment_path: path, attachment_name: name } = attachment;
+
+  useEffect(() => {
+    if (type === 'none' || type === 'document' || !path) {
+      setUrl('');
+      return;
+    }
+
+    let cancelled = false;
+    attachmentPreviewUrl(path)
+      .then((signed) => !cancelled && setUrl(signed))
+      .catch(() => !cancelled && setUrl(''));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [type, path]);
+
+  if (type === 'none' || !path) return null;
+
+  if (type === 'document' || !url) {
+    return (
+      <div className="mb-1.5 flex items-center gap-2.5 rounded-2xl rounded-bl-md border border-gray-200 bg-white px-3 py-2.5 shadow-xs">
+        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-100 text-gray-500">
+          <DocumentIcon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-medium text-gray-800">
+            {name || ATTACHMENT_LABELS[type]}
+          </span>
+          <span className="block text-2xs text-gray-500">{ATTACHMENT_LABELS[type]}</span>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative mb-1.5 overflow-hidden rounded-2xl rounded-bl-md border border-gray-200 bg-white shadow-xs">
+      {type === 'photo'
+        ? <img src={url} alt={name} className="max-h-56 w-full object-cover" />
+        : <video src={url} muted playsInline className="max-h-56 w-full object-cover" />}
+      {type === 'video' && (
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <PlayCircleIcon className="h-10 w-10 text-white/90 drop-shadow" />
+        </span>
+      )}
+    </div>
+  );
+};
 
 /**
  * What the subscriber will actually see.
@@ -52,7 +124,10 @@ const TelegramChatPreview: React.FC<TelegramChatPreviewProps> = ({
   emptyHint = 'Заполните тексты слева — здесь появится переписка, которую увидит подписчик.',
   className,
 }) => {
-  const visible = messages.filter((message) => message.text.trim() || message.buttons?.length);
+  const visible = messages.filter((message) =>
+    message.text.trim() ||
+    message.buttons?.length ||
+    (message.attachment && message.attachment.attachment_type !== 'none'));
 
   return (
     <div className={cn('card overflow-hidden', className)}>
@@ -104,6 +179,19 @@ const TelegramChatPreview: React.FC<TelegramChatPreviewProps> = ({
             )}
 
             <div className="max-w-[92%]">
+              {message.attachment && <AttachmentBubble attachment={message.attachment} />}
+
+              {/* Telegram puts long copy in its own message rather than
+                  truncating the caption, so the preview says so instead of
+                  showing a layout the reader will never get. */}
+              {message.attachment &&
+                message.attachment.attachment_type !== 'none' &&
+                message.text.length > CAPTION_LIMIT && (
+                <p className="mb-1.5 pl-1 text-2xs text-gray-400">
+                  Текст длиннее подписи — придёт отдельным сообщением
+                </p>
+              )}
+
               {message.text.trim() && (
                 <div className="rounded-2xl rounded-bl-md border border-gray-200 bg-white px-3.5 py-2.5 shadow-xs">
                   <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800">

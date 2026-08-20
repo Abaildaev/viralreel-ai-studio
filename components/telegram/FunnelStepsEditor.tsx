@@ -7,6 +7,8 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { Button, Field, Input, Select, Switch, Textarea, cn } from '../ui';
+import AttachmentPicker from '../AttachmentPicker';
+import { NO_ATTACHMENT, type MessageAttachment } from '../../types';
 import {
   cumulativeSchedule,
   formatDelay,
@@ -14,7 +16,10 @@ import {
 } from '../../supabase/functions/_shared/funnel-sequence';
 
 /** A step that may not exist in the database yet. */
-export type StepDraft = Omit<FunnelStep, 'id'> & { id: string | null; key: string };
+export type StepDraft =
+  & Omit<FunnelStep, 'id'>
+  & MessageAttachment
+  & { id: string | null; key: string };
 
 /*
   Presets rather than a free-form number field. A course author thinks in
@@ -43,7 +48,12 @@ export const newStep = (position: number, delayMinutes: number): StepDraft => ({
   button_url: '',
   delay_minutes: delayMinutes,
   is_active: true,
+  ...NO_ATTACHMENT,
 });
+
+/* Telegram's caption ceiling. Past it the message is split in two, which the
+   author should learn while writing rather than from the preview. */
+const CAPTION_LIMIT = 1024;
 
 interface FunnelStepsEditorProps {
   steps: StepDraft[];
@@ -229,6 +239,21 @@ const FunnelStepsEditor: React.FC<FunnelStepsEditorProps> = ({ steps, onChange }
                     value={step.body}
                     placeholder="Что бот напишет на этом шаге"
                     onChange={(event) => update(step.key, { body: event.target.value })}
+                  />
+                )}
+              </Field>
+
+              <Field label="Вложение">
+                {({ id }) => (
+                  <AttachmentPicker
+                    id={id}
+                    value={step}
+                    onChange={(attachment) => update(step.key, attachment)}
+                    hint={
+                      step.body.length > CAPTION_LIMIT
+                        ? `Текст длиннее ${CAPTION_LIMIT} символов — файл придёт первым сообщением, текст с кнопкой следом.`
+                        : undefined
+                    }
                   />
                 )}
               </Field>

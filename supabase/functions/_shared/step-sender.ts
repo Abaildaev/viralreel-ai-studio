@@ -15,9 +15,19 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { sendMessage } from "./telegram-api.ts";
 import { type FunnelStep, planSequence } from "./funnel-sequence.ts";
+import {
+  type AttachmentColumns,
+  ATTACHMENT_COLUMNS,
+  readAttachment,
+  signAttachment,
+} from "./attachment.ts";
 
 export const STEP_COLUMNS =
-  "id,position,title,body,button_text,button_url,delay_minutes,is_active";
+  "id,position,title,body,button_text,button_url,delay_minutes,is_active," +
+  ATTACHMENT_COLUMNS;
+
+/** What the sender reads: the sequencing fields plus the file to send. */
+type StepRow = FunnelStep & AttachmentColumns;
 
 export interface SequenceSubscriber {
   id: string;
@@ -28,14 +38,14 @@ export interface SequenceSubscriber {
 async function loadSteps(
   supabase: SupabaseClient,
   funnelId: string,
-): Promise<FunnelStep[]> {
+): Promise<StepRow[]> {
   const { data } = await supabase
     .from("telegram_funnel_steps")
     .select(STEP_COLUMNS)
     .eq("funnel_id", funnelId)
     .order("position", { ascending: true });
 
-  return (data ?? []) as FunnelStep[];
+  return (data ?? []) as unknown as StepRow[];
 }
 
 /**
@@ -102,10 +112,14 @@ export async function advanceSequence(
     const deliveryId = await claimStep(supabase, subscriber, step.id, now);
     if (!deliveryId) continue;
 
-    if (!step.body.trim() && !step.button_url.trim()) {
+    const attachment = readAttachment(step);
+
+    if (!step.body.trim() && !step.button_url.trim() && !attachment) {
       // An empty step is a placeholder the author has not written yet. Skip it
       // rather than sending a blank message, but keep the claim so the
-      // sequence moves on instead of stalling here forever.
+      // sequence moves on instead of stalling here forever. A step that is
+      // only a file counts as written — sending the PDF with no caption is a
+      // deliberate shape, not an unfinished one.
       await supabase
         .from("telegram_step_deliveries")
         .update({ status: "cancelled", error_message: "Шаг пустой" })
@@ -113,10 +127,16 @@ export async function advanceSequence(
       continue;
     }
 
+    /* Signed here rather than at load time: only the steps actually going out
+       right now need a URL, and each is used within seconds of being minted. */
+    const signed = await signAttachment(supabase, attachment);
+
     await sendMessage(botToken, {
       chatId: subscriber.telegram_user_id,
-      text: step.body.trim() || "…",
+      // A bare file needs no filler caption; only a text step does.
+      text: step.body.trim() || (signed ? "" : "…"),
       buttons: [{ text: step.button_text, url: step.button_url }],
+      attachment: signed,
     });
 
     await supabase

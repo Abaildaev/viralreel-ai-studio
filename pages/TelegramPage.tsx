@@ -44,6 +44,7 @@ import {
   saveBroadcast,
   saveFunnel,
   scheduleBroadcast,
+  toFunnelDraft,
   type BroadcastDraft,
   type FunnelDraft,
   type SubscriberTotals,
@@ -191,6 +192,9 @@ export default function TelegramPage() {
         button_url: row.button_url,
         delay_minutes: row.delay_minutes,
         is_active: row.is_active,
+        attachment_type: row.attachment_type,
+        attachment_path: row.attachment_path,
+        attachment_name: row.attachment_name,
       }));
     } catch (error) {
       toast({
@@ -201,7 +205,7 @@ export default function TelegramPage() {
     }
 
     setFunnelSteps(steps.length > 0 ? steps : [newStep(1, 0)]);
-    setFunnelDraft({ ...funnel });
+    setFunnelDraft(toFunnelDraft(funnel));
   };
 
   const handleSaveFunnel = async (draft: FunnelDraft, steps: StepDraft[]) => {
@@ -218,6 +222,9 @@ export default function TelegramPage() {
         button_url: step.button_url,
         delay_minutes: step.delay_minutes,
         is_active: step.is_active,
+        attachment_type: step.attachment_type,
+        attachment_path: step.attachment_path,
+        attachment_name: step.attachment_name,
       })));
       setFunnelDraft(null);
       await refresh();

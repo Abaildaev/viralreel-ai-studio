@@ -2714,3 +2714,243 @@ SELECT cron.schedule(
   '30 3 * * *',
   $$SELECT prune_automation_events()$$
 );
+
+-- ------------------------------------------------------------------------
+-- 20260820120000_message_attachments.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Attachments: a photo, a video or a file on any message the product sends.
+
+  Until now every outgoing message was text plus one link button, which made
+  the lead magnet a URL and nothing else. That is the wrong shape for most of
+  what people actually promise under a Reel — a PDF, a checklist, a short
+  video. Sending the file itself converts better than sending a link to it, and
+  in Telegram it costs one API call.
+
+  One shape, three places: a funnel step, a broadcast, and the Instagram Direct
+  reply. The columns are identical so the editor, the senders and the preview
+  can share a single notion of "an attachment" instead of three near-copies.
+
+  Files live in a private bucket and travel to Telegram and Meta as a
+  short-lived signed URL minted at send time — never at upload time. A drip
+  step can go out a week after the author uploaded its video, so a URL signed
+  in the browser would be long expired; the sender holds the service role and
+  signs it fresh.
+*/
+
+-- ---------------------------------------------------------------------------
+-- Storage
+-- ---------------------------------------------------------------------------
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('funnel-media', 'funnel-media', false)
+ON CONFLICT (id) DO NOTHING;
+
+/*
+  Own folder only, on every verb. The other buckets in this project let any
+  authenticated user read any object because the renderer needed it; nothing
+  needs that here, so this one is scoped properly from the start.
+*/
+DROP POLICY IF EXISTS "Users can read own funnel media" ON storage.objects;
+CREATE POLICY "Users can read own funnel media"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'funnel-media'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+DROP POLICY IF EXISTS "Users can upload own funnel media" ON storage.objects;
+CREATE POLICY "Users can upload own funnel media"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'funnel-media'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+DROP POLICY IF EXISTS "Users can replace own funnel media" ON storage.objects;
+CREATE POLICY "Users can replace own funnel media"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (
+    bucket_id = 'funnel-media'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+DROP POLICY IF EXISTS "Users can delete own funnel media" ON storage.objects;
+CREATE POLICY "Users can delete own funnel media"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'funnel-media'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+-- ---------------------------------------------------------------------------
+-- Columns
+-- ---------------------------------------------------------------------------
+
+/*
+  `attachment_` rather than `media_`: lead_magnets already spends `media_scope`
+  and `media_ids` on something else entirely — which Instagram posts a rule
+  watches — and two unrelated meanings of "media" on one row is how the wrong
+  column gets read a year from now.
+
+  The paired CHECK is the point of splitting type from path: half an
+  attachment — a type with no file, or a file the sender does not know how to
+  send — would fail at send time, days later, in a worker nobody is watching.
+  Here it fails at the write instead.
+*/
+DO $$
+DECLARE
+  target text;
+BEGIN
+  FOREACH target IN ARRAY ARRAY['telegram_funnel_steps', 'telegram_broadcasts', 'lead_magnets']
+  LOOP
+    EXECUTE format(
+      'ALTER TABLE %I
+         ADD COLUMN IF NOT EXISTS attachment_type text NOT NULL DEFAULT ''none'',
+         ADD COLUMN IF NOT EXISTS attachment_path text NOT NULL DEFAULT '''',
+         ADD COLUMN IF NOT EXISTS attachment_name text NOT NULL DEFAULT ''''',
+      target
+    );
+
+    EXECUTE format(
+      'ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I',
+      target, target || '_attachment_type_check'
+    );
+    EXECUTE format(
+      'ALTER TABLE %I ADD CONSTRAINT %I
+         CHECK (attachment_type IN (''none'', ''photo'', ''video'', ''document''))',
+      target, target || '_attachment_type_check'
+    );
+
+    EXECUTE format(
+      'ALTER TABLE %I DROP CONSTRAINT IF EXISTS %I',
+      target, target || '_attachment_pair_check'
+    );
+    EXECUTE format(
+      'ALTER TABLE %I ADD CONSTRAINT %I
+         CHECK ((attachment_type = ''none'') = (attachment_path = ''''))',
+      target, target || '_attachment_pair_check'
+    );
+  END LOOP;
+END $$;
+
+-- ------------------------------------------------------------------------
+-- 20260820140000_funnel_media_size_limit.sql
+-- ------------------------------------------------------------------------
+
+/*
+  A ceiling on the bucket itself.
+
+  The editor already refuses anything over 5 MB for a photo and 20 MB for
+  everything else, but that is a courtesy to the author, not a control: the
+  limit lives in the browser, and the browser is the one thing an account
+  holder can bypass. Twenty megabytes is the largest file Telegram will fetch
+  from a URL, so anything above it could never be delivered anyway — it would
+  only sit in storage on the owner's bill.
+
+  No `allowed_mime_types`: the list of things people legitimately hand out —
+  PDFs, epubs, archives, audio — is long and browsers disagree about what to
+  call them, so an allowlist here would reject real lead magnets more often
+  than it would stop anything. The size cap is where the actual cost is.
+*/
+
+UPDATE storage.buckets
+SET file_size_limit = 20 * 1024 * 1024
+WHERE id = 'funnel-media';
+
+-- ------------------------------------------------------------------------
+-- 20260820150000_funnel_welcome_attachment.sql
+-- ------------------------------------------------------------------------
+
+/*
+  A file on the greeting too.
+
+  The greeting was left plain when attachments landed, on the reasoning that it
+  is the entry protocol rather than content. That holds for a funnel that
+  delivers a course, and not at all for the common case: one photo of the thing
+  being promised, sent the second someone arrives, before any subscription gate
+  has a chance to lose them.
+
+  Same three columns and the same two constraints as everywhere else — this is
+  the fourth table to carry them, and the shape is deliberately identical so
+  the editor, the senders and the preview keep sharing one notion of a file.
+*/
+
+ALTER TABLE telegram_funnels
+  ADD COLUMN IF NOT EXISTS attachment_type text NOT NULL DEFAULT 'none',
+  ADD COLUMN IF NOT EXISTS attachment_path text NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS attachment_name text NOT NULL DEFAULT '';
+
+ALTER TABLE telegram_funnels
+  DROP CONSTRAINT IF EXISTS telegram_funnels_attachment_type_check;
+ALTER TABLE telegram_funnels
+  ADD CONSTRAINT telegram_funnels_attachment_type_check
+    CHECK (attachment_type IN ('none', 'photo', 'video', 'document'));
+
+ALTER TABLE telegram_funnels
+  DROP CONSTRAINT IF EXISTS telegram_funnels_attachment_pair_check;
+ALTER TABLE telegram_funnels
+  ADD CONSTRAINT telegram_funnels_attachment_pair_check
+    CHECK ((attachment_type = 'none') = (attachment_path = ''));
+
+-- ------------------------------------------------------------------------
+-- 20260820160000_instagram_attachment_cache.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Upload the lead magnet's file to Meta once, not once per delivery.
+
+  Today every firing of a rule hands Instagram a fresh signed URL, and
+  Instagram fetches the file again — so a Reel that brings a thousand people
+  moves the same PDF a thousand times, out of storage the owner pays for and
+  through an API that rate-limits.
+
+  Meta's answer is a reusable attachment: send it once with `is_reusable`, keep
+  the id it hands back, and every later message references the id instead of a
+  URL. Whether Instagram's messaging API returns that id the way Messenger's
+  does is not something the documentation is clear about, so the worker treats
+  it as a bonus — it caches an id when one arrives and falls back to the URL
+  when none does. Nothing breaks if the answer turns out to be "never".
+
+  Keyed by account as well as path because an attachment id belongs to the
+  account that uploaded it, and by path so replacing the file invalidates the
+  cache by simply not matching any more.
+*/
+
+CREATE TABLE IF NOT EXISTS instagram_attachment_cache (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  instagram_account_id uuid NOT NULL REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  /* The object in `funnel-media`, not a URL: the URL is signed per send and
+     is different every time. */
+  attachment_path text NOT NULL,
+  attachment_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  last_used_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (instagram_account_id, attachment_path)
+);
+
+ALTER TABLE instagram_attachment_cache ENABLE ROW LEVEL SECURITY;
+
+/*
+  Written only by the worker, which holds the service role. The owner may read
+  their own rows — useful when explaining why a file stopped re-uploading —
+  but there is nothing here for the browser to write.
+*/
+DROP POLICY IF EXISTS "Users can view own instagram attachment cache"
+  ON instagram_attachment_cache;
+CREATE POLICY "Users can view own instagram attachment cache"
+  ON instagram_attachment_cache FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM instagram_accounts account
+      WHERE account.id = instagram_attachment_cache.instagram_account_id
+        AND account.user_id = auth.uid()
+    )
+  );

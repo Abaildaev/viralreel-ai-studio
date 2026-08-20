@@ -90,7 +90,7 @@ export enum AppState {
   PREVIEW = 'PREVIEW',
 }
 
-export type AppView = 'generator' | 'scheduler' | 'accounts' | 'automations' | 'telegram' | 'audio' | 'settings' | 'templates' | 'batch' | 'history' | 'budget' | 'aishowcase';
+export type AppView = 'studio' | 'generator' | 'scheduler' | 'accounts' | 'automations' | 'telegram' | 'audio' | 'settings' | 'templates' | 'batch' | 'history' | 'budget' | 'aishowcase' | 'outro';
 
 export type AudioMode = 'from_video' | 'random' | 'specific';
 
@@ -160,7 +160,32 @@ export interface AudioFile {
   created_at: string;
 }
 
-export interface LeadMagnet {
+
+/**
+ * A photo, video or file carried by an outgoing message.
+ *
+ * The same three columns on `lead_magnets`, `telegram_funnel_steps` and
+ * `telegram_broadcasts`, so one editor and one preview serve all three.
+ * `attachment_path` is an object in the private `funnel-media` bucket; nothing
+ * durable stores a URL, because the senders sign one per send.
+ */
+export type AttachmentType = 'none' | 'photo' | 'video' | 'document';
+
+export interface MessageAttachment {
+  attachment_type: AttachmentType;
+  attachment_path: string;
+  /** The original filename, for the editor and for a document's caption. */
+  attachment_name: string;
+}
+
+/** Nothing attached — the state every row starts in. */
+export const NO_ATTACHMENT: MessageAttachment = {
+  attachment_type: 'none',
+  attachment_path: '',
+  attachment_name: '',
+};
+
+export interface LeadMagnet extends MessageAttachment {
   id: string;
   user_id: string;
   instagram_account_id: string | null;
@@ -291,7 +316,7 @@ export interface TelegramBot {
   updated_at: string;
 }
 
-export interface TelegramFunnel {
+export interface TelegramFunnel extends MessageAttachment {
   id: string;
   user_id: string;
   telegram_bot_id: string;
@@ -317,7 +342,7 @@ export interface TelegramFunnel {
  * Everything the funnel says after the subscription gate is a step, which is
  * what lets one funnel be a single lead magnet and another a week-long course.
  */
-export interface TelegramFunnelStep {
+export interface TelegramFunnelStep extends MessageAttachment {
   id: string;
   user_id: string;
   funnel_id: string;
@@ -376,7 +401,7 @@ export type BroadcastStatus =
   | 'failed'
   | 'cancelled';
 
-export interface TelegramBroadcast {
+export interface TelegramBroadcast extends MessageAttachment {
   id: string;
   user_id: string;
   telegram_bot_id: string;
