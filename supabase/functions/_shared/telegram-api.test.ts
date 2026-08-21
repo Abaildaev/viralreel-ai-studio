@@ -109,6 +109,31 @@ describe("Telegram captioned funnel messages", () => {
     expect(requests[0].body.photo).toBe("telegram-photo-file-id");
     expect(rememberTelegramFileId).not.toHaveBeenCalled();
   });
+
+  it("keeps the channel and manual subscription check under one photo", async () => {
+    const requests = mockTelegram({
+      message_id: 42,
+      photo: [{ file_id: "telegram-photo-file-id" }],
+    });
+
+    await sendMessage("123:token", {
+      chatId: 77,
+      text: "Подпишитесь и заберите каталог",
+      buttons: [{ text: "Подписаться", url: "https://t.me/example" }],
+      callbackButton: { text: "Проверить подписку", data: "check:funnel-1" },
+      attachment: {
+        type: "photo",
+        url: "telegram-photo-file-id",
+        telegramFileId: "telegram-photo-file-id",
+      },
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].body.reply_markup.inline_keyboard).toEqual([
+      [{ text: "Подписаться", url: "https://t.me/example" }],
+      [{ text: "Проверить подписку", callback_data: "check:funnel-1" }],
+    ]);
+  });
 });
 
 describe("isChannelMember", () => {

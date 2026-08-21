@@ -194,11 +194,15 @@ async function promptForSubscription(
   chatId: number,
   text: string,
   attachment: PreparedTelegramAttachment | null = null,
+  includeManualCheck = false,
 ): Promise<void> {
   await sendMessage(botToken, {
     chatId,
     text,
     buttons: [{ text: funnel.subscribe_button_text, url: channelUrl(bot) }],
+    callbackButton: includeManualCheck
+      ? { text: "Проверить подписку", data: `check:${funnel.id}` }
+      : undefined,
     attachment,
   });
 }
@@ -210,7 +214,7 @@ async function handleStart(
   from: TelegramUser,
   chatId: number,
   payload: string,
-  forceMembershipCheck = false,
+  forceNewUserGate = false,
 ): Promise<void> {
   const { slug, eventId } = parseStartPayload(payload);
   const funnel = await selectFunnel(supabase, bot, slug);
@@ -297,9 +301,15 @@ async function handleStart(
     come back the reader's own button will work without them starting over.
   */
   let subscribed = true;
-  const confirmedMembership = !forceMembershipCheck && hasConfirmedChannelMembership(existing);
+  const confirmedMembership = !forceNewUserGate && hasConfirmedChannelMembership(existing);
 
-  if (gated && !confirmedMembership) {
+  if (gated && forceNewUserGate) {
+    /* /restart is an owner's test path. It must show the exact first screen a
+       brand-new outsider sees even when Telegram still reports the old test
+       account as a member. The extra check button below lets an existing
+       member finish the test without needing a fresh chat_member event. */
+    subscribed = false;
+  } else if (gated && !confirmedMembership) {
     const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
 
     if (membership.fault) {
@@ -354,6 +364,7 @@ async function handleStart(
     funnel.not_subscribed_text.trim() ||
       "Подпишитесь на канал, и я сразу пришлю материал 👇",
     greeting ? null : attachment,
+    forceNewUserGate,
   );
 }
 
