@@ -19,6 +19,8 @@
 export interface ExistingSubscriber {
   automation_event_id: string | null;
   funnel_id: string | null;
+  subscribed_at?: string | null;
+  channel_left_at?: string | null;
 }
 
 export interface StartAttribution {
@@ -59,4 +61,23 @@ export function planSubscriberStart(
   }
 
   return patch;
+}
+
+/**
+ * A channel member already confirmed by Telegram does not need another
+ * `getChatMember` round trip on every /start. The webhook records departures
+ * in `channel_left_at`, so that fast path closes as soon as the person leaves.
+ */
+export function hasConfirmedChannelMembership(
+  existing: ExistingSubscriber | null,
+): boolean {
+  return Boolean(existing?.subscribed_at && !existing.channel_left_at);
+}
+
+/** Reopening the same funnel should replay its instant hand-off, not its drips. */
+export function shouldReplayImmediateSteps(
+  existing: ExistingSubscriber | null,
+  startedFunnelId: string,
+): boolean {
+  return Boolean(existing && existing.funnel_id === startedFunnelId);
 }

@@ -18,6 +18,7 @@ import { type FunnelStep, planSequence } from "./funnel-sequence.ts";
 import {
   type AttachmentColumns,
   ATTACHMENT_COLUMNS,
+  type PreparedTelegramAttachment,
   readAttachment,
   prepareTelegramAttachment,
 } from "./attachment.ts";
@@ -89,6 +90,13 @@ export interface AdvanceResult {
   finished: boolean;
 }
 
+export interface AdvanceOptions {
+  /** Funnel cover to place on the first immediate step instead of by itself. */
+  leadingAttachment?: PreparedTelegramAttachment | null;
+  /** Re-send only zero-delay hand-off steps already claimed by this reader. */
+  replayImmediate?: boolean;
+}
+
 /**
  * Sends whatever is due now and schedules whatever comes next.
  *
@@ -101,16 +109,18 @@ export async function advanceSequence(
   subscriber: SequenceSubscriber,
   funnelId: string,
   afterPosition: number,
+  options: AdvanceOptions = {},
   now: Date = new Date(),
 ): Promise<AdvanceResult> {
   const steps = await loadSteps(supabase, funnelId);
   const plan = planSequence(steps, afterPosition, now);
 
   let sent = 0;
+  let leadingAttachmentConsumed = false;
 
   for (const step of plan.sendNow) {
     const deliveryId = await claimStep(supabase, subscriber, step.id, now);
-    if (!deliveryId) continue;
+    if (!deliveryId && !options.replayImmediate) continue;
 
     const attachment = readAttachment(step);
 
@@ -134,19 +144,26 @@ export async function advanceSequence(
       subscriber.telegram_bot_id,
       attachment,
     );
+    const leadingAttachment = !leadingAttachmentConsumed
+      ? options.leadingAttachment ?? null
+      : null;
+    const outgoingAttachment = prepared ?? leadingAttachment;
+    leadingAttachmentConsumed = true;
 
     await sendMessage(botToken, {
       chatId: subscriber.telegram_user_id,
       // A bare file needs no filler caption; only a text step does.
-      text: step.body.trim() || (prepared ? "" : "…"),
+      text: step.body.trim() || (outgoingAttachment ? "" : "…"),
       buttons: [{ text: step.button_text, url: step.button_url }],
-      attachment: prepared,
+      attachment: outgoingAttachment,
     });
 
-    await supabase
-      .from("telegram_step_deliveries")
-      .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
-      .eq("id", deliveryId);
+    if (deliveryId) {
+      await supabase
+        .from("telegram_step_deliveries")
+        .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
+        .eq("id", deliveryId);
+    }
 
     sent++;
   }

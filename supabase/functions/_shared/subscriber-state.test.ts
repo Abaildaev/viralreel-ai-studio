@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { planSubscriberStart } from './subscriber-state';
+import {
+  hasConfirmedChannelMembership,
+  planSubscriberStart,
+  shouldReplayImmediateSteps,
+} from './subscriber-state';
 
 const untracked = { eventId: null, senderIgsid: null };
 const tracked = { eventId: 'event-1', senderIgsid: '17841400000000000' };
@@ -37,5 +41,31 @@ describe('what a /start writes on a subscriber', () => {
   it('does not invent attribution from an untracked link', () => {
     const existing = { automation_event_id: null, funnel_id: 'funnel-a' };
     expect(planSubscriberStart(existing, 'funnel-b', untracked)).toEqual({ funnel_id: 'funnel-b' });
+  });
+});
+
+describe('fast returning-subscriber path', () => {
+  it('trusts a membership Telegram already confirmed', () => {
+    expect(hasConfirmedChannelMembership({
+      automation_event_id: null,
+      funnel_id: 'funnel-a',
+      subscribed_at: '2026-08-21T12:00:00.000Z',
+      channel_left_at: null,
+    })).toBe(true);
+  });
+
+  it('checks Telegram again after a recorded channel departure', () => {
+    expect(hasConfirmedChannelMembership({
+      automation_event_id: null,
+      funnel_id: 'funnel-a',
+      subscribed_at: '2026-08-21T12:00:00.000Z',
+      channel_left_at: '2026-08-21T13:00:00.000Z',
+    })).toBe(false);
+  });
+
+  it('replays only when /start opens the same funnel again', () => {
+    const existing = { automation_event_id: null, funnel_id: 'funnel-a' };
+    expect(shouldReplayImmediateSteps(existing, 'funnel-a')).toBe(true);
+    expect(shouldReplayImmediateSteps(existing, 'funnel-b')).toBe(false);
   });
 });

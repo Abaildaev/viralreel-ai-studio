@@ -23,7 +23,11 @@ import {
   callTelegram,
 } from "../_shared/telegram-api.ts";
 import { parseStartPayload } from "../_shared/start-payload.ts";
-import { planSubscriberStart } from "../_shared/subscriber-state.ts";
+import {
+  hasConfirmedChannelMembership,
+  planSubscriberStart,
+  shouldReplayImmediateSteps,
+} from "../_shared/subscriber-state.ts";
 import { clearBotFault, reportBotFault } from "../_shared/bot-health.ts";
 import { advanceSequence } from "../_shared/step-sender.ts";
 import {
@@ -157,6 +161,10 @@ async function deliver(
   botToken: string,
   funnel: FunnelRow,
   subscriber: { id: string; telegram_user_id: string; telegram_bot_id: string },
+  options: {
+    leadingAttachment?: PreparedTelegramAttachment | null;
+    replayImmediate?: boolean;
+  } = {},
 ): Promise<void> {
   const now = new Date().toISOString();
 
@@ -167,7 +175,17 @@ async function deliver(
     .is("subscribed_at", null);
 
   // Below every position, so the plan starts from the first step.
-  await advanceSequence(supabase, botToken, subscriber, funnel.id, 0);
+  const result = await advanceSequence(supabase, botToken, subscriber, funnel.id, 0, options);
+
+  /* A file-only funnel with no immediate step is still valid. Most funnels
+     merge the cover into step one, but this fallback prevents an empty start. */
+  if (options.leadingAttachment && result.sent === 0) {
+    await sendMessage(botToken, {
+      chatId: subscriber.telegram_user_id,
+      text: "",
+      attachment: options.leadingAttachment,
+    });
+  }
 }
 
 /**
@@ -220,7 +238,7 @@ async function handleStart(
   */
   const { data: existing } = await supabase
     .from("telegram_subscribers")
-    .select("id,automation_event_id,funnel_id")
+    .select("id,automation_event_id,funnel_id,subscribed_at,channel_left_at")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
@@ -288,8 +306,9 @@ async function handleStart(
     come back the reader's own button will work without them starting over.
   */
   let subscribed = true;
+  const confirmedMembership = hasConfirmedChannelMembership(existing);
 
-  if (gated) {
+  if (gated && !confirmedMembership) {
     const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
 
     if (membership.fault) {
@@ -299,6 +318,10 @@ async function handleStart(
     }
 
     subscribed = membership.subscribed;
+  } else if (gated) {
+    /* Telegram already confirmed this reader and chat_member records a later
+       departure. Avoid a slow network round trip before every repeat /start. */
+    subscribed = true;
   }
 
   const gateComing = gated && !subscribed;
@@ -316,7 +339,7 @@ async function handleStart(
   const attachment = await prepareTelegramRowAttachment(supabase, bot.id, funnel);
   const greeting = funnel.welcome_text.trim();
 
-  if (greeting || (attachment && !gateComing)) {
+  if (greeting) {
     await sendMessage(botToken, {
       chatId,
       text: funnel.welcome_text,
@@ -325,7 +348,10 @@ async function handleStart(
   }
 
   if (!gateComing) {
-    await deliver(supabase, botToken, funnel, subscriber);
+    await deliver(supabase, botToken, funnel, subscriber, {
+      leadingAttachment: greeting ? null : attachment,
+      replayImmediate: shouldReplayImmediateSteps(existing, funnel.id),
+    });
     return;
   }
 
