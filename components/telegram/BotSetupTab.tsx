@@ -237,9 +237,9 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
       </div>
 
       <div className="space-y-6 lg:col-span-5">
-        <Card>
-          <h2 className="text-sm font-semibold text-gray-900">Как всё связано</h2>
-          <ol className="mt-4 space-y-3.5">
+        <Card className="border-brand-100 bg-brand-50/30">
+          <h2 className="text-base font-semibold text-gray-900">Как всё связано</h2>
+          <ol className="mt-5 space-y-4">
             {[
               'Человек пишет кодовое слово под Reels в Instagram.',
               'Правило Comment-to-DM отправляет ему Direct с кнопкой на бота.',
@@ -248,10 +248,10 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
               'Дальше вы пишете подписчику рассылками — без ограничения 24 часов.',
             ].map((step, index) => (
               <li key={index} className="flex gap-3">
-                <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-900 text-2xs font-semibold text-white">
+                <span className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">
                   {index + 1}
                 </span>
-                <p className="text-xs leading-relaxed text-gray-600">{step}</p>
+                <p className="text-sm leading-relaxed text-gray-700">{step}</p>
               </li>
             ))}
           </ol>

@@ -578,7 +578,7 @@ async function processEvent(
     messageId = await sendInstagramReply(
       account,
       event,
-      buildDirectMessage(matched, directReplyText),
+      buildDirectMessage(matched, directReplyText, event.id),
     );
   } catch (error) {
     if (isRetryable(error) && event.attempts < MAX_ATTEMPTS) throw error;

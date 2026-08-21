@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BatchPreset,
   InstagramAccount,
   AudioFile,
+  VideoTemplate,
   AudioMode,
   CtaType,
   FontFamily,
@@ -21,14 +22,20 @@ import {
   Bars3BottomLeftIcon,
   Bars3Icon,
   Bars3BottomRightIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import AppSelect from './ui/AppSelect';
+import { getSignedUrl, supabase } from '../lib/supabase';
+import { OUTRO_BACKGROUNDS, OutroPresetId } from '../utils/outroRenderer';
 
 interface Props {
   preset: BatchPreset | null;
+  userId: string;
   accounts: InstagramAccount[];
+  currentAccountId?: string | null;
+  templates: VideoTemplate[];
   audioFiles: AudioFile[];
-  onSave: (data: Partial<BatchPreset>) => void;
+  onSave: (data: Partial<BatchPreset>) => Promise<void>;
   onClose: () => void;
 }
 
@@ -110,6 +117,38 @@ function getPreviewBg(bgStyle: BgStyle, bgOpacity: number): string {
 function getPreviewTextColor(bgStyle: BgStyle): string {
   if (bgStyle === 'solid-white' || bgStyle === 'glass' || bgStyle === 'quote-white') return '#1e293b';
   return '#ffffff';
+}
+
+function readAudioDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const audio = document.createElement('audio');
+    const finish = (duration: number) => {
+      URL.revokeObjectURL(url);
+      audio.remove();
+      resolve(Number.isFinite(duration) ? duration : 0);
+    };
+    audio.preload = 'metadata';
+    audio.onloadedmetadata = () => finish(audio.duration);
+    audio.onerror = () => finish(0);
+    audio.src = url;
+  });
+}
+
+function readVideoDuration(file: File): Promise<number> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    const finish = (duration: number) => {
+      URL.revokeObjectURL(url);
+      video.remove();
+      resolve(Number.isFinite(duration) ? duration : 0);
+    };
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => finish(video.duration);
+    video.onerror = () => finish(0);
+    video.src = url;
+  });
 }
 
 const StylePreview: React.FC<{ style: TextStylePreset }> = ({ style }) => {
@@ -305,9 +344,25 @@ const StylePreview: React.FC<{ style: TextStylePreset }> = ({ style }) => {
   );
 };
 
-const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSave, onClose }) => {
+const BatchPresetModal: React.FC<Props> = ({
+  preset,
+  userId,
+  accounts,
+  currentAccountId,
+  templates,
+  audioFiles,
+  onSave,
+  onClose,
+}) => {
   const [name, setName] = useState(preset?.name || '');
-  const [accountId, setAccountId] = useState(preset?.instagram_account_id || '');
+  const [accountId, setAccountId] = useState(
+    preset
+      ? preset.instagram_account_id || ''
+      : currentAccountId
+        || accounts.find((account) => account.is_active)?.id
+        || accounts[0]?.id
+        || '',
+  );
   const [topics, setTopics] = useState<string[]>(preset?.topics || []);
   const [topicInput, setTopicInput] = useState('');
   const [tone, setTone] = useState(preset?.tone || 'Provokacionnyj');
@@ -317,14 +372,114 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
   const [count, setCount] = useState(preset?.variations_count || 5);
   const [intervalMin, setIntervalMin] = useState(preset?.schedule_interval_minutes || 120);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [presetType, setPresetType] = useState<'standard' | 'ai_showcase'>(
-    preset?.text_style?.presetType || 'standard'
+  const [sourceVideoFile, setSourceVideoFile] = useState<File | null>(null);
+  const [sourceVideoPreview, setSourceVideoPreview] = useState('');
+  const [templatePreviewUrls, setTemplatePreviewUrls] = useState<Record<string, string>>({});
+  const [showSourceTemplates, setShowSourceTemplates] = useState(false);
+  const [ctaBackgroundFile, setCtaBackgroundFile] = useState<File | null>(null);
+  const [ctaAudioFile, setCtaAudioFile] = useState<File | null>(null);
+  const [ctaBackgroundPreview, setCtaBackgroundPreview] = useState('');
+  const [ctaAudioPreview, setCtaAudioPreview] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [presetType, setPresetType] = useState<'standard' | 'ai_showcase' | 'cta_outro'>(
+    preset?.text_style?.ctaOutroEnabled
+      ? 'cta_outro'
+      : preset?.text_style?.presetType || 'standard'
   );
 
   const savedStyle = preset?.text_style;
   const [style, setStyle] = useState<TextStylePreset>(
     savedStyle && savedStyle.font ? { ...DEFAULT_STYLE, ...savedStyle } : DEFAULT_STYLE
   );
+
+  const availableTemplates = templates.filter(
+    (item) => item.is_active && item.instagram_account_id === (accountId || null),
+  );
+
+  useEffect(() => {
+    if (preset || accountId || !currentAccountId) return;
+    setAccountId(currentAccountId);
+  }, [accountId, currentAccountId, preset]);
+
+  useEffect(() => {
+    let active = true;
+    const loadPreviews = async () => {
+      const entries = await Promise.all(
+        availableTemplates.map(async (template) => {
+          try {
+            return [template.id, await getSignedUrl('templates', template.file_path)] as const;
+          } catch {
+            return [template.id, ''] as const;
+          }
+        }),
+      );
+      if (active) setTemplatePreviewUrls(Object.fromEntries(entries));
+    };
+    setTemplatePreviewUrls({});
+    void loadPreviews();
+    return () => { active = false; };
+  }, [accountId, templates]);
+
+  const getTemplateLabel = (template: VideoTemplate, index: number) => {
+    const normalized = template.name?.trim();
+    const looksTechnical = !normalized || (normalized.length > 28 && !/\s/.test(normalized));
+    return looksTechnical ? `Reels ${index + 1}` : normalized;
+  };
+
+  const selectedSourceTemplate = availableTemplates.find(
+    (template) => template.id === style.sourceTemplateId,
+  );
+  const selectedSourceIndex = selectedSourceTemplate
+    ? availableTemplates.findIndex((template) => template.id === selectedSourceTemplate.id)
+    : -1;
+  const selectedSourceLabel = selectedSourceTemplate
+    ? getTemplateLabel(selectedSourceTemplate, selectedSourceIndex)
+    : '';
+
+  useEffect(() => {
+    if (sourceVideoFile) {
+      const localUrl = URL.createObjectURL(sourceVideoFile);
+      setSourceVideoPreview(localUrl);
+      return () => URL.revokeObjectURL(localUrl);
+    }
+    setSourceVideoPreview('');
+  }, [sourceVideoFile]);
+
+  useEffect(() => {
+    if (ctaBackgroundFile) {
+      const localUrl = URL.createObjectURL(ctaBackgroundFile);
+      setCtaBackgroundPreview(localUrl);
+      return () => URL.revokeObjectURL(localUrl);
+    }
+    if (!style.ctaOutroBackgroundPath) {
+      setCtaBackgroundPreview('');
+      return;
+    }
+    let active = true;
+    getSignedUrl('templates', style.ctaOutroBackgroundPath)
+      .then((url) => { if (active) setCtaBackgroundPreview(url); })
+      .catch(() => { if (active) setCtaBackgroundPreview(''); });
+    return () => { active = false; };
+  }, [ctaBackgroundFile, style.ctaOutroBackgroundPath]);
+
+  useEffect(() => {
+    if (ctaAudioFile) {
+      const localUrl = URL.createObjectURL(ctaAudioFile);
+      setCtaAudioPreview(localUrl);
+      return () => URL.revokeObjectURL(localUrl);
+    }
+    const selected = audioFiles.find((item) => item.id === style.ctaOutroAudioFileId);
+    if (!selected) {
+      setCtaAudioPreview('');
+      return;
+    }
+    let active = true;
+    getSignedUrl('audio', selected.file_path)
+      .then((url) => { if (active) setCtaAudioPreview(url); })
+      .catch(() => { if (active) setCtaAudioPreview(''); });
+    return () => { active = false; };
+  }, [audioFiles, ctaAudioFile, style.ctaOutroAudioFileId]);
 
   const addTopic = () => {
     const t = topicInput.trim();
@@ -338,20 +493,151 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
     setTopics(topics.filter((_, i) => i !== index));
   };
 
-  const handleSave = () => {
-    onSave({
-      name: name || 'Без имени',
-      instagram_account_id: accountId || null,
-      topics,
-      tone,
-      cta_type: ctaType,
-      audio_mode: audioMode,
-      audio_file_id: audioMode === 'specific' ? (audioFileId || null) : null,
-      variations_count: count,
-      text_style: { ...style, presetType },
-      schedule_interval_minutes: intervalMin,
-      is_active: true,
-    });
+  const handleSave = async () => {
+    if (!style.sourceTemplateId && !sourceVideoFile) {
+      setSaveError('Выберите или загрузите один исходный Reels.');
+      return;
+    }
+    if (presetType === 'cta_outro' && !style.ctaOutroKeyword?.trim()) {
+      setSaveError('Укажите кодовое слово для CTA-концовки.');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError('');
+    let uploadedBackgroundPath = '';
+    let uploadedAudioPath = '';
+    let uploadedAudioId = '';
+    let uploadedSourcePath = '';
+    let uploadedSourceId = '';
+    try {
+      let nextStyle: TextStylePreset = {
+        ...style,
+        presetType,
+        ctaOutroEnabled: presetType === 'cta_outro',
+      };
+      if (sourceVideoFile) {
+        const extension = sourceVideoFile.name.split('.').pop()?.toLowerCase() || 'mp4';
+        const uploadedName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+        uploadedSourcePath = `${userId}/batch-sources/${uploadedName}`;
+        const { error: sourceUploadError } = await supabase.storage
+          .from('templates')
+          .upload(uploadedSourcePath, sourceVideoFile, {
+            contentType: sourceVideoFile.type || 'video/mp4',
+          });
+        if (sourceUploadError) throw sourceUploadError;
+
+        const duration = await readVideoDuration(sourceVideoFile);
+        const { data: sourceRecord, error: sourceInsertError } = await supabase
+          .from('video_templates')
+          .insert({
+            user_id: userId,
+            instagram_account_id: accountId || null,
+            name: sourceVideoFile.name.replace(/\.[^/.]+$/, ''),
+            file_path: uploadedSourcePath,
+            duration: Math.round(duration),
+            file_size: sourceVideoFile.size,
+            has_audio: false,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+        if (sourceInsertError || !sourceRecord?.id) {
+          throw sourceInsertError || new Error('Не удалось сохранить исходный Reels.');
+        }
+        uploadedSourceId = sourceRecord.id;
+        nextStyle = { ...nextStyle, sourceTemplateId: uploadedSourceId };
+      }
+      if (ctaBackgroundFile) {
+        const extension = ctaBackgroundFile.name.split('.').pop()?.toLowerCase() || 'jpg';
+        const uploadedName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+        uploadedBackgroundPath = `${userId}/outro-backgrounds/${uploadedName}`;
+        const { error } = await supabase.storage
+          .from('templates')
+          .upload(uploadedBackgroundPath, ctaBackgroundFile, {
+            contentType: ctaBackgroundFile.type || 'image/jpeg',
+          });
+        if (error) throw error;
+        nextStyle = {
+          ...nextStyle,
+          ctaOutroBackgroundPath: uploadedBackgroundPath,
+          ctaOutroBackgroundName: ctaBackgroundFile.name,
+        };
+      }
+
+      if (ctaAudioFile) {
+        const extension = ctaAudioFile.name.split('.').pop()?.toLowerCase() || 'mp3';
+        const uploadedName = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+        uploadedAudioPath = `${userId}/cta-outro/${uploadedName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('audio')
+          .upload(uploadedAudioPath, ctaAudioFile, {
+            contentType: ctaAudioFile.type || 'audio/mpeg',
+          });
+        if (uploadError) throw uploadError;
+
+        const duration = await readAudioDuration(ctaAudioFile);
+        const { data: audioRecord, error: insertAudioError } = await supabase
+          .from('audio_files')
+          .insert({
+            user_id: userId,
+            name: ctaAudioFile.name,
+            file_path: uploadedAudioPath,
+            duration: Math.round(duration),
+            file_size: ctaAudioFile.size,
+          })
+          .select('id')
+          .single();
+        if (insertAudioError || !audioRecord?.id) {
+          throw insertAudioError || new Error('Не удалось сохранить музыку CTA.');
+        }
+        uploadedAudioId = audioRecord.id;
+        nextStyle = { ...nextStyle, ctaOutroAudioFileId: uploadedAudioId };
+      }
+
+      await onSave({
+        name: name || 'Без имени',
+        instagram_account_id: accountId || null,
+        topics: presetType === 'cta_outro' ? [] : topics,
+        tone,
+        cta_type: presetType === 'cta_outro' ? 'codeword' : ctaType,
+        audio_mode: presetType === 'cta_outro' ? 'from_video' : audioMode,
+        audio_file_id: presetType !== 'cta_outro' && audioMode === 'specific'
+          ? (audioFileId || null)
+          : null,
+        variations_count: count,
+        text_style: nextStyle,
+        schedule_interval_minutes: intervalMin,
+        is_active: true,
+      });
+
+      const previousBackgroundPath = preset?.text_style?.ctaOutroBackgroundPath;
+      if (
+        previousBackgroundPath
+        && previousBackgroundPath !== nextStyle.ctaOutroBackgroundPath
+      ) {
+        await supabase.storage.from('templates').remove([previousBackgroundPath]);
+      }
+    } catch (error: any) {
+      if (uploadedBackgroundPath) {
+        await supabase.storage.from('templates').remove([uploadedBackgroundPath]);
+      }
+      if (uploadedAudioId) {
+        await supabase.from('audio_files').delete().eq('id', uploadedAudioId);
+      }
+      if (uploadedAudioPath) {
+        await supabase.storage.from('audio').remove([uploadedAudioPath]);
+      }
+      if (uploadedSourceId) {
+        await supabase.from('video_templates').delete().eq('id', uploadedSourceId);
+      }
+      if (uploadedSourcePath) {
+        await supabase.storage.from('templates').remove([uploadedSourcePath]);
+      }
+      setSaveError(error?.message || 'Не удалось сохранить пресет.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -388,20 +674,159 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Аккаунт</label>
             <AppSelect
               value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
+              onChange={(e) => {
+                const nextAccountId = e.target.value;
+                setAccountId(nextAccountId);
+                setSourceVideoFile(null);
+                setShowSourceTemplates(false);
+                setStyle((current) => ({ ...current, sourceTemplateId: undefined }));
+              }}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500/50"
             >
-              <option value="">Без привязки</option>
+              <option value="">Выберите Instagram-аккаунт</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>@{a.username}</option>
               ))}
             </AppSelect>
+            {!preset && currentAccountId && accountId === currentAccountId && (
+              <p className="mt-1.5 text-xs text-gray-400">
+                Автоматически выбран текущий аккаунт.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
+            <label className="block text-sm font-semibold text-gray-900">Исходный Reels</label>
+            <p className="mt-1 text-xs leading-relaxed text-gray-500">
+              Выберите один ролик. Все варианты этого пресета создаются только из него.
+            </p>
+
+            {availableTemplates.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowSourceTemplates((current) => !current)}
+                aria-expanded={showSourceTemplates}
+                className="mt-3 flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-left transition-colors hover:border-brand-300"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium text-gray-800">
+                    {selectedSourceLabel ? `Выбран: ${selectedSourceLabel}` : 'Выбрать Reels'}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-gray-400">
+                    Доступно подложек: {availableTemplates.length}
+                  </span>
+                </span>
+                <ChevronDownIcon
+                  className={`h-5 w-5 shrink-0 text-gray-400 transition-transform ${showSourceTemplates ? 'rotate-180' : ''}`}
+                />
+              </button>
+            )}
+
+            {showSourceTemplates && availableTemplates.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {availableTemplates.map((template, index) => {
+                  const selected = !sourceVideoFile && style.sourceTemplateId === template.id;
+                  const previewUrl = templatePreviewUrls[template.id];
+                  return (
+                    <div
+                      key={template.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setSourceVideoFile(null);
+                        setStyle((current) => ({ ...current, sourceTemplateId: template.id }));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setSourceVideoFile(null);
+                          setStyle((current) => ({ ...current, sourceTemplateId: template.id }));
+                        }
+                      }}
+                      className={`group relative overflow-hidden rounded-xl border-2 bg-white text-left transition-all ${
+                        selected
+                          ? 'border-brand-500 shadow-sm ring-2 ring-brand-500/15'
+                          : 'border-transparent hover:border-brand-200'
+                      }`}
+                    >
+                      <div className="relative aspect-[9/16] overflow-hidden bg-gray-100">
+                        {previewUrl ? (
+                          <video
+                            controls
+                            muted
+                            playsInline
+                            preload="metadata"
+                            src={`${previewUrl}#t=0.1`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs text-gray-400">
+                            Загрузка…
+                          </div>
+                        )}
+                        {selected && (
+                          <span className="absolute right-2 top-2 rounded-full bg-brand-600 p-1 text-white shadow-md">
+                            <CheckCircleIcon className="h-4 w-4" />
+                          </span>
+                        )}
+                        <span className="absolute bottom-2 right-2 rounded-md bg-black/65 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                          {template.duration ? `${template.duration} сек.` : '—'}
+                        </span>
+                      </div>
+                      <div className="px-2.5 py-2">
+                        <p className="truncate text-xs font-semibold text-gray-800">
+                          {getTemplateLabel(template, index)}
+                        </p>
+                        <p className={`mt-0.5 text-[10px] font-medium ${selected ? 'text-brand-600' : 'text-gray-400'}`}>
+                          {selected ? 'Выбрано' : 'Нажмите, чтобы выбрать'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-3 py-2.5 hover:border-brand-400">
+              <span className="min-w-0 truncate text-xs text-gray-600">
+                {sourceVideoFile?.name || 'Или загрузить MP4, MOV, WEBM'}
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-brand-600">Загрузить</span>
+              <input
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] || null;
+                  setSourceVideoFile(file);
+                  if (file) {
+                    setStyle((current) => ({ ...current, sourceTemplateId: undefined }));
+                  }
+                }}
+              />
+            </label>
+
+            {availableTemplates.length === 0 && !sourceVideoFile && (
+              <p className="mt-2 text-[11px] text-amber-600">
+                Для выбранного аккаунта ещё нет подложек — загрузите Reels здесь.
+              </p>
+            )}
+
+            {sourceVideoFile && sourceVideoPreview && (
+              <video
+                controls
+                preload="metadata"
+                src={sourceVideoPreview}
+                className="mx-auto mt-3 max-h-64 w-auto max-w-full rounded-xl bg-black"
+              />
+            )}
           </div>
 
           {/* Preset Type Selector */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Тип пресета</label>
-            <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+            <div className="grid grid-cols-3 bg-gray-100 rounded-xl p-1 gap-1">
               <button
                 type="button"
                 onClick={() => {
@@ -411,6 +836,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                     bgStyle: 'none',
                     aiModel: 'none',
                     presetType: 'standard',
+                    ctaOutroEnabled: false,
                   }));
                 }}
                 className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
@@ -438,6 +864,7 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
                     showCarouselBait: true,
                     carouselBaitPosY: 90,
                     presetType: 'ai_showcase',
+                    ctaOutroEnabled: false,
                   }));
                 }}
                 className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1 ${
@@ -448,12 +875,44 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               >
                 ✨ AI Showcase
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPresetType('cta_outro');
+                  setCtaType('codeword');
+                  setStyle((current) => ({
+                    ...current,
+                    presetType: 'cta_outro',
+                    ctaOutroEnabled: true,
+                    ctaOutroPresetId: current.ctaOutroPresetId || 'editorial-grid-blue',
+                    ctaOutroKeyword: current.ctaOutroKeyword || 'промпт',
+                    ctaOutroOffer: current.ctaOutroOffer || 'Пак готовых промптов',
+                    ctaOutroDurationSec: current.ctaOutroDurationSec || 2.2,
+                    ctaOutroSoundVolume: current.ctaOutroSoundVolume ?? 0.9,
+                    showCarouselBait: false,
+                  }));
+                }}
+                className={`flex items-center justify-center gap-1 rounded-lg py-2 text-xs font-medium transition-all ${
+                  presetType === 'cta_outro'
+                    ? 'bg-white font-semibold text-brand-700 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                🎯 CTA-концовка
+              </button>
             </div>
             {presetType === 'ai_showcase' && (
               <p className="text-xs text-brand-600 mt-1.5 font-medium">✨ Автогенерация Reels с плашками нейросетей (Claude, ChatGPT, Gemini) и вирусными ИИ-хуками.</p>
             )}
+            {presetType === 'cta_outro' && (
+              <p className="mt-1.5 text-xs font-medium text-brand-600">
+                Один исходный Reels → уникальные CTA-тексты, описание и готовая концовка.
+              </p>
+            )}
           </div>
 
+          {presetType !== 'cta_outro' && (
+          <>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Темы ({topics.length})
@@ -563,6 +1022,185 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
               </AppSelect>
             )}
           </div>
+          </>
+          )}
+
+          {presetType === 'cta_outro' && (
+          <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4">
+            <div className="flex items-start justify-between gap-4">
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">CTA-концовка для каждого Reels</span>
+                <span className="mt-1 block text-xs leading-relaxed text-gray-500">
+                  ИИ каждый раз меняет верхний и нижний текст, но обязательно сохраняет «ПИШИ» и выбранное кодовое слово.
+                </span>
+              </span>
+              <span className="rounded-full bg-brand-100 px-2.5 py-1 text-[11px] font-semibold text-brand-700">
+                Включено
+              </span>
+            </div>
+
+              <div className="mt-4 space-y-4 border-t border-brand-100 pt-4">
+                <div>
+                  <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-600">
+                    Стиль CTA
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {OUTRO_BACKGROUNDS.map((outro) => {
+                      const selected = (style.ctaOutroPresetId || 'editorial-grid-blue') === outro.id;
+                      return (
+                        <button
+                          key={outro.id}
+                          type="button"
+                          onClick={() => setStyle((current) => ({
+                            ...current,
+                            ctaOutroPresetId: outro.id as OutroPresetId,
+                            ctaOutroDurationSec: outro.defaultDuration,
+                          }))}
+                          className={`rounded-xl border p-3 text-left transition-all ${
+                            selected
+                              ? 'border-brand-500 bg-white ring-2 ring-brand-500/15'
+                              : 'border-gray-200 bg-white/70 hover:border-gray-300'
+                          }`}
+                        >
+                          <span
+                            className="mb-2 block h-8 rounded-lg border border-black/5"
+                            style={{ backgroundColor: outro.previewColor }}
+                          />
+                          <span className="block text-xs font-semibold text-gray-900">{outro.name}</span>
+                          <span className="mt-0.5 block text-[11px] leading-snug text-gray-500">{outro.description}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-700">
+                    Своя подложка концовки <span className="font-normal text-gray-400">— необязательно</span>
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-3 py-2.5 hover:border-brand-400">
+                    <span className="min-w-0 truncate text-xs text-gray-600">
+                      {ctaBackgroundFile?.name || style.ctaOutroBackgroundName || 'Загрузить JPG, PNG или WEBP'}
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-brand-600">Выбрать</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(event) => setCtaBackgroundFile(event.target.files?.[0] || null)}
+                    />
+                  </label>
+                  {ctaBackgroundPreview && (
+                    <div className="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-gray-900">
+                      <img
+                        src={ctaBackgroundPreview}
+                        alt="Подложка CTA-концовки"
+                        className="mx-auto h-32 w-auto object-cover"
+                      />
+                    </div>
+                  )}
+                  {(ctaBackgroundFile || style.ctaOutroBackgroundPath) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCtaBackgroundFile(null);
+                        setStyle((current) => ({
+                          ...current,
+                          ctaOutroBackgroundPath: undefined,
+                          ctaOutroBackgroundName: undefined,
+                        }));
+                      }}
+                      className="mt-1.5 text-[11px] font-medium text-red-500 hover:text-red-600"
+                    >
+                      Использовать фон выбранного стиля
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-700">Кодовое слово</label>
+                    <input
+                      type="text"
+                      value={style.ctaOutroKeyword || ''}
+                      onChange={(event) => setStyle((current) => ({
+                        ...current,
+                        ctaOutroKeyword: event.target.value,
+                      }))}
+                      placeholder="ПРОМПТ"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-gray-700">Что получит человек</label>
+                    <input
+                      type="text"
+                      value={style.ctaOutroOffer || ''}
+                      onChange={(event) => setStyle((current) => ({
+                        ...current,
+                        ctaOutroOffer: event.target.value,
+                      }))}
+                      placeholder="Пак готовых промптов"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-gray-700">Одна музыка для всех CTA-концовок</label>
+                  <AppSelect
+                    value={style.ctaOutroAudioFileId || ''}
+                    onChange={(event) => {
+                      setCtaAudioFile(null);
+                      setStyle((current) => ({
+                        ...current,
+                        ctaOutroAudioFileId: event.target.value || null,
+                      }));
+                    }}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                  >
+                    <option value="">Без отдельной музыки</option>
+                    {audioFiles.map((audio) => (
+                      <option key={audio.id} value={audio.id}>{audio.name}</option>
+                    ))}
+                  </AppSelect>
+                  <label className="mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-3 py-2.5 hover:border-brand-400">
+                    <span className="min-w-0 truncate text-xs text-gray-600">
+                      {ctaAudioFile?.name || 'Или загрузить MP3, WAV, AAC'}
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-brand-600">Загрузить</span>
+                    <input
+                      type="file"
+                      accept="audio/mpeg,audio/mp3,audio/wav,audio/aac,audio/mp4,audio/*"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0] || null;
+                        setCtaAudioFile(file);
+                        if (file) {
+                          setStyle((current) => ({ ...current, ctaOutroAudioFileId: null }));
+                        }
+                      }}
+                    />
+                  </label>
+                  {ctaAudioPreview && (
+                    <audio controls preload="metadata" src={ctaAudioPreview} className="mt-2 h-10 w-full" />
+                  )}
+                  <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                    Короткий джингл (до 10 сек.) задаёт длину концовки — ролик закончится
+                    на последней ноте. Длинный трек просто играет под концовкой обычной
+                    длины. У каждого ролика длина чуть своя: ещё один слой уникализации.
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-brand-100 bg-white p-3 text-center">
+                  <p className="text-xs font-medium text-gray-500">ИИ меняет для каждого ролика</p>
+                  <p className="mt-2 text-sm font-semibold text-gray-900">Сделай так же — ПИШИ</p>
+                  <p className="my-1 text-xl font-black text-brand-600">{style.ctaOutroKeyword || 'ПРОМПТ'}</p>
+                  <p className="text-sm text-gray-600">и получи подборку в Direct</p>
+                </div>
+              </div>
+          </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -790,19 +1428,29 @@ const BatchPresetModal: React.FC<Props> = ({ preset, accounts, audioFiles, onSav
           )}
         </div>
 
+        {saveError && (
+          <p className="border-t border-red-100 bg-red-50 px-5 py-2.5 text-xs text-red-600">
+            {saveError}
+          </p>
+        )}
         <div className="p-5 border-t border-gray-100 flex gap-3">
           <button
             onClick={onClose}
+            disabled={isSaving}
             className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
           >
             Отмена
           </button>
           <button
             onClick={handleSave}
-            disabled={presetType === 'standard' && topics.length === 0}
+            disabled={isSaving || (
+              presetType === 'standard'
+              && topics.length === 0
+              && !style.ctaOutroEnabled
+            )}
             className="flex-1 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white disabled:text-gray-500 text-sm font-medium transition-colors shadow-lg disabled:shadow-none"
           >
-            {preset ? 'Сохранить' : 'Создать'}
+            {isSaving ? 'Сохраняю…' : preset ? 'Сохранить' : 'Создать'}
           </button>
         </div>
       </div>

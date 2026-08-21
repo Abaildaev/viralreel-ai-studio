@@ -46,10 +46,18 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
 
       if (!error && data) {
         setAccounts(data);
-        if (data.length > 0 && !selectedAccount) {
-          const activeAccount = data.find(a => a.is_active) || data[0];
-          setSelectedAccount(activeAccount);
-        }
+        /*
+          Keep the selected id, but replace the object itself with the fresh
+          row. The account page refreshes this list after verification and the
+          row may then contain a new profile_picture_url. Keeping the old
+          object made the main card show the avatar while the sidebar still
+          rendered the initial letter.
+        */
+        const refreshedSelected = selectedAccount
+          ? data.find((account: InstagramAccount) => account.id === selectedAccount.id)
+          : null;
+        const nextSelected = refreshedSelected || data.find((account: InstagramAccount) => account.is_active) || data[0] || null;
+        setSelectedAccount(nextSelected);
       }
     } catch {
       /* ignore offline/unreachable error */

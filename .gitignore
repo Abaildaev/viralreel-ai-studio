@@ -32,3 +32,11 @@ patch.js
 test-html-to-image.html
 video-renderer/tmp/
 video-renderer/outputs/
+
+# Generated local artifacts
+output/
+tmp/
+outro-preview.html
+
+# Historical Telegram funnel mockups; the active asset lives in Supabase Storage
+public/assets/telegram-funnel/

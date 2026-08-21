@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface AutomationAnalyticsDashboardProps {
+  view?: 'analytics' | 'leads';
   events: LiveAutomationEvent[];
   rules: LeadMagnet[];
   stats: LeadMagnetStats[];
@@ -27,6 +28,7 @@ type CrmContact = LiveAutomationEvent & {
 };
 
 export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboardProps> = ({
+  view = 'analytics',
   events,
   rules,
   stats,
@@ -219,6 +221,8 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
 
   return (
     <div className="space-y-6">
+      {view !== 'leads' && (
+        <>
       {/* 4 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs">
@@ -408,7 +412,12 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
         </div>
       </div>
 
+        </>
+      )}
+
       {/* Leads CRM Table */}
+      {view !== 'analytics' && (
+        <>
       <div className="bg-white rounded-2xl border border-gray-200/70 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3 bg-gray-50/40">
           <div>
@@ -577,8 +586,11 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
         </div>
       </div>
 
+        </>
+      )}
+
       {/* CRM Lead Modal Drawer */}
-      {selectedLeadModal && (
+      {view === 'leads' && selectedLeadModal && (
         <LeadDetailModal
           lead={selectedLeadModal}
           onClose={() => setSelectedLeadModal(null)}

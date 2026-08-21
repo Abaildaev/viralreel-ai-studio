@@ -3,12 +3,13 @@ import { LeadMagnet, LeadMagnetStats, InstagramAccount } from '../../types';
 import {
   BoltIcon,
   PaperAirplaneIcon,
-  CheckCircleIcon,
   ChatBubbleLeftRightIcon,
   PencilIcon,
   TrashIcon,
   PlusIcon,
   ClockIcon,
+  ArrowRightIcon,
+  CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 
 interface AutomationRulesTabProps {
@@ -21,20 +22,6 @@ interface AutomationRulesTabProps {
   onToggleActive: (rule: LeadMagnet) => void;
   onCreateNew: () => void;
 }
-
-const Metric: React.FC<{ label: string; value: string | number; icon: React.ReactNode }> = ({
-  label,
-  value,
-  icon,
-}) => (
-  <div className="bg-white border border-gray-200/80 rounded-2xl p-4 shadow-xs">
-    <div className="flex items-center justify-between text-gray-400 mb-2">
-      <span className="text-xs font-medium text-gray-500">{label}</span>
-      <span className="text-gray-400">{icon}</span>
-    </div>
-    <div className="text-2xl font-bold text-gray-900 tracking-tight">{value}</div>
-  </div>
-);
 
 export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
   rules,
@@ -52,45 +39,76 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
     return map;
   }, [stats]);
 
-  const activeRules = rules.filter((r) => r.is_active).length;
-  const sentCount = stats.reduce((sum, s) => sum + (s.sent_count || 0), 0);
-  const failedCount = stats.reduce((sum, s) => sum + (s.failed_count || 0), 0);
-  const attempts = sentCount + failedCount;
-  const deliverability = attempts > 0 ? Math.round((sentCount / attempts) * 100) : 100;
-  const readyAccounts = accounts.filter((a) => a.is_active && a.webhook_subscribed_at).length;
+  const activeRules = rules.filter((rule) => rule.is_active).length;
+  const funnelSteps = [
+    {
+      title: 'Комментарий или Direct',
+      description: 'Пользователь пишет под Reels или в личные сообщения',
+      icon: <ChatBubbleLeftRightIcon className="h-5 w-5" />,
+    },
+    {
+      title: 'Кодовое слово',
+      description: 'Система находит одно из слов воронки',
+      icon: <BoltIcon className="h-5 w-5" />,
+    },
+    {
+      title: 'Ответ в Direct',
+      description: 'Публичный ответ и личное сообщение отправляются автоматически',
+      icon: <PaperAirplaneIcon className="h-5 w-5" />,
+    },
+    {
+      title: 'Материал',
+      description: 'Лид получает ссылку или прикреплённый лид-магнит',
+      icon: <CheckCircleIcon className="h-5 w-5" />,
+    },
+    {
+      title: 'Лид в CRM',
+      description: 'Контакт сохраняется и появляется в базе лидов',
+      icon: <CheckCircleIcon className="h-5 w-5" />,
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      {/* 4 KPI Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric
-          label="Активные сценарии"
-          value={activeRules}
-          icon={<BoltIcon className="w-5 h-5" />}
-        />
-        <Metric
-          label="Доставлено в Direct"
-          value={sentCount}
-          icon={<PaperAirplaneIcon className="w-5 h-5" />}
-        />
-        <Metric
-          label={failedCount ? `Доставляемость · ${failedCount} с ошибкой` : 'Доставляемость'}
-          value={attempts ? `${deliverability}%` : '—'}
-          icon={<CheckCircleIcon className="w-5 h-5" />}
-        />
-        <Metric
-          label="Аккаунты готовы"
-          value={`${readyAccounts}/${accounts.length}`}
-          icon={<ChatBubbleLeftRightIcon className="w-5 h-5" />}
-        />
+      <div className="rounded-2xl border border-brand-100 bg-brand-50/40 p-5 shadow-xs">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Воронка Comment-to-DM</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Один понятный путь от комментария до сохранённого лида.
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-brand-700">
+            {activeRules} активн. {activeRules === 1 ? 'воронка' : 'воронки'}
+          </span>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2 md:flex-row md:items-stretch">
+          {funnelSteps.map((step, index) => (
+            <React.Fragment key={step.title}>
+              <div className="min-w-0 flex-1 rounded-xl border border-white/90 bg-white/80 p-3">
+                <div className="flex items-center gap-2 text-brand-700">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-100">
+                    {step.icon}
+                  </span>
+                  <span className="text-xs font-bold text-gray-900">{step.title}</span>
+                </div>
+                <p className="mt-2 text-[11px] leading-relaxed text-gray-500">{step.description}</p>
+              </div>
+              {index < funnelSteps.length - 1 && (
+                <ArrowRightIcon className="mx-auto h-4 w-4 shrink-0 self-center text-brand-300 md:mt-8" />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
 
       {/* Rules Section Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-bold text-gray-900">Ваши сценарии Comment-to-DM</h2>
+          <h2 className="text-base font-bold text-gray-900">Ваши воронки</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Комментарий под Reels ➔ публичный ответ ➔ отправка ссылки в Direct
+            Для каждой воронки задаются кодовые слова, ответ и материал
           </p>
         </div>
 
@@ -100,7 +118,7 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
           className="px-3.5 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
         >
           <PlusIcon className="w-4 h-4" />
-          Создать сценарий
+          Создать воронку
         </button>
       </div>
 
@@ -112,16 +130,16 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-brand-600 flex items-center justify-center mx-auto">
             <BoltIcon className="w-6 h-6" />
           </div>
-          <h3 className="font-bold text-sm text-gray-900">Нет активных сценариев</h3>
+          <h3 className="font-bold text-sm text-gray-900">Пока нет воронок</h3>
           <p className="text-xs text-gray-500 max-w-sm mx-auto">
-            Создайте первое правило: когда пользователь напишет кодовое слово в комментариях к Reel, бот автоматически отправит ему лид-магнит в Direct.
+            Создайте первую воронку: пользователь пишет кодовое слово, а система автоматически отвечает и отправляет материал в Direct.
           </p>
           <button
             type="button"
             onClick={onCreateNew}
             className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-semibold shadow-xs"
           >
-            Создать сценарий
+            Создать воронку
           </button>
         </div>
       ) : (

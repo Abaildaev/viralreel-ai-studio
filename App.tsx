@@ -5,6 +5,7 @@ import { SkeletonList } from './components/ui';
 import { useAppView } from './hooks/useAppView';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const ReelsStudioPage = lazy(() => import('./pages/ReelsStudioPage'));
 const AccountsPage = lazy(() => import('./pages/AccountsPage'));
 const AutomationsPage = lazy(() => import('./pages/AutomationsPage'));
 const TelegramPage = lazy(() => import('./pages/TelegramPage'));
@@ -12,10 +13,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const AudioPage = lazy(() => import('./pages/AudioPage'));
 const TemplatesPage = lazy(() => import('./pages/TemplatesPage'));
 const BatchGeneratorPage = lazy(() => import('./pages/BatchGeneratorPage'));
-const BudgetReelsPage = lazy(() => import('./pages/BudgetReelsPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
-const AiShowcasePage = lazy(() => import('./pages/AiShowcasePage'));
-const GeneratorPage = lazy(() => import('./pages/GeneratorPage'));
 const InstagramScheduler = lazy(() => import('./components/InstagramScheduler'));
 
 const MainApp: React.FC = () => {
@@ -53,6 +51,16 @@ const MainApp: React.FC = () => {
               </div>
             }
           >
+            {(currentView === 'studio' || currentView === 'generator' || currentView === 'aishowcase' || currentView === 'budget' || currentView === 'outro') && (
+              <ReelsStudioPage
+                initialTab={
+                  currentView === 'aishowcase' ? 'aishowcase'
+                  : currentView === 'budget' ? 'budget'
+                  : currentView === 'outro' ? 'outro'
+                  : 'generator'
+                }
+              />
+            )}
             {currentView === 'accounts' && <AccountsPage />}
             {currentView === 'automations' && <AutomationsPage />}
             {currentView === 'telegram' && <TelegramPage />}
@@ -62,9 +70,6 @@ const MainApp: React.FC = () => {
             {currentView === 'templates' && <TemplatesPage />}
             {currentView === 'batch' && <BatchGeneratorPage />}
             {currentView === 'history' && <HistoryPage />}
-            {currentView === 'budget' && <BudgetReelsPage />}
-            {currentView === 'aishowcase' && <AiShowcasePage />}
-            {currentView === 'generator' && <GeneratorPage />}
           </Suspense>
           </ErrorBoundary>
         </main>

@@ -9,7 +9,9 @@ import {
   findSupportedVideoCodec,
   isAudioCodecSupported,
   createCanvas,
+  createSeekWatch,
   seekTo,
+  sourceDurationOf,
 } from './render/media';
 import { drawFrame, preloadShowcaseImages } from './render/canvasDraw';
 
@@ -24,34 +26,59 @@ import {
    always imported this from here. */
 export { assertMp4Video } from './render/media';
 
+function abortRenderError(): Error {
+  const error = new Error('Генерация остановлена');
+  error.name = 'AbortError';
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortRenderError();
+}
+
+/* Called with 0-100 and a line to show under it. A batch renders two passes
+   back to back, and without this the second one looked like a hang. */
+export type RenderProgress = (percent: number, statusText: string) => void;
+
 export const renderVideoWithOverlay = async (
   videoFile: File,
   variation: ViralVariation,
-  audioUrl: string | null = null
+  audioUrl: string | null = null,
+  abortSignal?: AbortSignal,
+  onProgress?: RenderProgress,
 ): Promise<Blob> => {
+  throwIfAborted(abortSignal);
+  /*
+    There is no fallback path any more. The one that used to be here recorded
+    the clip through MediaRecorder — in real time, a minute of waiting for a
+    minute of video — and handed back a WebM that every caller then rejected
+    through `assertMp4Video`. Saying so immediately is the whole of what it
+    achieved, at none of the cost.
+  */
+  if (typeof VideoEncoder === 'undefined') {
+    throw new Error(
+      'Браузер не умеет кодировать MP4. Откройте приложение в актуальном Chrome или Safari.',
+    );
+  }
+
   // The user-selectable families are no longer in the document head, so they
   // have to be requested before `fonts.ready` can mean anything for them.
   await ensureRenderFontsLoaded();
   await Promise.all([document.fonts.ready, preloadShowcaseImages(variation)]);
 
-  // AudioEncoder is optional: MP4 rendering must still work when the browser
-  // can encode H.264 but cannot encode AAC or the source has no soundtrack.
-  if (typeof VideoEncoder !== 'undefined') {
-    try {
-      return await renderMP4(videoFile, variation, audioUrl);
-    } catch (e) {
-      console.warn('MP4 render failed, using WebM fallback:', e);
-    }
-  }
-
-  return renderWebM(videoFile, variation, audioUrl);
+  // AudioEncoder stays optional: an MP4 render must still work when the
+  // browser can encode H.264 but not AAC, or the source has no soundtrack.
+  return renderMP4(videoFile, variation, audioUrl, abortSignal, onProgress);
 };
 
 async function renderMP4(
   videoFile: File,
   variation: ViralVariation,
-  audioUrl: string | null
+  audioUrl: string | null,
+  abortSignal?: AbortSignal,
+  onProgress?: RenderProgress,
 ): Promise<Blob> {
+  throwIfAborted(abortSignal);
   const video = await loadVideo(videoFile);
   const preserveSourceDimensions = variation.variantKind === 'clean';
   const outputWidth = preserveSourceDimensions ? video.videoWidth : CANVAS_WIDTH;
@@ -71,7 +98,7 @@ async function renderMP4(
   const audioDuration = audioBuffer ? audioBuffer.duration : 0;
   
   // Calculate trimmed video bounds
-  const rawVideoDuration = video.duration || 10;
+  const rawVideoDuration = sourceDurationOf(video);
   const trimStart = Math.max(0, variation.trimStart || 0);
   const trimEnd = variation.trimEnd && variation.trimEnd > trimStart
     ? Math.min(rawVideoDuration, variation.trimEnd)
@@ -119,9 +146,18 @@ async function renderMP4(
 
   const muxer = new Muxer(muxerConfig);
 
+  /* An encoder reports failures on its own callback rather than on the call
+     that queued the frame. Logging them left the render "successful" around a
+     truncated file, which the batch then uploaded as a finished draft. */
+  let encodeError: Error | null = null;
+  const captureError = (label: string) => (e: unknown) => {
+    console.error(`${label} error:`, e);
+    encodeError = encodeError || (e instanceof Error ? e : new Error(String(e)));
+  };
+
   const videoEncoder = new VideoEncoder({
     output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-    error: (e) => console.error('VideoEncoder error:', e),
+    error: captureError('VideoEncoder'),
   });
 
   videoEncoder.configure({
@@ -136,7 +172,7 @@ async function renderMP4(
   if (audioBuffer && audioSupported) {
     audioEncoder = new AudioEncoder({
       output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-      error: (e) => console.error('AudioEncoder error:', e),
+      error: captureError('AudioEncoder'),
     });
     audioEncoder.configure({
       codec: 'mp4a.40.2',
@@ -146,222 +182,88 @@ async function renderMP4(
     });
   }
 
-  for (let i = 0; i < totalFrames; i++) {
-    const relativeTime = i / TARGET_FPS;
-    const seekTime = effectiveTrimStart + relativeTime;
-    await seekTo(video, seekTime);
+  const watchSeek = createSeekWatch();
 
-    drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
+  try {
+    for (let i = 0; i < totalFrames; i++) {
+      throwIfAborted(abortSignal);
+      if (encodeError) throw encodeError;
+      const relativeTime = i / TARGET_FPS;
+      const seekTime = effectiveTrimStart + relativeTime;
+      watchSeek(await seekTo(video, seekTime));
 
-    const frame = new VideoFrame(canvas, {
-      timestamp: Math.round(relativeTime * 1_000_000),
-    });
-    videoEncoder.encode(frame, { keyFrame: i % 60 === 0 });
-    frame.close();
+      drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
 
-    if (i % 30 === 0) {
-      await new Promise(r => setTimeout(r, 0));
-    }
-  }
+      const frame = new VideoFrame(canvas, {
+        timestamp: Math.round(relativeTime * 1_000_000),
+      });
+      videoEncoder.encode(frame, { keyFrame: i % 60 === 0 });
+      frame.close();
 
-  if (audioBuffer && audioEncoder && audioSupported) {
-    const channels = audioChannels;
-    const sampleRate = audioRate;
-    const audioSampleStart = Math.floor(audioStartOffset * sampleRate);
-    const maxSamples = Math.min(audioBuffer.length - audioSampleStart, Math.ceil(duration * sampleRate));
-    const CHUNK = 1024;
-
-    for (let offset = 0; offset < maxSamples; offset += CHUNK) {
-      const count = Math.min(CHUNK, maxSamples - offset);
-      const data = new Float32Array(count * channels);
-
-      for (let ch = 0; ch < channels; ch++) {
-        const src = audioBuffer.getChannelData(ch);
-        data.set(src.subarray(audioSampleStart + offset, audioSampleStart + offset + count), ch * count);
+      if (i % 30 === 0) {
+        await new Promise(r => setTimeout(r, 0));
       }
 
-      const audioData = new AudioData({
-        format: 'f32-planar',
-        sampleRate,
-        numberOfFrames: count,
-        numberOfChannels: channels,
-        timestamp: Math.round((offset / sampleRate) * 1_000_000),
-        data,
-      });
-
-      audioEncoder.encode(audioData);
-      audioData.close();
+      if (i % 20 === 0) {
+        onProgress?.(
+          Math.round((i / Math.max(1, totalFrames)) * 90),
+          `Рендер видео (${Math.round(relativeTime)}с / ${Math.round(duration)}с)...`,
+        );
+      }
     }
+
+    if (audioBuffer && audioEncoder && audioSupported) {
+      onProgress?.(92, 'Обработка звуковой дорожки...');
+      const channels = audioChannels;
+      const sampleRate = audioRate;
+      const audioSampleStart = Math.floor(audioStartOffset * sampleRate);
+      const maxSamples = Math.min(audioBuffer.length - audioSampleStart, Math.ceil(duration * sampleRate));
+      const CHUNK = 1024;
+
+      for (let offset = 0; offset < maxSamples; offset += CHUNK) {
+        throwIfAborted(abortSignal);
+        if (encodeError) throw encodeError;
+        const count = Math.min(CHUNK, maxSamples - offset);
+        const data = new Float32Array(count * channels);
+
+        for (let ch = 0; ch < channels; ch++) {
+          const src = audioBuffer.getChannelData(ch);
+          data.set(src.subarray(audioSampleStart + offset, audioSampleStart + offset + count), ch * count);
+        }
+
+        const audioData = new AudioData({
+          format: 'f32-planar',
+          sampleRate,
+          numberOfFrames: count,
+          numberOfChannels: channels,
+          timestamp: Math.round((offset / sampleRate) * 1_000_000),
+          data,
+        });
+
+        audioEncoder.encode(audioData);
+        audioData.close();
+      }
+    }
+
+    throwIfAborted(abortSignal);
+    onProgress?.(96, 'Финализация MP4 файла...');
+    await videoEncoder.flush();
+    if (audioEncoder) await audioEncoder.flush();
+    throwIfAborted(abortSignal);
+    if (encodeError) throw encodeError;
+    muxer.finalize();
+  } finally {
+    if (videoEncoder.state !== 'closed') videoEncoder.close();
+    if (audioEncoder && audioEncoder.state !== 'closed') audioEncoder.close();
+    URL.revokeObjectURL(video.src);
+    video.remove();
+    canvas.remove();
   }
-
-  await videoEncoder.flush();
-  if (audioEncoder) await audioEncoder.flush();
-  videoEncoder.close();
-  if (audioEncoder) audioEncoder.close();
-  muxer.finalize();
-
-  URL.revokeObjectURL(video.src);
-  video.remove();
-  canvas.remove();
 
   const output = uniquifier.stripMetadata
     ? stripMediaMetadata(target.buffer)
     : target.buffer;
 
+  onProgress?.(100, 'Готово!');
   return new Blob([output], { type: 'video/mp4' });
 }
-
-async function renderWebM(
-  videoFile: File,
-  variation: ViralVariation,
-  audioUrl: string | null
-): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const video = document.createElement('video');
-    video.src = URL.createObjectURL(videoFile);
-    video.crossOrigin = 'anonymous';
-    video.playsInline = true;
-
-    let audioElement: HTMLAudioElement | null = null;
-    if (audioUrl) {
-      audioElement = new Audio(audioUrl);
-      audioElement.crossOrigin = 'anonymous';
-    }
-
-    const startRendering = async () => {
-      try {
-        const uniquifier = generateUniquifierParams(
-          variation.uniquifierIntensity || 'medium',
-          variation.uniquifierEnabled !== false
-        );
-        const rawVideoDuration = video.duration || 10;
-        const trimStart = Math.max(0, variation.trimStart || 0);
-        const trimEnd = variation.trimEnd && variation.trimEnd > trimStart
-          ? Math.min(rawVideoDuration, variation.trimEnd)
-          : Math.min(rawVideoDuration, MAX_DURATION_S);
-        const uniqueTimeOffset = Math.min(
-          uniquifier.timeOffsetSeconds,
-          Math.max(0, trimEnd - trimStart - 0.5)
-        );
-        const effectiveTrimStart = trimStart + uniqueTimeOffset;
-        const preserveSourceDimensions = variation.variantKind === 'clean';
-        const outputWidth = preserveSourceDimensions ? video.videoWidth : CANVAS_WIDTH;
-        const outputHeight = preserveSourceDimensions ? video.videoHeight : CANVAS_HEIGHT;
-        const { canvas, ctx } = createCanvas(outputWidth, outputHeight);
-
-        await seekTo(video, effectiveTrimStart);
-
-        const videoStream = canvas.captureStream(30);
-        const audioContext = new AudioContext();
-        const destination = audioContext.createMediaStreamDestination();
-
-        if (audioUrl && audioElement) {
-          const audioSource = audioContext.createMediaElementSource(audioElement);
-          audioSource.connect(destination);
-          audioSource.connect(audioContext.destination);
-        } else {
-          const videoSource = audioContext.createMediaElementSource(video);
-          videoSource.connect(destination);
-          videoSource.connect(audioContext.destination);
-        }
-
-        const combinedStream = new MediaStream([
-          ...videoStream.getVideoTracks(),
-          ...destination.stream.getAudioTracks()
-        ]);
-
-        let mimeType = 'video/webm;codecs=vp9,opus';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'video/webm;codecs=vp8,opus';
-        }
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = 'video/webm';
-        }
-
-        const recorder = new MediaRecorder(combinedStream, {
-          mimeType,
-          videoBitsPerSecond: 4500000,
-          audioBitsPerSecond: 128000
-        });
-
-        const chunks: Blob[] = [];
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) chunks.push(e.data);
-        };
-
-        recorder.onstop = () => {
-          const blob = new Blob(chunks, { type: mimeType.split(';')[0] });
-          resolve(blob);
-          URL.revokeObjectURL(video.src);
-          video.remove();
-          canvas.remove();
-          audioContext.close();
-          if (audioElement) {
-            audioElement.pause();
-            audioElement = null;
-          }
-        };
-
-        const renderLoop = () => {
-          if (video.paused || video.ended) {
-            recorder.stop();
-            if (audioElement) audioElement.pause();
-            return;
-          }
-          drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
-          requestAnimationFrame(renderLoop);
-        };
-
-        drawFrame(ctx, video, variation, outputWidth, outputHeight, uniquifier);
-        recorder.start();
-
-        if (audioUrl && audioElement) {
-          video.muted = true;
-          audioElement.currentTime = Math.max(0, variation.audioStartOffset || 0);
-          await audioElement.play();
-        } else {
-          video.muted = false;
-          video.volume = 1;
-        }
-
-        // Use the SHORTER of video and audio
-        const trimmedVideoDuration = Math.max(0.5, trimEnd - effectiveTrimStart);
-        const remainingAudioDuration = audioUrl && audioElement
-          ? Math.max(0, audioElement.duration - (variation.audioStartOffset || 0))
-          : trimmedVideoDuration;
-        const targetDurationMs = Math.min(trimmedVideoDuration, remainingAudioDuration) * 1000;
-        const cappedDurationMs = Math.min(targetDurationMs, MAX_DURATION_S * 1000);
-
-        await video.play();
-        renderLoop();
-
-        setTimeout(() => {
-          if (recorder.state === 'recording') {
-            video.pause();
-            video.loop = false;
-            if (audioElement) audioElement.pause();
-          }
-        }, cappedDurationMs);
-
-      } catch (e) {
-        reject(e);
-      }
-    };
-
-    video.onloadeddata = () => {
-      if (audioUrl && audioElement) {
-        audioElement.oncanplaythrough = () => startRendering();
-        audioElement.onerror = () => {
-          audioElement = null;
-          startRendering();
-        };
-        audioElement.load();
-      } else {
-        startRendering();
-      }
-    };
-
-    video.onerror = () => reject(new Error('Video load error'));
-  });
-}
-

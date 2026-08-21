@@ -2954,3 +2954,345 @@ CREATE POLICY "Users can view own instagram attachment cache"
         AND account.user_id = auth.uid()
     )
   );
+
+-- ------------------------------------------------------------------------
+-- 20260821120000_remove_manual_subscription_check.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Channel membership updates now unlock the material automatically. Keeping a
+  manual "I subscribed" default creates the two-button gate shown by older
+  deployments and gives the reader one instruction too many.
+
+  The column remains for old messages whose callback may still arrive, but new
+  rows and existing funnels no longer advertise that obsolete action.
+*/
+
+ALTER TABLE telegram_funnels
+  ALTER COLUMN check_button_text SET DEFAULT '';
+
+UPDATE telegram_funnels
+SET
+  check_button_text = '',
+  updated_at = now()
+WHERE check_button_text IN ('Я подписался', 'Проверить подписку');
+
+/* Refresh the prompt funnel that shipped with the old wall-of-text copy. */
+UPDATE telegram_funnels
+SET
+  welcome_text = E'Промпты из Reels уже готовы 🎁\n\nВнутри — 10 готовых формул для AI-изображений и видео. Их можно скопировать, заменить детали под свою идею и сразу протестировать.',
+  not_subscribed_text = E'Подпишитесь на канал 👇\n\nЗдесь каждый пост — это готовый результат, точный промпт и короткий разбор настроек. Без новостей и лишней теории.\n\nСразу после подписки бот автоматически отправит PDF. Возвращаться и нажимать «Проверить» не нужно.',
+  subscribe_button_text = 'Подписаться и забрать промпты',
+  check_button_text = '',
+  updated_at = now()
+WHERE welcome_text ILIKE 'Вы пришли за паком промптов из Reels%'
+   OR not_subscribed_text ILIKE 'Подпишитесь на канал «Промты & Нейросети»%';
+
+/*
+  The screenshot also contains two identical immediate PDF steps. Preserve the
+  first as delivery, turn the second into a useful three-hour reminder without
+  a second attachment, and switch off any further identical copies.
+*/
+WITH legacy_prompt_steps AS (
+  SELECT
+    step.id,
+    row_number() OVER (
+      PARTITION BY step.funnel_id
+      ORDER BY step.position, step.created_at, step.id
+    ) AS copy_number
+  FROM telegram_funnel_steps step
+  WHERE step.body ILIKE 'Готово — ваш лид-магнит прикреплён к этому сообщению%'
+)
+UPDATE telegram_funnel_steps step
+SET
+  title = CASE legacy.copy_number
+    WHEN 1 THEN 'Промпты и бесплатный тест'
+    ELSE 'Две попытки с пользой'
+  END,
+  body = CASE legacy.copy_number
+    WHEN 1 THEN E'Промпты готовы 🎁\n\nВ PDF — 10 готовых формул для изображений и видео.\n\nКак протестировать:\n\n1. Выберите промпт в PDF.\n2. Скопируйте его без сокращений.\n3. Откройте бота по кнопке ниже.\n4. Выберите нейросеть и вставьте промпт.\n\nВ боте собраны разные нейросети, а новым пользователям доступны 2 бесплатные генерации.'
+    ELSE E'Если ещё не запускали промпт — не откладывайте его в сохранённые.\n\nПервую генерацию сделайте без изменений — так вы увидите исходный результат.\n\nВо второй замените только героя или свой продукт. Так сразу будет видно, как формула работает под вашу задачу.'
+  END,
+  button_text = CASE legacy.copy_number
+    WHEN 1 THEN 'Протестировать — 2 генерации бесплатно'
+    ELSE 'Использовать 2 бесплатные генерации'
+  END,
+  delay_minutes = CASE legacy.copy_number WHEN 1 THEN 0 ELSE 180 END,
+  is_active = legacy.copy_number <= 2,
+  attachment_type = CASE legacy.copy_number WHEN 1 THEN step.attachment_type ELSE 'none' END,
+  attachment_path = CASE legacy.copy_number WHEN 1 THEN step.attachment_path ELSE '' END,
+  attachment_name = CASE legacy.copy_number WHEN 1 THEN step.attachment_name ELSE '' END,
+  updated_at = now()
+FROM legacy_prompt_steps legacy
+WHERE step.id = legacy.id;
+
+-- ------------------------------------------------------------------------
+-- 20260821123000_upgrade_prompt_funnel_copy.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The live Nano Banana prompt funnel predates the conversion-focused template.
+  Rewrite only that funnel's copy while deliberately preserving its uploaded
+  PDF and partner-bot URLs.
+*/
+
+UPDATE telegram_funnels
+SET
+  welcome_text = E'Промпты из Reels уже готовы 🎁\n\nВнутри — 10 готовых промптов для Nano Banana Pro с наглядными примерами. Их можно скопировать, заменить детали под свою идею и сразу протестировать.',
+  not_subscribed_text = E'Подпишитесь на канал 👇\n\nЗдесь каждый пост — это готовый результат, точный промпт и короткий разбор настроек. Без новостей и лишней теории.\n\nСразу после подписки бот автоматически отправит PDF. Возвращаться и нажимать «Проверить» не нужно.',
+  subscribe_button_text = 'Подписаться и забрать промпты',
+  check_button_text = '',
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND name ILIKE '10 пром% для сильных AI-визуалов';
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Промпты и бесплатный тест',
+  body = E'Промпты готовы 🎁\n\nВ PDF — 10 готовых формул для изображений и видео.\n\nКак протестировать:\n\n1. Выберите промпт в PDF.\n2. Скопируйте его без сокращений.\n3. Откройте бота по кнопке ниже.\n4. Выберите нейросеть и вставьте промпт.\n\nВ боте собраны основные нейросети, а новым пользователям доступны 2 бесплатные генерации.',
+  button_text = 'Протестировать — 2 генерации бесплатно',
+  delay_minutes = 0,
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 1;
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Две попытки с пользой',
+  body = E'Если ещё не запускали промпт — не откладывайте его в сохранённые.\n\nПервую генерацию сделайте без изменений — так вы увидите исходный результат.\n\nВо второй замените только героя или свой продукт. Так сразу будет видно, как формула работает под вашу задачу.',
+  button_text = 'Использовать 2 бесплатные генерации',
+  delay_minutes = 60,
+  attachment_type = 'none',
+  attachment_path = '',
+  attachment_name = '',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 2;
+
+-- ------------------------------------------------------------------------
+-- 20260821130000_update_prompt_pack_offer.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Make the prompt pack the single offer everywhere.
+
+  The old copy sold two free generations, while the Instagram CTA promised a
+  ready-made pack. Keep the funnel and its captions aligned: the code word is
+  «промпт», and the promised result is a pack that can be adapted to any task.
+*/
+
+UPDATE telegram_funnels
+SET
+  not_subscribed_text = E'Подпишитесь на канал 👇\n\nЗдесь каждый пост — это готовый результат, точный промпт и короткий разбор настроек. Без новостей и лишней теории.\n\nСразу после подписки бот автоматически отправит готовый пак промптов под любые задачи. Возвращаться и нажимать «Проверить» не нужно.',
+  subscribe_button_text = 'Подписаться и забрать пак промптов',
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND name ILIKE '10 пром% для сильных AI-визуалов';
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Готовый пак промптов',
+  body = E'Промпты готовы 🎁\n\nВ PDF — готовый пак промптов под любые задачи: стиль, свет, композиция и детали уже собраны в понятные структуры.\n\nВыберите нужную формулу, скопируйте её целиком и замените детали под свою идею.\n\nПИШИ «промпт» — и я отправлю готовый пак промптов под любые задачи.',
+  button_text = 'Забрать пак промптов',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 1;
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Как адаптировать пак',
+  body = E'Сохраните пак, чтобы не искать слова для нейросети с нуля.\n\nВ каждой формуле уже заданы стиль, свет и композиция — меняйте только героя, продукт или нужные детали под свою задачу.',
+  button_text = 'Использовать готовые промпты',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 2;
+
+-- ------------------------------------------------------------------------
+-- 20260821131500_update_prompt_keyword_copy.sql
+-- ------------------------------------------------------------------------
+
+/* Align the Instagram keyword rule that feeds the prompt Telegram funnel. */
+
+UPDATE lead_magnets magnet
+SET
+  title = 'Готовый пак промптов под любые задачи',
+  description = 'Чёткие структуры промптов для стиля, света и композиции. Напишите «промпт» — и я отправлю готовый пак под вашу задачу.',
+  codeword = 'промпт',
+  keywords = ARRAY['промпт'],
+  reply_text = E'Готово 🎁\n\nПереходите в Telegram — там вас ждёт готовый пак промптов под любые задачи.',
+  direct_reply_variants = ARRAY[E'Готово 🎁\n\nПереходите в Telegram — там вас ждёт готовый пак промптов под любые задачи.'],
+  button_text = 'Забрать пак промптов',
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260821143000_prompt_funnel_site_and_comment_replies.sql
+-- ------------------------------------------------------------------------
+
+/* Send the prompt site from the Telegram funnel and add delivery hints to comments. */
+
+UPDATE telegram_funnels
+SET
+  welcome_text = E'Промпты из Reels уже готовы 🎁\n\nПосле подписки бот отправит ссылку на сайт с 2000+ готовых промптов для любых визуальных задач.',
+  subscribe_button_text = 'Подписаться и открыть 2000+ промптов',
+  attachment_type = 'none',
+  attachment_path = '',
+  attachment_name = '',
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND name ILIKE '10 пром% для сильных AI-визуалов';
+
+UPDATE telegram_funnel_steps step
+SET
+  title = '2000+ готовых промптов',
+  body = E'Промпты готовы 🎁\n\nНа сайте — 2000+ готовых промптов для нейросетей под любые визуальные задачи: стиль, свет, композиция и детали уже собраны в понятные структуры.\n\nОткрывайте каталог, выбирайте нужную формулу и меняйте детали под свою идею.',
+  button_text = 'Открыть 2000+ промптов',
+  button_url = 'https://nanobanana-prompts.netlify.app/',
+  attachment_type = 'none',
+  attachment_path = '',
+  attachment_name = '',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 1;
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Вернуться к промптам',
+  body = E'Сохраните сайт, чтобы не искать слова для нейросети с нуля.\n\nВ каталоге уже собраны 2000+ формул для стиля, света и композиции — меняйте только героя, продукт или нужные детали под свою задачу.',
+  button_text = 'Вернуться к промптам',
+  button_url = 'https://nanobanana-prompts.netlify.app/',
+  attachment_type = 'none',
+  attachment_path = '',
+  attachment_name = '',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 2;
+
+UPDATE lead_magnets magnet
+SET
+  public_reply_variants = ARRAY[
+    'Отправил в Direct! Проверяйте сообщения 🚀',
+    'Ссылка уже у вас в Direct 🙌',
+    'Материал отправлен в личные сообщения!',
+    'Если сообщение не пришло, проверьте папку «Запросы» в Direct 📩',
+    'Не видите сообщение? Загляните в папку «Запросы» — иногда оно попадает туда 👀',
+    'Проверьте папку «Запросы» в Direct, если сообщение не появилось сразу 🔎'
+  ],
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260821150000_prompt_funnel_partner_bot.sql
+-- ------------------------------------------------------------------------
+
+/* Route the prompt funnel to the partner bot that can test the full pack. */
+
+UPDATE telegram_funnels
+SET
+  welcome_text = E'Промпты из Reels уже готовы 🎁\n\nПосле подписки бот отправит ссылку на партнёрского бота, где можно протестировать все промпты.',
+  subscribe_button_text = 'Подписаться и тестировать промпты',
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND name ILIKE '10 пром% для сильных AI-визуалов';
+
+UPDATE telegram_funnels
+SET
+  not_subscribed_text = E'Подпишитесь на канал 👇\n\nЗдесь каждый пост — это готовый результат, точный промпт и короткий разбор настроек. Без новостей и лишней теории.\n\nСразу после подписки бот автоматически отправит ссылку на партнёрского бота, где можно протестировать все промпты. Возвращаться и нажимать «Проверить» не нужно.',
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND name ILIKE '10 пром% для сильных AI-визуалов';
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Тестировать промпты в боте',
+  body = E'Промпты готовы 🎁\n\nПереходите в партнёрского бота — там можно протестировать все промпты для любых визуальных задач и сразу увидеть результат.',
+  button_text = 'Тестировать промпты в боте',
+  button_url = 'https://t.me/Integer_ai_bot?start=REF00009284',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 1;
+
+UPDATE telegram_funnel_steps step
+SET
+  title = 'Протестировать ещё промпты',
+  body = E'В партнёрском боте можно протестировать все промпты и подобрать формулу под свою визуальную задачу.',
+  button_text = 'Открыть бота',
+  button_url = 'https://t.me/Integer_ai_bot?start=REF00009284',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name ILIKE '10 пром% для сильных AI-визуалов'
+  AND step.position = 2;
+
+-- ------------------------------------------------------------------------
+-- 20260821200000_update_prompt_funnel_pack_count.sql
+-- ------------------------------------------------------------------------
+
+/* Align the live prompt funnel with the current Instagram offer. */
+
+UPDATE telegram_funnels
+SET
+  name = '1000+ готовых промптов для визуала',
+  welcome_text = E'Промпты из Reels уже готовы 🎁\n\nПосле подписки бот отправит ссылку на партнёрского бота, где можно протестировать все 1000+ промптов для визуала.',
+  not_subscribed_text = E'Подпишитесь на канал 👇\n\nЗдесь каждый пост — это готовый результат, точный промпт и короткий разбор настроек. Без новостей и лишней теории.\n\nСразу после подписки бот автоматически отправит ссылку на партнёрского бота, где можно протестировать все 1000+ промптов для визуала. Возвращаться и нажимать «Проверить» не нужно.',
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND (
+    name ILIKE '10 пром%'
+    OR name ILIKE '10 готов%'
+    OR name ILIKE '1000+ пром%'
+  );
+
+UPDATE telegram_funnel_steps step
+SET
+  body = E'Промпты готовы 🎁\n\nПереходите в партнёрского бота — там можно протестировать все 1000+ готовых промптов для любых визуальных задач и сразу увидеть результат.',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name = '1000+ готовых промптов для визуала'
+  AND step.position = 1;
+
+UPDATE telegram_funnel_steps step
+SET
+  body = E'В партнёрском боте можно протестировать все 1000+ промптов и подобрать формулу под свою визуальную задачу.',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND funnel.name = '1000+ готовых промптов для визуала'
+  AND step.position = 2;

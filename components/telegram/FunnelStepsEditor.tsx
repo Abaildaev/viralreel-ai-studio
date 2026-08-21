@@ -58,6 +58,8 @@ const CAPTION_LIMIT = 1024;
 interface FunnelStepsEditorProps {
   steps: StepDraft[];
   onChange: (steps: StepDraft[]) => void;
+  /** The subscription card already exposes step one’s promised material. */
+  hideFirstAttachment?: boolean;
 }
 
 /**
@@ -67,7 +69,11 @@ interface FunnelStepsEditorProps {
  * rarely and read carefully, and a drag target that is one pixel off silently
  * reorders someone's lessons.
  */
-const FunnelStepsEditor: React.FC<FunnelStepsEditorProps> = ({ steps, onChange }) => {
+const FunnelStepsEditor: React.FC<FunnelStepsEditorProps> = ({
+  steps,
+  onChange,
+  hideFirstAttachment = false,
+}) => {
   const update = (key: string, patch: Partial<StepDraft>) =>
     onChange(steps.map((step) => (step.key === key ? { ...step, ...patch } : step)));
 
@@ -243,36 +249,47 @@ const FunnelStepsEditor: React.FC<FunnelStepsEditorProps> = ({ steps, onChange }
                 )}
               </Field>
 
-              <Field label="Вложение">
-                {({ id }) => (
-                  <AttachmentPicker
-                    id={id}
-                    value={step}
-                    onChange={(attachment) => update(step.key, attachment)}
-                    hint={
-                      step.body.length > CAPTION_LIMIT
-                        ? `Текст длиннее ${CAPTION_LIMIT} символов — файл придёт первым сообщением, текст с кнопкой следом.`
-                        : undefined
-                    }
-                  />
-                )}
-              </Field>
+              {!(hideFirstAttachment && index === 0) && (
+                <Field label={index === 0 ? 'Материал после подписки' : 'Вложение'}>
+                  {({ id }) => (
+                    <AttachmentPicker
+                      id={id}
+                      value={step}
+                      onChange={(attachment) => update(step.key, attachment)}
+                      hint={
+                        step.body.length > CAPTION_LIMIT
+                          ? `Текст длиннее ${CAPTION_LIMIT} символов — файл придёт первым сообщением, текст с кнопкой следом.`
+                          : undefined
+                      }
+                    />
+                  )}
+                </Field>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Текст кнопки">
+                <Field
+                  label="Текст кнопки"
+                  required={Boolean(step.button_url.trim())}
+                >
                   {({ id }) => (
                     <Input
                       id={id}
+                      required={Boolean(step.button_url.trim())}
                       value={step.button_text}
                       onChange={(event) => update(step.key, { button_text: event.target.value })}
                     />
                   )}
                 </Field>
-                <Field label="Ссылка кнопки">
+                <Field
+                  label="Ссылка кнопки"
+                  required={Boolean(step.button_text.trim())}
+                  hint={step.button_text.trim() ? 'Без ссылки Telegram не покажет кнопку.' : undefined}
+                >
                   {({ id }) => (
                     <Input
                       id={id}
                       type="url"
+                      required={Boolean(step.button_text.trim())}
                       placeholder="https://"
                       value={step.button_url}
                       onChange={(event) => update(step.key, { button_url: event.target.value })}

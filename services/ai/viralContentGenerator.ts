@@ -377,3 +377,440 @@ export const generateViralContentFromFrames = async (
   const topic = [visualHint, context.trim()].filter(Boolean).join('\n');
   return generateViralHooks(topic, variationCount, tone, ctaType, leadMagnet);
 };
+
+export interface CtaOutroCaptionRequest {
+  action: string;
+  keyword: string;
+  /** Kept for the visual outro; Reels captions use the dedicated short CTA below. */
+  subtitle?: string;
+  /** Handle or brand tag that leads the hashtag line, with or without '#'. */
+  brandTag?: string;
+  /** The concrete prompt pack delivered by the matching automation funnel. */
+  topic?: string;
+  count: number;
+}
+
+/** The Reels caption offer is intentionally separate from the Telegram funnel offer. */
+export const REELS_PROMPT_PACK_OFFER =
+  'пак из 1000+ готовых промптов для визуала';
+
+/** The bottom line on every rendered CTA card is fixed by the offer. */
+export const CTA_OUTRO_SUBTITLE = 'и получи 1000+ готовых промптов для визуала';
+
+const REELS_FORBIDDEN_OFFER_PATTERNS = [
+  /(?:^|[^\p{L}\p{N}_])2\s+(?:бесплатн\w*\s+)?генерац/iu,
+  /две\s+генерац/iu,
+  /бесплатн\w*\s+генерац/iu,
+  /протестируй\w*\s+бесплат/iu,
+];
+
+function normalizeCaptionKeyword(value: string): string {
+  return value
+    .replace(/[«»"'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim() || 'промпт';
+}
+
+export function buildReelsCaptionCta(keyword: string): string {
+  return `ПИШИ «${normalizeCaptionKeyword(keyword)}» — и получи ${REELS_PROMPT_PACK_OFFER}.`;
+}
+
+/*
+  The visual outro has one fixed offer, but the caption should not look like
+  one copied template across a batch. These rewrites keep the trigger word and
+  the promise intact while changing the call to action naturally.
+*/
+const REELS_CAPTION_CTA_VARIANTS = [
+  (keyword: string) => `ПИШИ «${keyword}» — и получи ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Напиши «${keyword}» — отправлю ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Хочешь ${REELS_PROMPT_PACK_OFFER}? Пиши «${keyword}».`,
+  (keyword: string) => `Оставь «${keyword}» — пришлю ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Пиши «${keyword}» в комментариях — забирай ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Нужны промпты для визуала? Напиши «${keyword}» — отправлю пак из 1000+.`,
+  (keyword: string) => `Напиши «${keyword}» и получи пак: 1000+ готовых промптов для визуала.`,
+  (keyword: string) => `Чтобы забрать 1000+ готовых промптов для визуала, напиши «${keyword}».`,
+  (keyword: string) => `Пиши кодовое слово «${keyword}» — вышлю пак из 1000+ промптов для визуала.`,
+  (keyword: string) => `Готовый пак из 1000+ промптов для визуала — по слову «${keyword}».`,
+  (keyword: string) => `Оставь кодовое слово «${keyword}», и я отправлю 1000+ промптов для визуала.`,
+  (keyword: string) => `Хочешь готовую базу для визуала? Пиши «${keyword}» — внутри 1000+ промптов.`,
+];
+
+export function buildReelsCaptionCtaVariant(keyword: string, index = 0): string {
+  const normalizedKeyword = normalizeCaptionKeyword(keyword);
+  return REELS_CAPTION_CTA_VARIANTS[
+    Math.abs(index) % REELS_CAPTION_CTA_VARIANTS.length
+  ](normalizedKeyword);
+}
+
+function hasReelsCaptionCta(line: string, keyword: string): boolean {
+  const normalizedLine = line.toLowerCase().replace(/ё/g, 'е');
+  const normalizedKeyword = normalizeCaptionKeyword(keyword).toLowerCase().replace(/ё/g, 'е');
+  return normalizedLine.includes(normalizedKeyword)
+    && /1000\s*\+/u.test(normalizedLine)
+    && normalizedLine.includes('промпт')
+    && normalizedLine.includes('визуал')
+    && !REELS_FORBIDDEN_OFFER_PATTERNS.some((pattern) => pattern.test(normalizedLine));
+}
+
+function normalizeReelsCaptionCtaLine(line: string, keyword: string, index: number): string {
+  const normalized = line.replace(/\s+/g, ' ').trim();
+  return hasReelsCaptionCta(normalized, keyword)
+    ? normalized
+    : buildReelsCaptionCtaVariant(keyword, index);
+}
+
+export interface CtaOutroCopyRequest {
+  keyword: string;
+  offer?: string;
+  count: number;
+}
+
+export interface CtaOutroCopyVariant {
+  actionText: string;
+  subtitleText: string;
+}
+
+const CTA_OUTRO_HOOKS = [
+  'Сделай так же',
+  'Не трать лимиты',
+  'Повтори этот результат',
+  'Забери готовую формулу',
+  'Создавай без угадываний',
+  'Попробуй этот подход',
+  'Сохрани время на тестах',
+  'Начни с готовой базы',
+  'Усиль свои генерации',
+  'Получи точный результат',
+  'Не начинай с нуля',
+  'Собери свой AI-ролик',
+  'Возьми рабочую структуру',
+  'Повтори этот визуал',
+  'Создавай увереннее',
+  'Управляй результатом',
+];
+
+const CTA_OUTRO_BENEFITS = [
+  CTA_OUTRO_SUBTITLE,
+];
+
+function stripCtaWriteWords(value: string): string {
+  return value
+    .replace(/[\n\r]+/g, ' ')
+    .replace(/[«»"'`]/g, '')
+    // JavaScript's `\b` is ASCII-oriented and does not reliably recognise
+    // Cyrillic word boundaries. Match the surrounding non-letter characters
+    // explicitly so an AI answer that already contains «ПИШИ» does not become
+    // «ПИШИ — ПИШИ» after normalisation.
+    .replace(/(^|[^\p{L}\p{N}_])(?:на)?пиши(?=$|[^\p{L}\p{N}_])/giu, '$1')
+    .replace(/^[\s—–:,-]+/g, '')
+    .replace(/[\s—–:,-]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function normalizeCtaOutroAction(value: string): string {
+  const hook = stripCtaWriteWords(value)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 5)
+    .join(' ');
+  return `${hook || 'Забери готовое'} — ПИШИ`;
+}
+
+function normalizeCaptionCtaAction(value: string): string {
+  const clean = value.replace(/[\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const hasWriteWord = /(^|[^\p{L}\p{N}_])(?:на)?пиши(?=$|[^\p{L}\p{N}_])/iu.test(clean);
+  if (!hasWriteWord) return clean || 'Пиши';
+  const hook = stripCtaWriteWords(clean);
+  return hook ? `${hook} — Пиши` : 'Пиши';
+}
+
+function buildCtaOutroCopyFallback(count: number): CtaOutroCopyVariant[] {
+  const total = Math.max(1, Math.min(20, Math.round(count || 1)));
+  const combinations = CTA_OUTRO_HOOKS.flatMap((hook, hookIndex) =>
+    CTA_OUTRO_BENEFITS.map((subtitle, subtitleIndex) => ({
+      actionText: normalizeCtaOutroAction(hook),
+      subtitleText: subtitle,
+      score: hookIndex * 7 + subtitleIndex * 11,
+    })),
+  ).sort((a, b) => a.score - b.score);
+  const start = Math.floor(Math.random() * combinations.length);
+  return Array.from({ length: total }, (_, index) => {
+    const item = combinations[(start + index * 13) % combinations.length];
+    return { actionText: item.actionText, subtitleText: item.subtitleText };
+  });
+}
+
+/**
+ * Creates the two variable lines used by the batch CTA card. The centre line
+ * is the preset's code word, while every top line is forced to contain ПИШИ.
+ */
+export const generateCtaOutroCopyVariants = async (
+  request: CtaOutroCopyRequest,
+): Promise<CtaOutroCopyVariant[]> => {
+  const total = Math.max(1, Math.min(20, Math.round(request.count || 1)));
+  const fallback = buildCtaOutroCopyFallback(total);
+  const keyword = request.keyword.trim() || 'ПРОМПТ';
+
+  try {
+    const client = getClient();
+    const prompt = `
+Ты создаёшь короткие CTA-концовки для Instagram Reels про готовые AI-промпты.
+Подготовь ровно ${total} заметно разных пар текста.
+
+На карточке всегда три строки:
+1) actionText — короткий заход и обязательное слово «ПИШИ»;
+2) кодовое слово «${keyword}» — его возвращать не нужно;
+3) subtitleText — всегда ровно «${CTA_OUTRO_SUBTITLE}».
+
+ПРАВИЛА:
+- actionText: 2–6 слов, обязательно заканчивается словом «ПИШИ», до него допустимо тире;
+- subtitleText: не меняй, всегда используй ровно «${CTA_OUTRO_SUBTITLE}»;
+- меняй только actionText: экономия времени, понятная структура, готовая база, управление стилем, светом и композицией;
+- не пиши «КОММЕНТАРИЙ», «напиши», «оставь», хэштеги, кавычки и эмодзи;
+- не обещай доход, просмотры или гарантированный результат;
+- пары не должны повторять начало или выгоду друг друга.
+
+Верни только JSON:
+{"variants":[{"actionText":"Сделай так же — ПИШИ","subtitleText":"${CTA_OUTRO_SUBTITLE}"}]}
+`;
+    const response = await client.chat.completions.create({
+      model: MODEL_ID,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 1,
+      response_format: { type: 'json_object' },
+      extra_body: NO_THINKING,
+    } as any);
+
+    const text = response.choices?.[0]?.message?.content || '';
+    const parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    const rawVariants: unknown = parsed?.variants;
+    if (!Array.isArray(rawVariants)) return fallback;
+
+    const seen = new Set<string>();
+    const usable = rawVariants.flatMap((item, index) => {
+      if (!item || typeof item !== 'object') return [];
+      const raw = item as Record<string, unknown>;
+      if (typeof raw.actionText !== 'string' || typeof raw.subtitleText !== 'string') return [];
+      const actionText = normalizeCtaOutroAction(raw.actionText);
+      const subtitleText = CTA_OUTRO_SUBTITLE;
+      const key = `${actionText}|${subtitleText}`.toLowerCase().replace(/ё/g, 'е');
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ actionText, subtitleText }];
+    });
+
+    return Array.from({ length: total }, (_, index) => usable[index] || fallback[index]);
+  } catch (error) {
+    console.warn('AI CTA copy unavailable, using varied built-in lines', error);
+    return fallback;
+  }
+};
+
+const DEFAULT_PROMPT_PACK_OFFER = 'готовый пак промптов под любые задачи';
+
+/* Hashtag sets rotate so a batch of ten posts is not ten identical captions.
+   Instagram treats a repeated caption across uploads as the same content. */
+const OUTRO_TAG_SETS = [
+  ['aivideo', 'art', 'contentcreation', 'digitalart'],
+  ['aiart', 'reels', 'prompts', 'creative'],
+  ['contentcreator', 'aitools', 'viral', 'aivisuals'],
+  ['promptengineering', 'digitalart', 'reelsinstagram', 'futureart'],
+  ['aicontent', 'creative', 'trending', 'generativeart'],
+];
+
+/*
+  These are deliberately composable. Twenty visual angles × ten details give
+  the local fallback 200 distinct openings, so uniqueness does not disappear
+  when a user asks for a batch of 100 or the AI key is unavailable.
+*/
+const OUTRO_VISUAL_ANGLES = [
+  'Хочешь создавать такие AI-визуалы без часов проб и случайных генераций',
+  'Такой результат начинается с промпта, в котором уже продуманы ключевые детали',
+  'Красивый AI-ролик — это не удача, а правильно собранный промпт',
+  'Если нейросеть выдаёт случайный результат, чаще всего ей просто не хватает точной задачи',
+  'Один сильный промпт способен превратить простую идею в готовую визуальную сцену',
+  'Чтобы повторить такой эффект, не нужно начинать формулировку с нуля',
+  'Самая долгая часть AI-генерации — найти слова, которые модель поймёт правильно',
+  'Так выглядит результат, когда в промпте совпали герой, свет, материал и движение',
+  'Готовая структура промпта экономит десятки бессмысленных генераций',
+  'Нейросеть может дать сильный кадр с первой попытки, если точно поставить задачу',
+  'Промпт решает больше, чем выбор случайного визуального пресета',
+  'Вместо бесконечных тестов можно взять готовую формулу и адаптировать её под себя',
+  'Каждый такой кадр начинается с понятной структуры, а не с набора красивых слов',
+  'Сильный промпт помогает управлять атмосферой, камерой и деталями сцены',
+  'Если хочется похожий результат, важнее всего знать, что именно написать нейросети',
+  'Один готовый промпт может стать основой сразу для целой серии Reels',
+  'Создавать AI-контент становится проще, когда перед глазами есть рабочие примеры',
+  'Необязательно разбираться во всех настройках, если у тебя есть проверенная формулировка',
+  'Правильный промпт сокращает путь от идеи до готового ролика',
+  'Лучшие AI-визуалы начинаются с текста, который легко повторить и адаптировать',
+];
+
+const OUTRO_VISUAL_DETAILS = [
+  'Я собрал рабочие формулировки в один пак — останется выбрать нужную и заменить детали под свою идею',
+  'Внутри — готовые основы, которые можно копировать, адаптировать и сразу тестировать в своих генерациях',
+  'Пак поможет быстрее получать управляемый результат и меньше тратить лимиты на неудачные попытки',
+  'Ты получишь готовые примеры для разных образов, материалов, света и движения камеры',
+  'Каждый промпт можно использовать как шаблон и собирать на его основе собственные сцены',
+  'С ними проще перейти от случайных картинок к цельным AI-видео для контента',
+  'Я уже собрал структуру и детали — тебе не придётся придумывать всё с чистого листа',
+  'Это готовая база для новых Reels, визуальных экспериментов и идей для контента',
+  'Возьми формулировки за основу и меняй только героя, стиль или окружение',
+  'Так ты быстрее поймёшь логику сильного промпта и сможешь создавать свои варианты',
+];
+
+const OUTRO_VISUAL_NOTES = [
+  'Сохрани формулу как основу и меняй только героя, материал или окружение — так серия кадров останется в одном стиле',
+  'Для нового варианта достаточно заменить одну деталь: цвет, ракурс, фактуру или настроение',
+  'Чем точнее описаны свет и материал, тем проще повторить визуальный эффект в другой сцене',
+  'Такую структуру удобно адаптировать под обложку, продуктовый кадр или короткий AI-Reel',
+  'Начни с готовой формулы, а потом добавь свои детали — это быстрее, чем собирать запрос из случайных слов',
+  'Удачный промпт можно сохранить как шаблон и использовать для разных героев и сюжетов',
+  'Меняй по одной детали за раз — так легче понять, что именно повлияло на результат',
+  'Эта логика работает и для портрета, и для предметной сцены, и для визуала под контент',
+  'Сначала задай стиль и свет, затем добавь героя и действие — нейросети проще читать такую структуру',
+  'Готовая основа особенно полезна, когда нужно быстро собрать несколько визуалов в одной подаче',
+];
+
+const normalizeTag = (value: string): string =>
+  '#' + value.trim().replace(/^#+/, '').replace(/\s+/g, '');
+
+/**
+ * The caption keeps the CTA and code word, but adds a unique visual opening.
+ * That makes the offline fallback useful too — it is not ten copies of the
+ * same line when the DeepSeek key is missing or the response is incomplete.
+ */
+export const buildCtaOutroCaption = (
+  request: CtaOutroCaptionRequest,
+  index: number,
+): string => {
+  const keyword = normalizeCaptionKeyword(request.keyword);
+  const angle = OUTRO_VISUAL_ANGLES[index % OUTRO_VISUAL_ANGLES.length];
+  const detail = OUTRO_VISUAL_DETAILS[
+    Math.floor(index / OUTRO_VISUAL_ANGLES.length) % OUTRO_VISUAL_DETAILS.length
+  ];
+  const note = OUTRO_VISUAL_NOTES[
+    Math.floor(index / (OUTRO_VISUAL_ANGLES.length * OUTRO_VISUAL_DETAILS.length)) % OUTRO_VISUAL_NOTES.length
+  ];
+
+  const ctaLine = buildReelsCaptionCtaVariant(keyword, index);
+
+  const tags = [
+    request.brandTag?.trim() ? normalizeTag(request.brandTag) : '',
+    ...OUTRO_TAG_SETS[index % OUTRO_TAG_SETS.length].map((t) => normalizeTag(t)),
+  ].filter(Boolean);
+
+  return `${angle}.\n${detail}.\n${note}.\n${ctaLine}\n${tags.join(' ')}`;
+};
+
+/**
+ * The model writes a scene-specific opening, then the fixed CTA and hashtags.
+ * The response is de-duplicated locally because an LLM can still repeat a
+ * phrase in a large batch even when the prompt says not to.
+ */
+export const generateCtaOutroCaptions = async (
+  request: CtaOutroCaptionRequest,
+): Promise<string[]> => {
+  const fallback = Array.from({ length: request.count }, (_, i) =>
+    buildCtaOutroCaption(request, i),
+  );
+
+  try {
+    const client = getClient();
+    const example = buildCtaOutroCaption(request, 0);
+    const keyword = normalizeCaptionKeyword(request.keyword);
+
+    const prompt = `
+Ты direct-response копирайтер для Instagram. Напиши ровно ${request.count} продающих описаний к Reels, в которых показывают готовые AI-промпты и результаты их применения.
+
+КОНТЕКСТ ВОРОНКИ (не копируй его оффер дословно в описание Reels):
+${request.topic?.trim() || DEFAULT_PROMPT_PACK_OFFER}
+
+ЦЕЛЬ КАЖДОГО ОПИСАНИЯ:
+Заинтересовать результатом, показать пользу готовых промптов и коротко привести человека к кодовому слову.
+
+ФОРМАТ КАЖДОГО ОПИСАНИЯ — РОВНО ПЯТЬ СТРОК:
+1) продающий hook про результат, который дают хорошие AI-промпты;
+2) конкретная польза пака промптов без пустых обещаний;
+3) короткая практическая мысль о том, как адаптировать промпт или повторить визуальный приём;
+4) короткий CTA с тем же смыслом, но живой формулировкой: кодовое слово «${keyword}», пак из 1000+ готовых промптов для визуала;
+5) строка из 4–6 хэштегов через пробел.
+
+ПРИМЕР:
+${example}
+
+ПРАВИЛА:
+- Первые три строки вместе не длиннее 480 символов; они должны звучать как живой полезный Instagram-текст, а не как рекламный шаблон.
+- Кодовое слово '${request.keyword}' обязательно в четвёртой строке; можно использовать кавычки или естественную фразу «напиши кодовое слово».
+- В четвёртой строке обязательно сохрани 1000+, слова «промпт» и «визуал», но каждый вариант формулируй по-разному: «получи», «забери», «отправлю», «пришлю», «оставь слово» и т.д.
+- Не используй одну и ту же CTA-формулировку во всех вариантах и не копируй дословно пример.
+- Каждый вариант должен быть уникальным: не повторяй начало, метафору, практический совет или связку слов.
+- Меняй продающий угол между вариантами: экономия времени, меньше неудачных генераций, готовая структура, лёгкая адаптация, идеи для контента, управление стилем, светом и камерой.
+- Не выдумывай цифры, гарантии, бренды и состав пака, кроме фиксированного оффера «1000+ готовых промптов», который должен быть в CTA.
+- В описании Reels запрещены «2 генерации», «две генерации», «бесплатные генерации», «протестируй бесплатно» и любые похожие формулировки — это отдельный оффер воронки.
+- Пиши естественно и конкретно, без слов «вариант», «ролик номер», «контекст серии» и технических описаний монтажа.
+- Третья строка должна быть короткой и содержать только призыв с кодовым словом и фиксированный оффер из правила выше.
+- Хэштеги разные в каждом варианте, без повторов внутри одного варианта.${
+      request.brandTag ? `\n- Первым хэштегом всегда ${normalizeTag(request.brandTag)}.` : ''
+    }${request.topic ? `\n- Тема ролика: ${request.topic}.` : ''}
+
+Верни JSON: { "captions": ["строка1\\nстрока2\\nстрока3\\nстрока4", ...] }
+`;
+
+    const response = await client.chat.completions.create({
+      model: MODEL_ID,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.9,
+      response_format: { type: 'json_object' },
+      extra_body: NO_THINKING,
+    } as any);
+
+    const text = response.choices?.[0]?.message?.content || '';
+    const parsed = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+    const captions: unknown = parsed?.captions;
+    if (!Array.isArray(captions)) return fallback;
+
+    const usable = captions
+      .filter((c): c is string => typeof c === 'string')
+      .map((c) => c.replace(/\r\n?/g, '\n').trim())
+      .filter((c) => {
+        const lines = c.split('\n').map((line) => line.trim()).filter(Boolean);
+        const normalized = c.toLowerCase().replace(/ё/g, 'е');
+        return lines.length >= 5
+          && hasReelsCaptionCta(lines[3] || '', keyword)
+          && lines[4]?.includes('#')
+          && !REELS_FORBIDDEN_OFFER_PATTERNS.some((pattern) => pattern.test(normalized))
+          && c.length < 600;
+      });
+
+    const seenCaptions = new Set<string>();
+    const seenOpenings = new Set<string>();
+    const normalizeForComparison = (value: string) =>
+      value.toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+
+    return fallback.map((built, i) => {
+      const candidate = usable[i];
+      if (candidate) {
+        const lines = candidate.split('\n').map((line) => line.trim()).filter(Boolean);
+        lines[3] = normalizeReelsCaptionCtaLine(lines[3] || '', keyword, i);
+        const normalizedCandidate = lines.join('\n');
+        const captionKey = normalizeForComparison(normalizedCandidate);
+        const openingKey = normalizeForComparison(lines.slice(0, 3).join(' '));
+        if (!seenCaptions.has(captionKey) && !seenOpenings.has(openingKey)) {
+          seenCaptions.add(captionKey);
+          seenOpenings.add(openingKey);
+          return normalizedCandidate;
+        }
+      }
+
+      const fallbackLines = built.split('\n').map((line) => line.trim()).filter(Boolean);
+      seenCaptions.add(normalizeForComparison(built));
+      seenOpenings.add(normalizeForComparison(fallbackLines.slice(0, 3).join(' ')));
+      return built;
+    });
+  } catch (err) {
+    console.warn('AI captions unavailable, using the built-in pattern', err);
+    return fallback;
+  }
+};

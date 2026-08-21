@@ -40,8 +40,8 @@ describe('parseView', () => {
 
   it('resolves every section the sidebar offers', () => {
     for (const view of [
-      'generator', 'automations', 'telegram', 'scheduler', 'budget',
-      'aishowcase', 'templates', 'batch', 'history', 'audio', 'accounts', 'settings',
+      'studio', 'generator', 'automations', 'telegram', 'scheduler', 'budget',
+      'aishowcase', 'outro', 'templates', 'batch', 'history', 'audio', 'accounts', 'settings',
     ]) {
       expect(parseView(`#/${view}`)).toBe(view);
     }

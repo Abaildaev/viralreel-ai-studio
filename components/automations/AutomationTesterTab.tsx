@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { LeadMagnet, InstagramAccount } from '../../types';
 import { BeakerIcon, SparklesIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 import AppSelect from '../ui/AppSelect';
@@ -31,6 +31,21 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
   const [testText, setTestText] = useState('');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
+
+  /*
+    Accounts arrive after the tester's first render. AppSelect can display its
+    first option as a visual fallback, but its controlled value is still an
+    empty string until we explicitly select it here. Keep a valid manual
+    selection and fall back to the first available account when the list is
+    loaded or the selected account disappears.
+  */
+  useEffect(() => {
+    setSelectedAccountId((current) =>
+      accounts.some((account) => account.id === current)
+        ? current
+        : (accounts[0]?.id ?? '')
+    );
+  }, [accounts]);
 
   const evaluateTrigger = (text: string, triggerType: 'comment' | 'dm') => {
     const trimmed = text.trim();

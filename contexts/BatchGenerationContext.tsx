@@ -32,6 +32,7 @@ export const BatchGenerationProvider: React.FC<{ children: React.ReactNode }> = 
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<BatchProgress | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const generationIdRef = useRef(0);
 
   const startGeneration = useCallback(
     async (
@@ -43,9 +44,11 @@ export const BatchGenerationProvider: React.FC<{ children: React.ReactNode }> = 
     ) => {
       if (running) return;
 
+      const generationId = ++generationIdRef.current;
+      const controller = new AbortController();
       setRunning(true);
       setProgress(null);
-      abortRef.current = new AbortController();
+      abortRef.current = controller;
 
       try {
         await runBatchGeneration(
@@ -54,20 +57,35 @@ export const BatchGenerationProvider: React.FC<{ children: React.ReactNode }> = 
           templates,
           audioFiles,
           leadMagnets,
-          (p) => setProgress(p),
-          abortRef.current.signal,
+          (p) => {
+            if (generationIdRef.current === generationId) setProgress(p);
+          },
+          controller.signal,
         );
       } catch (e: any) {
-        console.error(e);
+        if (e?.name !== 'AbortError') console.error(e);
       } finally {
-        setRunning(false);
+        if (generationIdRef.current === generationId) {
+          abortRef.current = null;
+          setRunning(false);
+        }
       }
     },
     [running],
   );
 
   const stopGeneration = useCallback(() => {
-    abortRef.current?.abort();
+    const controller = abortRef.current;
+    if (!controller) return;
+    controller.abort();
+    abortRef.current = null;
+    generationIdRef.current += 1;
+    setRunning(false);
+    setProgress((current) => current ? {
+      ...current,
+      currentPreset: 'Остановлено',
+      currentStep: 'Генерация остановлена. Можно запустить заново.',
+    } : null);
   }, []);
 
   return (

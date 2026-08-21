@@ -12,11 +12,24 @@
 const RENDER_FONTS_HREF =
   'https://fonts.googleapis.com/css2?' +
   [
-    'family=Inter:wght@400;500;600;700',
+    'family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400',
     'family=Roboto:wght@300;400;500;700',
     'family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900',
     'family=M+PLUS+1p:wght@100;300;400;500;700',
     'family=Noto+Serif:ital,wght@0,400;0,700;1,400;1,700',
+    'family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900',
+    'family=Prata',
+    'family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,600',
+    'family=Unbounded:wght@400;600;700;800',
+    'family=Manrope:wght@400;500;600;700;800',
+    'family=Pacifico',
+    'family=Style+Script',
+    'family=Parisienne',
+    'family=Marck+Script',
+    'family=Bad+Script',
+    'family=Dancing+Script:wght@400;700',
+    'family=Great+Vibes',
+    'family=Caveat:wght@400;700',
   ].join('&') +
   '&display=swap';
 
@@ -34,7 +47,8 @@ const LINK_ID = 'reel-render-fonts';
   purpose: it resolves to a local family and has nothing to download.
 */
 const FACES_TO_LOAD: string[] = [
-  ...['400', '500', '600', '700'].map((w) => `${w} 40px "Inter"`),
+  ...['300', '400', '500', '600', '700'].map((w) => `${w} 40px "Inter"`),
+  ...['300', '400'].map((w) => `italic ${w} 40px "Inter"`),
   ...['300', '400', '500', '700'].map((w) => `${w} 40px "Roboto"`),
   ...['300', '400', '700', '900'].flatMap((w) => [
     `${w} 40px "Merriweather"`,
@@ -45,7 +59,34 @@ const FACES_TO_LOAD: string[] = [
     `${w} 40px "Noto Serif"`,
     `italic ${w} 40px "Noto Serif"`,
   ]),
+  ...['400', '700'].flatMap((w) => [
+    `${w} 40px "Playfair Display"`,
+    `italic ${w} 40px "Playfair Display"`,
+  ]),
+  '400 40px "Prata"',
+  ...['400', '600', '700'].map((w) => `${w} 40px "Cormorant Garamond"`),
+  ...['400', '600', '700', '800'].map((w) => `${w} 40px "Unbounded"`),
+  ...['400', '500', '700', '800'].map((w) => `${w} 40px "Manrope"`),
+  '400 40px "Pacifico"',
+  '400 40px "Style Script"',
+  '400 40px "Parisienne"',
+  '400 40px "Marck Script"',
+  '400 40px "Bad Script"',
+  '400 40px "Dancing Script"',
+  '700 40px "Dancing Script"',
+  '400 40px "Great Vibes"',
+  '700 40px "Caveat"',
 ];
+
+/*
+  Google serves each family as several @font-face rules split by
+  unicode-range, and `document.fonts.load(font)` only fetches the subsets its
+  sample text needs — the default sample is "BESbswy", pure latin. A canvas
+  drawing Russian text then lands on a fallback family while the cyrillic
+  subset is still unrequested. The sample below spans both scripts so every
+  subset a reel might use is downloaded before the render starts.
+*/
+const LOAD_SAMPLE = 'Пример текста BESbswy 0123';
 
 let loadPromise: Promise<void> | null = null;
 
@@ -85,7 +126,9 @@ export function ensureRenderFontsLoaded(): Promise<void> {
   loadPromise = attachStylesheet()
     .then(() =>
       Promise.all(
-        FACES_TO_LOAD.map((face) => document.fonts.load(face).catch(() => undefined)),
+        FACES_TO_LOAD.map((face) =>
+          document.fonts.load(face, LOAD_SAMPLE).catch(() => undefined),
+        ),
       ),
     )
     .then(() => undefined);

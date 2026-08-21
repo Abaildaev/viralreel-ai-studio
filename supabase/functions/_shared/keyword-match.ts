@@ -152,9 +152,53 @@ export function buildReplyText(leadMagnet: LeadMagnetRow): string {
   return truncateUtf8(selected, 640);
 }
 
-export function buildDirectMessage(leadMagnet: LeadMagnetRow, replyText = buildReplyText(leadMagnet)): Record<string, unknown> {
+const TELEGRAM_HOSTS = new Set(["t.me", "www.t.me", "telegram.me", "www.telegram.me"]);
+
+/**
+ * Carries the Instagram automation event through the Telegram deep link.
+ *
+ * The bot accepts `<slug>_<event uuid>`, but rules intentionally store only
+ * the stable `<slug>` URL. Appending the id while the Direct message is built
+ * gives every click its own attribution without rewriting the saved rule.
+ */
+export function withAutomationEventId(rawUrl: string, eventId?: string): string {
+  const value = rawUrl.trim();
+  if (!value || !eventId) return value;
+
+  try {
+    const url = new URL(value);
+    if (!TELEGRAM_HOSTS.has(url.hostname.toLowerCase())) return value;
+
+    const start = url.searchParams.get("start")?.trim();
+    if (!start) return value;
+
+    /* The editor no longer writes the placeholder form, but rules saved when
+       it did are still out there, and leaving `{{event_id}}` in a start
+       payload would break the link outright — Telegram accepts nothing but
+       letters, digits, `_` and `-` after `?start=`. */
+    const withoutPlaceholder = start.replace(/_\{\{event_id\}\}$/i, "");
+
+    /* Deliberately the same loose shape `parseStartPayload` accepts on the
+       other side. A stricter test here would append a second id to a payload
+       the bot already considers tracked. */
+    const alreadyTracked = /_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      .test(withoutPlaceholder);
+    if (alreadyTracked) return value;
+
+    url.searchParams.set("start", `${withoutPlaceholder}_${eventId}`);
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+export function buildDirectMessage(
+  leadMagnet: LeadMagnetRow,
+  replyText = buildReplyText(leadMagnet),
+  automationEventId?: string,
+): Record<string, unknown> {
   const text = replyText;
-  const url = leadMagnet.response_url.trim();
+  const url = withAutomationEventId(leadMagnet.response_url, automationEventId);
   if (!url) return { text };
 
   return {

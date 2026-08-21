@@ -21,6 +21,7 @@ import {
   Switch,
 } from '../components/ui';
 import TimezonePicker from '../components/TimezonePicker';
+import { getClient, MODEL_ID, NO_THINKING } from '../services/ai/deepseekClient';
 
 type TestResult = { success: boolean; message: string } | null;
 
@@ -152,25 +153,12 @@ const SettingsPage: React.FC = () => {
     setDeepseekTestResult(null);
 
     try {
-      const response = await fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${deepseekApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-v4-flash',
-          messages: [{ role: 'user', content: 'Ответь одним словом: работает' }],
-          max_tokens: 10,
-        }),
+      const data = await getClient().chat.completions.create({
+        model: MODEL_ID,
+        messages: [{ role: 'user', content: 'Ответь одним словом: работает' }],
+        max_tokens: 50,
+        extra_body: NO_THINKING,
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData?.error?.message || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
       const answer = data.choices?.[0]?.message?.content?.trim() || '';
       setDeepseekTestResult({ success: true, message: `Ключ работает! Ответ: «${answer}»` });
     } catch (error: any) {
@@ -274,7 +262,9 @@ const SettingsPage: React.FC = () => {
             </div>
 
             {hasStoredDeepseekKey && !deepseekKeyDirty && (
-              <Callout tone="success">Ключ защищённо сохранён и доступен ИИ-продавцу в Direct.</Callout>
+              <Callout tone="success">
+                Ключ защищённо сохранён и доступен автогенератору и ИИ-продавцу.
+              </Callout>
             )}
 
             {deepseekApiKey && !hasStoredDeepseekKey && (
@@ -293,7 +283,7 @@ const SettingsPage: React.FC = () => {
               fullWidth
               onClick={handleTestDeepseek}
               loading={testingDeepseek}
-              disabled={!deepseekApiKey}
+              disabled={!deepseekApiKey && !hasStoredDeepseekKey}
             >
               {testingDeepseek ? 'Проверяю ключ…' : 'Проверить ключ DeepSeek'}
             </Button>

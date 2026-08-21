@@ -23,11 +23,13 @@ import {
   callTelegram,
 } from "../_shared/telegram-api.ts";
 import { parseStartPayload } from "../_shared/start-payload.ts";
+import { planSubscriberStart } from "../_shared/subscriber-state.ts";
 import { clearBotFault, reportBotFault } from "../_shared/bot-health.ts";
 import { advanceSequence } from "../_shared/step-sender.ts";
 import {
   type AttachmentColumns,
   ATTACHMENT_COLUMNS,
+  type SignedAttachment,
   signRowAttachment,
 } from "../_shared/attachment.ts";
 
@@ -168,19 +170,28 @@ async function deliver(
   await advanceSequence(supabase, botToken, subscriber, funnel.id, 0);
 }
 
-/** Asks for the subscription and leaves a button to re-check it. */
+/**
+ * Asks for the subscription. Channel updates unlock the material automatically.
+ *
+ * Carries the funnel's picture when no greeting went out ahead of it, because
+ * then this is the first thing the reader sees and a funnel that opens on a
+ * wall of text converts worse than one that opens on the thing being promised.
+ * Copy inside Telegram's 1024-character caption stays a single captioned
+ * message, button included; `sendMessage` splits anything longer on its own.
+ */
 async function promptForSubscription(
   botToken: string,
   bot: BotRow,
   funnel: FunnelRow,
   chatId: number,
   text: string,
+  attachment: SignedAttachment | null = null,
 ): Promise<void> {
   await sendMessage(botToken, {
     chatId,
     text,
     buttons: [{ text: funnel.subscribe_button_text, url: channelUrl(bot) }],
-    callbackButton: { text: funnel.check_button_text, data: `check:${funnel.id}` },
+    attachment,
   });
 }
 
@@ -209,7 +220,7 @@ async function handleStart(
   */
   const { data: existing } = await supabase
     .from("telegram_subscribers")
-    .select("id,delivered_at,automation_event_id,funnel_id,source,instagram_sender_igsid")
+    .select("id,automation_event_id,funnel_id")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
@@ -219,16 +230,9 @@ async function handleStart(
   if (existing) {
     subscriberId = existing.id as string;
 
-    /*
-      Attribution is adopted only when there is none yet, and then all of it at
-      once. Someone who first arrived on a bare link and later returns through
-      a tracked one is an Instagram lead we simply had not identified — so the
-      event, the Instagram id and the source all move together. Filling in only
-      the event id, as this did before, left an attributed subscriber that the
-      "from Instagram" segment still refused to count.
-    */
-    const adopting = !existing.automation_event_id && Boolean(attribution.eventId);
-
+    /* Which funnel they are in moves to the one they just opened; where they
+       came from stays with the campaign that earned them. See the module for
+       why those two pull in opposite directions. */
     await supabase
       .from("telegram_subscribers")
       .update({
@@ -238,14 +242,7 @@ async function handleStart(
         unsubscribed_at: null,
         last_message_at: now,
         updated_at: now,
-        funnel_id: existing.funnel_id ?? funnel.id,
-        ...(adopting
-          ? {
-            automation_event_id: attribution.eventId,
-            instagram_sender_igsid: attribution.senderIgsid,
-            source: "instagram",
-          }
-          : {}),
+        ...planSubscriberStart(existing, funnel.id, attribution),
       })
       .eq("id", subscriberId);
   } else {
@@ -278,38 +275,56 @@ async function handleStart(
     telegram_bot_id: bot.id,
   };
 
-  /* The greeting may now carry a file — often the photo of the thing being
-     promised, which is worth showing before the subscription gate has a
-     chance to lose the reader. A file with no words is a valid greeting. */
-  const welcomeAttachment = await signRowAttachment(supabase, funnel);
-  if (funnel.welcome_text.trim() || welcomeAttachment) {
-    await sendMessage(botToken, {
-      chatId,
-      text: funnel.welcome_text,
-      attachment: welcomeAttachment,
-    });
-  }
-
   const gated = funnel.require_subscription && Boolean(bot.channel_id) && Boolean(channelUrl(bot));
-  if (!gated) {
-    await deliver(supabase, botToken, funnel, subscriber);
-    return;
-  }
-
-  const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
 
   /*
+    Membership is settled before a single word goes out, because the answer
+    decides which message carries the funnel's picture. Checking it later, as
+    this once did, forced the greeting to be sent blind — and a funnel whose
+    greeting is empty then had nowhere to put the picture at all.
+
     A fault here means nobody is getting through, not that this person declined
     to subscribe. Tell the owner, then still show the prompt — if the rights
     come back the reader's own button will work without them starting over.
   */
-  if (membership.fault) {
-    await reportBotFault(supabase, bot, `Не удалось проверить подписку на канал: ${membership.fault}`);
-  } else {
-    await clearBotFault(supabase, bot.id);
+  let subscribed = true;
+
+  if (gated) {
+    const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
+
+    if (membership.fault) {
+      await reportBotFault(supabase, bot, `Не удалось проверить подписку на канал: ${membership.fault}`);
+    } else {
+      await clearBotFault(supabase, bot.id);
+    }
+
+    subscribed = membership.subscribed;
   }
 
-  if (membership.subscribed) {
+  const gateComing = gated && !subscribed;
+
+  /*
+    The funnel's file rides on the first message the reader sees — usually the
+    photo of the thing being promised, which is worth showing before the gate
+    has a chance to lose them. That is the greeting when there is one, and the
+    subscription request when there is not: an author who folded both into a
+    single opening message should not lose the picture for it.
+
+    Only when neither will carry it does the file need a message of its own; a
+    file with no words is a valid greeting.
+  */
+  const attachment = await signRowAttachment(supabase, funnel);
+  const greeting = funnel.welcome_text.trim();
+
+  if (greeting || (attachment && !gateComing)) {
+    await sendMessage(botToken, {
+      chatId,
+      text: funnel.welcome_text,
+      attachment,
+    });
+  }
+
+  if (!gateComing) {
     await deliver(supabase, botToken, funnel, subscriber);
     return;
   }
@@ -321,6 +336,7 @@ async function handleStart(
     chatId,
     funnel.not_subscribed_text.trim() ||
       "Подпишитесь на канал, и я сразу пришлю материал 👇",
+    greeting ? null : attachment,
   );
 }
 
@@ -342,7 +358,7 @@ async function handleSubscriptionCheck(
 
   const { data: subscriber } = await supabase
     .from("telegram_subscribers")
-    .select("id,delivered_at,telegram_user_id,telegram_bot_id")
+    .select("id,telegram_user_id,telegram_bot_id")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
@@ -369,20 +385,22 @@ async function handleSubscriptionCheck(
     await sendMessage(botToken, {
       chatId,
       text: (funnel as FunnelRow).not_subscribed_text.trim() ||
-        "Пока не вижу подписки. Подпишитесь и нажмите кнопку ещё раз 🙌",
+        "Пока не вижу подписки. Подпишитесь на канал — материал придёт автоматически 🙌",
       buttons: [{ text: (funnel as FunnelRow).subscribe_button_text, url: channelUrl(bot) }],
-      callbackButton: { text: (funnel as FunnelRow).check_button_text, data: `check:${funnelId}` },
     });
     return;
   }
 
   /*
-    Tapping the button twice must not restart the course. The delivery table's
-    unique constraint would catch a duplicate step anyway, but returning early
-    keeps the second tap from re-running the whole plan.
-  */
-  if (subscriber.delivered_at) return;
+    Tapping the button twice must not restart the course, and it does not: a
+    step is claimed through a unique constraint before it is sent, so a second
+    run finds every step taken and sends nothing.
 
+    Returning early on `delivered_at` used to save that second run, at the cost
+    of the case this gate exists for — a reader who already finished one funnel
+    and has just opened another. For them `delivered_at` is long set, and the
+    early return meant the second lead magnet never arrived at all.
+  */
   await deliver(supabase, botToken, funnel as FunnelRow, {
     id: subscriber.id as string,
     telegram_user_id: subscriber.telegram_user_id as string,
@@ -405,12 +423,15 @@ async function handleChannelJoin(
 ): Promise<void> {
   const { data: subscriber } = await supabase
     .from("telegram_subscribers")
-    .select("id,funnel_id,delivered_at,telegram_user_id,telegram_bot_id")
+    .select("id,funnel_id,telegram_user_id,telegram_bot_id")
     .eq("telegram_bot_id", bot.id)
     .eq("telegram_user_id", String(from.id))
     .maybeSingle();
 
-  if (!subscriber || subscriber.delivered_at || !subscriber.funnel_id) return;
+  /* No `delivered_at` check here either: the funnel column now names the
+     course they most recently opened, and the delivery claims stop anything
+     they have already had from going out twice. */
+  if (!subscriber || !subscriber.funnel_id) return;
 
   const { data: funnel } = await supabase
     .from("telegram_funnels")

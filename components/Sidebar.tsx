@@ -45,23 +45,26 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'generator', label: 'Генератор Reels', icon: <HomeIcon className="h-5 w-5" />, iconActive: <HomeSolid className="h-5 w-5" /> },
+  { id: 'studio', label: 'Студия Reels', icon: <HomeIcon className="h-5 w-5" />, iconActive: <HomeSolid className="h-5 w-5" /> },
   { id: 'automations', label: 'Автоматизации & CRM', icon: <SparklesIcon className="h-5 w-5" />, iconActive: <SparklesSolid className="h-5 w-5" /> },
   { id: 'telegram', label: 'Telegram', icon: <PaperAirplaneIcon className="h-5 w-5" />, iconActive: <PaperAirplaneSolid className="h-5 w-5" /> },
   { id: 'scheduler', label: 'Планировщик постов', icon: <CalendarDaysIcon className="h-5 w-5" />, iconActive: <CalendarSolid className="h-5 w-5" /> },
-  { id: 'budget', label: 'Бюджет Reels', icon: <CurrencyDollarIcon className="h-5 w-5" />, iconActive: <CurrencyDollarSolid className="h-5 w-5" /> },
-  { id: 'aishowcase', label: 'AI Showcase', icon: <ChatBubbleLeftRightIcon className="h-5 w-5" />, iconActive: <ChatBubbleLeftRightSolid className="h-5 w-5" /> },
   { id: 'templates', label: 'Шаблоны и подложки', icon: <FilmIcon className="h-5 w-5" />, iconActive: <FilmSolid className="h-5 w-5" /> },
+  { id: 'audio', label: 'Аудио-треки', icon: <MusicalNoteIcon className="h-5 w-5" />, iconActive: <MusicalNoteSolid className="h-5 w-5" /> },
   { id: 'batch', label: 'Автогенератор', icon: <BoltIcon className="h-5 w-5" />, iconActive: <BoltSolid className="h-5 w-5" /> },
   { id: 'history', label: 'История генераций', icon: <ClockIcon className="h-5 w-5" />, iconActive: <ClockSolid className="h-5 w-5" /> },
-  { id: 'audio', label: 'Аудио-треки', icon: <MusicalNoteIcon className="h-5 w-5" />, iconActive: <MusicalNoteSolid className="h-5 w-5" /> },
   { id: 'accounts', label: 'Аккаунты Instagram', icon: <UserGroupIcon className="h-5 w-5" />, iconActive: <UserGroupSolid className="h-5 w-5" /> },
   { id: 'settings', label: 'Настройки', icon: <Cog6ToothIcon className="h-5 w-5" />, iconActive: <Cog6ToothSolid className="h-5 w-5" /> },
 ];
 
+export const isStudioView = (view: AppView): boolean =>
+  ['studio', 'generator', 'aishowcase', 'budget', 'outro'].includes(view);
+
 /** The mobile top bar has no room for the rail, so it names the open section instead. */
-export const viewTitle = (view: AppView): string =>
-  NAV_ITEMS.find((item) => item.id === view)?.label ?? 'ViralReel';
+export const viewTitle = (view: AppView): string => {
+  if (isStudioView(view)) return 'Студия Reels';
+  return NAV_ITEMS.find((item) => item.id === view)?.label ?? 'ViralReel';
+};
 
 interface SidebarProps {
   currentView: AppView;
@@ -188,7 +191,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 pb-3">
           {NAV_ITEMS.map((item) => {
-            const isActive = currentView === item.id;
+            const isActive = item.id === 'studio' ? isStudioView(currentView) : currentView === item.id;
             return (
               <button
                 key={item.id}

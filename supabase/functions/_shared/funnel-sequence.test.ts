@@ -43,6 +43,26 @@ describe('orderedSteps', () => {
     orderedSteps(steps);
     expect(steps.map((s) => s.position)).toEqual([2, 1]);
   });
+
+  it('sends an accidentally duplicated message only once', () => {
+    const duplicate = step(2, 0, {
+      body: 'Вот PDF с промптами',
+      button_text: 'Протестировать',
+      button_url: 'https://t.me/example_bot',
+      attachment_type: 'document',
+      attachment_path: 'user/prompts.pdf',
+    });
+    const original = { ...duplicate, id: 'step-1', position: 1 };
+
+    expect(orderedSteps([original, duplicate]).map((s) => s.id)).toEqual(['step-1']);
+  });
+
+  it('keeps the same copy when it is deliberately scheduled for later', () => {
+    const first = step(1, 0, { body: 'Напоминание' });
+    const later = step(2, 180, { body: 'Напоминание' });
+
+    expect(orderedSteps([first, later])).toHaveLength(2);
+  });
 });
 
 describe('planSequence', () => {

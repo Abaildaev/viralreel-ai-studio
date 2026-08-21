@@ -14,6 +14,7 @@ export default defineConfig({
     include: [
       'supabase/functions/_shared/**/*.test.ts',
       'hooks/**/*.test.ts',
+      'services/**/*.test.ts',
       'utils/**/*.test.ts',
     ],
     environment: 'node',

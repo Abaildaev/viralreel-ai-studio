@@ -17,12 +17,14 @@ import { AppView } from '../types';
 */
 
 const VIEWS: AppView[] = [
+  'studio',
   'generator',
   'automations',
   'telegram',
   'scheduler',
   'budget',
   'aishowcase',
+  'outro',
   'templates',
   'batch',
   'history',

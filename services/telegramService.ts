@@ -304,13 +304,29 @@ export function funnelDeepLink(botUsername: string, slug: string): string {
   return `https://t.me/${botUsername.replace(/^@/, '')}?start=${slug}`;
 }
 
-/**
- * The same link with the attribution placeholder the Instagram webhook fills
- * in. Shown in the UI so it is obvious the two halves are one journey.
- */
-export function funnelTrackedLink(botUsername: string, slug: string): string {
-  const base = funnelDeepLink(botUsername, slug);
-  return base ? `${base}_{{event_id}}` : '';
+/*
+  Reads a deep link back.
+
+  The mirror of `parseStartPayload` on the Deno side, and it has to stay one:
+  the editor uses it to tell an author that the link in their Instagram rule
+  names a funnel that no longer exists — which the bot itself answers by
+  quietly falling back to the default funnel, so nothing downstream would ever
+  report the mistake.
+*/
+export function funnelSlugFromLink(url: string): string {
+  try {
+    const parsed = new URL(url.trim());
+    if (!/^(www\.)?(t|telegram)\.me$/i.test(parsed.hostname)) return '';
+
+    const start = parsed.searchParams.get('start')?.trim() ?? '';
+    if (!start) return '';
+
+    // Everything before the first underscore; the rest is the event id.
+    const separator = start.indexOf('_');
+    return (separator === -1 ? start : start.slice(0, separator)).toLowerCase();
+  } catch {
+    return '';
+  }
 }
 
 /** Slugs are the deep-link separator's other half, so they cannot contain `_`. */

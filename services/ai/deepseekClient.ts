@@ -7,6 +7,7 @@ export type ChatCompletionRequest = {
   model: string;
   messages: ChatMessage[];
   temperature?: number;
+  max_tokens?: number;
   response_format?: { type: 'json_object' | 'text' };
   extra_body?: Record<string, unknown>;
 };
@@ -25,18 +26,17 @@ let client: DeepSeekClient | null = null;
 let currentApiKey: string | null = null;
 
 export function getClient(): DeepSeekClient {
-  const userApiKey = typeof window !== 'undefined'
+  const browserAvailable = typeof window !== 'undefined';
+  const userApiKey = browserAvailable
     ? localStorage.getItem('deepseek_api_key')
     : null;
-  // The frontend only accepts the user's own BYOK key. Never read a server
-  // secret from a Vite bundle or browser runtime.
-  const apiKey = userApiKey || '';
-
-  if (!apiKey) {
-    throw new Error('API ключ DeepSeek не найден. Добавьте его в настройках (иконка шестеренки).');
+  const apiKey = userApiKey?.trim() || '';
+  if (!browserAvailable && !apiKey) {
+    throw new Error('API ключ DeepSeek недоступен.');
   }
+  const credentialSource = apiKey || 'server-credential';
 
-  if (!client || currentApiKey !== apiKey) {
+  if (!client || currentApiKey !== credentialSource) {
     client = {
       chat: {
         completions: {
@@ -45,13 +45,29 @@ export function getClient(): DeepSeekClient {
             // This lightweight fetch client must merge those fields into the
             // actual DeepSeek request body itself.
             const { extra_body, ...requestBody } = request;
+            const payload = { ...requestBody, ...extra_body };
+
+            if (!apiKey) {
+              const { data, error } = await supabase.functions.invoke('deepseek-credential', {
+                body: { action: 'complete', request: payload },
+              });
+              if (error || data?.error) {
+                throw new Error(
+                  data?.error
+                    || error?.message
+                    || 'Защищённый ключ DeepSeek недоступен.',
+                );
+              }
+              return data;
+            }
+
             const response = await fetch('https://api.deepseek.com/chat/completions', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${apiKey}`,
               },
-              body: JSON.stringify({ ...requestBody, ...extra_body }),
+              body: JSON.stringify(payload),
             });
 
             const data = await response.json().catch(() => null);
@@ -63,7 +79,7 @@ export function getClient(): DeepSeekClient {
         },
       },
     };
-    currentApiKey = apiKey;
+    currentApiKey = credentialSource;
   }
 
   return client;
@@ -71,3 +87,4 @@ export function getClient(): DeepSeekClient {
 
 export const MODEL_ID = 'deepseek-v4-pro';
 export const NO_THINKING = { thinking: { type: 'disabled' } };
+import { supabase } from '../../lib/supabase';

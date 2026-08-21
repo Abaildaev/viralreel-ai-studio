@@ -24,6 +24,9 @@ export interface FunnelStep {
   /** Wait before this step, counted from the previous one. */
   delay_minutes: number;
   is_active: boolean;
+  /** Optional here because only steps with files carry these columns. */
+  attachment_type?: string;
+  attachment_path?: string;
 }
 
 /*
@@ -44,10 +47,34 @@ export interface SequencePlan<T extends FunnelStep = FunnelStep> {
 
 /** Active steps in send order. Inactive ones are skipped, not renumbered. */
 export function orderedSteps<T extends FunnelStep>(steps: T[]): T[] {
-  return steps
+  const ordered = steps
     .filter((step) => step.is_active)
     .slice()
     .sort((left, right) => left.position - right.position);
+
+  /*
+    A duplicated editor row used to send the same PDF twice, especially when
+    the automatic channel-join delivery and the old manual check button met an
+    already duplicated sequence. The delivery table prevents one row from
+    being sent twice; this second guard prevents two indistinguishable rows
+    from becoming two messages. A later reminder with a different delay, or
+    the same words on a different file, remains a legitimate separate step.
+  */
+  const seen = new Set<string>();
+  return ordered.filter((step) => {
+    const fingerprint = [
+      step.body.trim(),
+      step.button_text.trim(),
+      step.button_url.trim(),
+      String(step.delay_minutes),
+      step.attachment_type?.trim() ?? '',
+      step.attachment_path?.trim() ?? '',
+    ].join('\u0000');
+
+    if (seen.has(fingerprint)) return false;
+    seen.add(fingerprint);
+    return true;
+  });
 }
 
 /**

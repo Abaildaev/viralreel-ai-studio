@@ -124,10 +124,24 @@ export interface TextStylePreset {
   carouselBaitPosY: number;
   bankAmount?: string;
   textRotation?: number;
-  presetType?: 'standard' | 'ai_showcase';
+  presetType?: 'standard' | 'ai_showcase' | 'cta_outro';
   aiModel?: AiModelType;
   uniquifierEnabled?: boolean;
   uniquifierIntensity?: 'low' | 'medium' | 'high';
+  /** The one source Reel used for every variation in this preset. */
+  sourceTemplateId?: string;
+  /** Append the configured comment-to-DM card after every batch Reel. */
+  ctaOutroEnabled?: boolean;
+  ctaOutroPresetId?: 'editorial-grid-blue' | 'modern-violet' | 'custom';
+  /** Private object in the `templates` bucket used as the CTA card background. */
+  ctaOutroBackgroundPath?: string;
+  ctaOutroBackgroundName?: string;
+  /** One library track reserved for the CTA segment, separate from Reel music. */
+  ctaOutroAudioFileId?: string | null;
+  ctaOutroKeyword?: string;
+  ctaOutroOffer?: string;
+  ctaOutroDurationSec?: number;
+  ctaOutroSoundVolume?: number;
 }
 
 export interface BatchPreset {

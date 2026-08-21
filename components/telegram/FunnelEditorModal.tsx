@@ -12,35 +12,79 @@ import TelegramChatPreview, { type PreviewMessage } from './TelegramChatPreview'
 import FunnelStepsEditor, { newStep, type StepDraft } from './FunnelStepsEditor';
 import { formatDelay, orderedSteps } from '../../supabase/functions/_shared/funnel-sequence';
 
+const PROMPT_PARTNER_BOT_URL = 'https://t.me/Integer_ai_bot?start=REF00009284';
+const PROMPT_CATALOGUE_URL = 'https://nanobanana-prompts.netlify.app/';
+
+/*
+  A greeting and then a separate "please subscribe" is two bubbles saying the
+  same thing before the reader has been given anything. So a new funnel starts
+  with no greeting at all: the gate carries the whole opening pitch, and the
+  webhook sends nothing where the greeting would have been.
+*/
 export const blankFunnel = (botId: string): FunnelDraft => ({
   id: null,
   telegram_bot_id: botId,
   lead_magnet_id: null,
   name: '',
   slug: '',
-  welcome_text: 'Привет! 👋 Спасибо, что заглянули — сейчас всё отправлю.',
+  welcome_text: '',
   require_subscription: true,
-  subscribe_button_text: 'Подписаться на канал',
-  check_button_text: 'Я подписался',
-  not_subscribed_text: 'Остался один шаг: подпишитесь на канал, и я сразу пришлю материал 👇',
+  subscribe_button_text: 'Подписаться и забрать промпты',
+  // Kept for backward compatibility with old Telegram messages. New gates are
+  // automatic and no longer render a manual check button.
+  check_button_text: '',
+  not_subscribed_text: 'Промпты из Reels — забирайте 🎁\n\nНейросеть выдаёт слабую картинку не потому, что она плохая. Просто ей не сказали, какой нужен свет, ракурс, фактура и стиль. Всё это и есть промпт — и придумывать его самому больше не нужно.\n\nЯ открываю вам доступ к каталогу из 1000+ готовых промптов. Портрет, предметная съёмка, реклама, интерьеры, фоны — под каждую задачу уже собрана рабочая формула. Копируете, меняете героя или продукт под себя и получаете результат с первой попытки, а не с двадцатой.\n\nУсловие одно: подпишитесь на канал 👇\n\nКак только подпишетесь, бот сам пришлёт каталог.',
   is_active: true,
   is_default: false,
   ...NO_ATTACHMENT,
 });
 
-/** What a brand-new funnel sends: the material, then one follow-up ask. */
+/*
+  What a brand-new funnel sends: the promised material, then — with no delay,
+  so both land while the reader is still in the chat — where to put it to use.
+  Zero-delay steps go out in one pass, which is why the second needs no timer.
+
+  Then three nudges over two days. Handing over the material is easy; getting
+  someone to actually use it is the hard half, and it does not happen on the
+  first evening. Each nudge comes from a different angle — friction, then
+  usefulness, then a plain last call — because the same angle three times reads
+  as nagging and gets the bot blocked.
+*/
 export const defaultSteps = (): StepDraft[] => [
   {
     ...newStep(1, 0),
-    title: 'Выдача материала',
-    body: 'Готово! Забирайте материал по кнопке ниже 🎁',
-    button_text: 'Забрать материал',
+    title: 'Каталог 1000+ промптов',
+    body: 'Готово — каталог ваш 🎁\n\nВнутри 1000+ промптов, разложенных по задачам: портрет, предметная съёмка, реклама, интерьер, фон, свет и стиль. В каждой формуле уже прописаны те детали, из-за которых обычно и получается «не то».\n\nКак пользоваться:\n\n1. Выберите категорию под свою задачу.\n2. Скопируйте промпт целиком, без сокращений.\n3. Замените только героя, продукт или деталь — остальное уже настроено за вас.\n\nСохраните ссылку в закладки. Это не разовый файл: каталог будет под рукой каждый раз, когда нужна картинка, и начинать с чистого листа вам больше не придётся.',
+    button_text: 'Открыть 1000+ промптов',
+    button_url: PROMPT_CATALOGUE_URL,
   },
   {
-    ...newStep(2, 1440),
-    title: 'Целевое действие',
-    body: 'Как вам материал? Кстати, такие Reels можно собирать автоматически — покажу, если интересно.',
-    button_text: 'Открыть сервис',
+    ...newStep(2, 0),
+    title: 'Где запускать промпты',
+    body: 'И ещё кое-что 👇\n\nПромпт сам по себе картинку не нарисует — его нужно где-то запустить. Чтобы вам не регистрироваться в пяти сервисах и не платить за каждый отдельно, вот бот, где основные нейросети для изображений и видео собраны в одном месте.\n\nИ 2 генерации в нём — бесплатно, в подарок от меня. Ровно столько, чтобы проверить промпт из каталога и увидеть результат своими глазами.\n\nСделайте прямо сейчас, пока не отложилось:\n\nПервую генерацию запустите промптом как есть — увидите, каким должен быть результат. Во второй замените героя на свой продукт. На этой паре сразу видно, как формула работает под вашу задачу.',
+    button_text: 'Забрать 2 генерации бесплатно',
+    button_url: PROMPT_PARTNER_BOT_URL,
+  },
+  {
+    ...newStep(3, 180),
+    title: 'Дожим 1 · две минуты',
+    body: 'Загляните на минуту 👀\n\nЕсли каталог ушёл в закладки — это нормально, так делают почти все. И почти все потом к нему не возвращаются.\n\nПоэтому давайте сейчас, пока помните. Не «изучить каталог», а один промпт: откройте бота, вставьте первый попавшийся, нажмите отправить. Две минуты.\n\nПервая картинка — это момент, после которого промпты перестают быть теорией. Пока её нет, каталог остаётся просто ссылкой.',
+    button_text: 'Вставить промпт в бота',
+    button_url: PROMPT_PARTNER_BOT_URL,
+  },
+  {
+    ...newStep(4, 1260),
+    title: 'Дожим 2 · одна деталь за раз',
+    body: 'Небольшая хитрость 🧠\n\nОдин промпт из каталога — это не одна картинка. Это десяток, если менять в нём по одной детали за раз.\n\nВозьмите любую формулу и попробуйте так:\n\n1. Запустите как есть.\n2. Поменяйте только фон — та же сцена окажется в другом месте.\n3. Поменяйте только свет — «утро» вместо «студии».\n4. Поменяйте героя на свой продукт.\n\nКаждый раз меняйте одну вещь. За пару минут станет понятно, какая часть промпта за что отвечает, — и дальше вы будете собирать свои формулы сами, уже без инструкции.\n\nПодарочные генерации на месте, если вы их ещё не тратили.',
+    button_text: 'Попробовать в боте',
+    button_url: PROMPT_PARTNER_BOT_URL,
+  },
+  {
+    ...newStep(5, 1440),
+    title: 'Дожим 3 · последнее напоминание',
+    body: 'Последнее напоминание, и я отстану 🙌\n\nДва дня назад вы забрали каталог. Дальше есть два варианта.\n\nПервый: ссылка так и лежит в закладках, а визуал вы делаете как раньше — или не делаете вовсе.\n\nВторой: вы тратите десять минут, прогоняете два-три промпта и оставляете себе рабочий инструмент, к которому будете возвращаться каждый раз, когда нужна картинка.\n\nВся разница — один клик по кнопке ниже. Подарочные генерации ждут там же.',
+    button_text: 'Открыть бота',
+    button_url: PROMPT_PARTNER_BOT_URL,
   },
 ];
 
@@ -88,29 +132,40 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
     const channelUrl = bot.channel_invite_url ||
       (bot.channel_username ? `https://t.me/${bot.channel_username.replace(/^@/, '')}` : '');
 
-    const list: PreviewMessage[] = [
-      {
+    const list: PreviewMessage[] = [];
+
+    /*
+      Both choices here mirror `handleStart` in the telegram-bot function, and
+      have to keep mirroring it: an empty greeting with no file is not a blank
+      message but no message at all, and the funnel's picture rides on whichever
+      message the reader actually sees first. Preview either one differently and
+      the author designs a conversation the bot will not hold.
+    */
+    const file = {
+      attachment_type: form.attachment_type,
+      attachment_path: form.attachment_path,
+      attachment_name: form.attachment_name,
+    };
+    const hasFile = form.attachment_type !== 'none' && Boolean(form.attachment_path);
+    const greeting = form.welcome_text.trim();
+
+    if (greeting || (hasFile && !gated)) {
+      list.push({
         id: 'welcome',
-        step: 'Шаг 1 · Приветствие',
+        step: `Шаг ${list.length + 1} · Приветствие`,
         text: form.welcome_text,
-        attachment: {
-          attachment_type: form.attachment_type,
-          attachment_path: form.attachment_path,
-          attachment_name: form.attachment_name,
-        },
-      },
-    ];
+        attachment: file,
+      });
+    }
 
     if (gated) {
       list.push({
         id: 'gate',
-        step: 'Шаг 2 · Просьба подписаться',
+        step: `Шаг ${list.length + 1} · Просьба подписаться`,
         conditional: true,
         text: form.not_subscribed_text,
-        buttons: [
-          { text: form.subscribe_button_text, url: channelUrl },
-          { text: form.check_button_text, callback: true },
-        ],
+        buttons: [{ text: form.subscribe_button_text, url: channelUrl }],
+        attachment: greeting ? undefined : file,
       });
     }
 
@@ -119,7 +174,7 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
       kept but dimmed rather than hidden — an author toggling a lesson off wants
       to see the hole it leaves, not have it silently vanish from the preview.
     */
-    const offset = gated ? 2 : 1;
+    const offset = list.length;
     const active = new Set(orderedSteps(
       steps.map((step) => ({ ...step, id: step.id ?? step.key })),
     ).map((step) => step.id));
@@ -286,11 +341,13 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
               )}
             </Field>
 
-            <Field label="Приветствие" required>
+            <Field
+              label="Приветствие"
+              hint="Можно оставить пустым — тогда первым сообщением будет сразу просьба подписаться"
+            >
               {({ id }) => (
                 <Textarea
                   id={id}
-                  required
                   rows={3}
                   value={form.welcome_text}
                   onChange={(event) => set('welcome_text', event.target.value)}
@@ -299,8 +356,8 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
             </Field>
 
             <Field
-              label="Вложение к приветствию"
-              hint="Придёт до просьбы подписаться — часто это фото того, что вы обещали"
+              label="Изображение первого сообщения"
+              hint="Сядет на приветствие, а если приветствие пустое — на просьбу подписаться. Часто это фото того, что вы обещали"
             >
               {({ id }) => (
                 <AttachmentPicker
@@ -338,37 +395,51 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
                     )}
                   </Field>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Кнопка на канал">
-                      {({ id }) => (
-                        <Input
-                          id={id}
-                          value={form.subscribe_button_text}
-                          onChange={(event) => set('subscribe_button_text', event.target.value)}
-                        />
-                      )}
-                    </Field>
-                    <Field label="Кнопка проверки">
-                      {({ id }) => (
-                        <Input
-                          id={id}
-                          value={form.check_button_text}
-                          onChange={(event) => set('check_button_text', event.target.value)}
-                        />
-                      )}
-                    </Field>
-                  </div>
+                  <Field label="Кнопка на канал">
+                    {({ id }) => (
+                      <Input
+                        id={id}
+                        value={form.subscribe_button_text}
+                        onChange={(event) => set('subscribe_button_text', event.target.value)}
+                      />
+                    )}
+                  </Field>
 
                   <p className="text-2xs leading-relaxed text-gray-500">
-                    Кнопку можно и не нажимать: бот замечает вступление в канал сам и отправляет
-                    материал в тот же момент.
+                    После вступления бот сам увидит подписку и сразу отправит материал. Отдельная
+                    кнопка проверки подписчику не нужна.
                   </p>
+
+                  <Field
+                    label="Материал после подписки"
+                    hint="Файл прикрепится к первому сообщению в разделе «Что бот отправит» и уйдёт сразу после подтверждения подписки."
+                  >
+                    {({ id }) => steps[0] ? (
+                      <AttachmentPicker
+                        id={id}
+                        value={steps[0]}
+                        onChange={(attachment) => setSteps((current) => (
+                          current.map((step, index) => (
+                            index === 0 ? { ...step, ...attachment } : step
+                          ))
+                        ))}
+                      />
+                    ) : (
+                      <Callout tone="info">
+                        Сначала добавьте первый шаг выдачи материала ниже.
+                      </Callout>
+                    )}
+                  </Field>
                 </div>
               )}
             </div>
 
             <div className="rounded-xl border border-gray-200 p-4">
-              <FunnelStepsEditor steps={steps} onChange={setSteps} />
+              <FunnelStepsEditor
+                steps={steps}
+                onChange={setSteps}
+                hideFirstAttachment={form.require_subscription}
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">

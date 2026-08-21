@@ -56,9 +56,9 @@
     --text-secondary: #646660;
     --text-muted: #92948E;
 
-    --accent: #292B27;
-    --accent-hover: #1B1D1A;
-    --accent-subtle: #F0F0ED;
+    --accent: #3E73F5;
+    --accent-hover: #1E60FF;
+    --accent-subtle: #EFF4FF;
   }
 
   body {
@@ -293,4 +293,78 @@
     overflow-x: auto;
     overscroll-behavior-x: contain;
   }
+}
+
+/* Telegram is a workflow page, not an admin table. Give its copy a calmer,
+   more readable scale without changing the compact rhythm of the rest of the
+   product. The page wrapper keeps this adjustment local to the Telegram tab. */
+.telegram-page .text-2xs {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+.telegram-page .text-xs {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.telegram-page .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.telegram-page .label {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.telegram-page .field {
+  min-height: 2.75rem;
+  padding: 0.6875rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.telegram-page h2,
+.telegram-page h3,
+.telegram-page h2.text-sm,
+.telegram-page h3.text-sm {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.telegram-page .badge {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+/* CRM has the same dense legacy controls as the original Telegram screen.
+   Keep the readability improvement local so dashboards elsewhere retain their
+   compact data-table scale. */
+.crm-page .text-2xs {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+.crm-page .text-xs,
+.crm-page .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.crm-page .label {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+.crm-page .field {
+  min-height: 2.75rem;
+  padding: 0.6875rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+}
+.crm-page h2,
+.crm-page h3,
+.crm-page h2.text-sm,
+.crm-page h3.text-sm {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+.crm-page [class*="text-[10px]"],
+.crm-page [class*="text-[11px]"] {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
 }

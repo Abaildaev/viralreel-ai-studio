@@ -28,7 +28,7 @@ import { Button, PageHeader, PageShell, SkeletonList } from '../components/ui';
 
 const BatchGeneratorPage: React.FC = () => {
   const { user } = useAuth();
-  const { accounts } = useAccount();
+  const { accounts, selectedAccount } = useAccount();
   const { confirm } = useConfirm();
   const { running, progress, startGeneration, stopGeneration } = useBatchGeneration();
   const [presets, setPresets] = useState<BatchPreset[]>([]);
@@ -66,14 +66,16 @@ const BatchGeneratorPage: React.FC = () => {
     if (!user) return;
 
     if (editingPreset) {
-      await supabase
+      const { error } = await supabase
         .from('batch_presets')
         .update({ ...data, updated_at: new Date().toISOString() })
         .eq('id', editingPreset.id);
+      if (error) throw error;
     } else {
-      await supabase
+      const { error } = await supabase
         .from('batch_presets')
         .insert({ ...data, user_id: user.id });
+      if (error) throw error;
     }
 
     setShowModal(false);
@@ -90,7 +92,13 @@ const BatchGeneratorPage: React.FC = () => {
       icon: 'trash',
     });
     if (!ok) return;
-    await supabase.from('batch_presets').delete().eq('id', id);
+    const deletedPreset = presets.find((item) => item.id === id);
+    const { error } = await supabase.from('batch_presets').delete().eq('id', id);
+    if (error) return;
+    const backgroundPath = deletedPreset?.text_style?.ctaOutroBackgroundPath;
+    if (backgroundPath) {
+      await supabase.storage.from('templates').remove([backgroundPath]);
+    }
     await loadAll();
   };
 
@@ -121,6 +129,11 @@ const BatchGeneratorPage: React.FC = () => {
 
   const getAccountTemplateCount = (accountId: string | null) => {
     return templates.filter(t => t.is_active && t.instagram_account_id === accountId).length;
+  };
+
+  const getPresetSourceName = (preset: BatchPreset) => {
+    if (!preset.text_style?.sourceTemplateId) return '';
+    return templates.find((template) => template.id === preset.text_style.sourceTemplateId)?.name || 'Недоступен';
   };
 
   const audioModeLabel = (mode: string) => {
@@ -196,7 +209,9 @@ const BatchGeneratorPage: React.FC = () => {
         }
       />
 
-      {(running || (progress && progress.overallProgress >= 100)) && progress && (
+      {(running
+        || (progress && progress.overallProgress >= 100)
+        || progress?.currentPreset === 'Остановлено') && progress && (
         <div className="card mb-6 p-5 sm:p-6">
           <div className="flex items-center justify-between mb-3">
             <div>
@@ -293,6 +308,11 @@ const BatchGeneratorPage: React.FC = () => {
                         ✨ AI Showcase
                       </span>
                     )}
+                    {preset.text_style?.ctaOutroEnabled && (
+                      <span className="flex items-center gap-1 rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700">
+                        CTA · {preset.text_style.ctaOutroKeyword || 'ПРОМПТ'}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-1.5 mb-3">
@@ -309,7 +329,9 @@ const BatchGeneratorPage: React.FC = () => {
                   <div className="flex items-center gap-4 text-xs text-gray-500">
                     <span className={`flex items-center gap-1 ${getAccountTemplateCount(preset.instagram_account_id) === 0 ? 'text-red-500' : ''}`}>
                       <FilmIcon className="w-3.5 h-3.5" />
-                      {getAccountTemplateCount(preset.instagram_account_id)} подложек
+                      {preset.text_style?.sourceTemplateId
+                        ? `Reels: ${getPresetSourceName(preset)}`
+                        : `${getAccountTemplateCount(preset.instagram_account_id)} подложек`}
                     </span>
                     <span className="flex items-center gap-1">
                       {preset.variations_count} видео
@@ -325,6 +347,8 @@ const BatchGeneratorPage: React.FC = () => {
                     <span>
                       {preset.text_style?.presetType === 'ai_showcase'
                         ? '✨ AI Showcase'
+                        : preset.text_style?.presetType === 'cta_outro'
+                          ? '🎯 CTA-концовка'
                         : toneLabel(preset.tone)}
                     </span>
                   </div>
@@ -371,7 +395,10 @@ const BatchGeneratorPage: React.FC = () => {
       {showModal && (
         <BatchPresetModal
           preset={editingPreset}
+          userId={user!.id}
           accounts={accounts}
+          currentAccountId={selectedAccount?.id}
+          templates={templates}
           audioFiles={audioFiles}
           onSave={handleSavePreset}
           onClose={() => { setShowModal(false); setEditingPreset(null); }}

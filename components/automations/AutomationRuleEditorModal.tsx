@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { InstagramAccount } from '../../types';
 import { getAuthenticatedHeaders } from '../../lib/supabase';
 import {
@@ -15,6 +15,12 @@ import AppSelect from '../ui/AppSelect';
 import AttachmentPicker from '../AttachmentPicker';
 import type { MessageAttachment } from '../../types';
 import { generateLeadMagnetDirectVariants } from '../../services/ai/leadMagnetDirectGenerator';
+import {
+  funnelDeepLink,
+  funnelSlugFromLink,
+  loadBot,
+  loadFunnels,
+} from '../../services/telegramService';
 
 export interface AutomationForm extends MessageAttachment {
   id: string | null;
@@ -59,6 +65,9 @@ const defaultPublicReplies = [
   'Отправил в Direct! Проверяйте сообщения 🚀',
   'Ссылка уже у вас в Direct 🙌',
   'Материал отправлен в личные сообщения!',
+  'Если сообщение не пришло, проверьте папку «Запросы» в Direct 📩',
+  'Не видите сообщение? Загляните в папку «Запросы» — иногда оно попадает туда 👀',
+  'Проверьте папку «Запросы» в Direct, если сообщение не появилось сразу 🔎',
 ];
 
 export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps> = ({
@@ -75,6 +84,45 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
   const [mediaError, setMediaError] = useState('');
   const [generatingDirectReplies, setGeneratingDirectReplies] = useState(false);
   const [directReplyError, setDirectReplyError] = useState('');
+  const [botUsername, setBotUsername] = useState('');
+  const [funnels, setFunnels] = useState<{ id: string; name: string; slug: string; is_active: boolean }[]>([]);
+
+  /*
+    The link is the seam between the Instagram half of the funnel and the
+    Telegram half, and it used to be a bare text field: copy the deep link from
+    another tab, paste it here, hope the slug matches. A wrong slug is the one
+    mistake nothing downstream reports — the bot answers with its default
+    funnel, and the reader gets a lead magnet they did not ask for.
+  */
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const bot = await loadBot();
+        if (!bot || cancelled) return;
+        setBotUsername(bot.bot_username);
+
+        const list = await loadFunnels(bot.id);
+        if (!cancelled) setFunnels(list);
+      } catch {
+        // The picker is a convenience; the URL field works without it.
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const linkedSlug = useMemo(() => funnelSlugFromLink(form.response_url), [form.response_url]);
+  const linkedFunnel = funnels.find((funnel) => funnel.slug === linkedSlug);
+
+  const funnelWarning = !linkedSlug || funnels.length === 0
+    ? ''
+    : !linkedFunnel
+      ? `Воронки со ссылкой «${linkedSlug}» нет. Бот ответит воронкой по умолчанию, а человек получит не тот материал.`
+      : !linkedFunnel.is_active
+        ? `Воронка «${linkedFunnel.name}» выключена. Бот ответит воронкой по умолчанию.`
+        : '';
 
   useEffect(() => {
     if (form.instagram_account_id && form.media_scope === 'selected') {
@@ -114,8 +162,11 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
   };
 
   const addKeyword = () => {
-    const kw = keywordDraft.trim().toUpperCase();
-    if (kw && !form.keywords.includes(kw)) {
+    const kw = keywordDraft.trim().replace(/\s+/g, ' ');
+    const alreadyAdded = form.keywords.some(
+      (existing) => existing.localeCompare(kw, 'ru', { sensitivity: 'accent' }) === 0,
+    );
+    if (kw && !alreadyAdded) {
       setForm((c) => ({ ...c, keywords: [...c.keywords, kw] }));
     }
     setKeywordDraft('');
@@ -416,6 +467,42 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
                 className="bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600"
               />
             </div>
+
+            {funnels.length > 0 && botUsername && (
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">
+                  Воронка в Telegram
+                </label>
+                <AppSelect
+                  value={linkedFunnel?.id || ''}
+                  onChange={(e) => {
+                    const chosen = funnels.find((funnel) => funnel.id === e.target.value);
+                    setForm((c) => ({
+                      ...c,
+                      /* Only the stable part of the link is stored. The worker
+                         appends the event id as the Direct message goes out, so
+                         every click carries its own attribution. */
+                      response_url: chosen ? funnelDeepLink(botUsername, chosen.slug) : '',
+                    }));
+                  }}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-brand-600 font-medium"
+                >
+                  <option value="">Своя ссылка (без воронки)</option>
+                  {funnels.map((funnel) => (
+                    <option key={funnel.id} value={funnel.id}>
+                      {funnel.name}
+                      {funnel.is_active ? '' : ' — выключена'}
+                    </option>
+                  ))}
+                </AppSelect>
+                <p className="text-[11px] leading-relaxed text-gray-500">
+                  Выбор подставит ссылку выше. Идентификатор события бот добавит сам —
+                  так каждый подписчик привязывается к кодовому слову и Reels, с которых пришёл.
+                </p>
+              </div>
+            )}
+
+            {funnelWarning && <Callout tone="warning">{funnelWarning}</Callout>}
 
             <div className="space-y-1.5">
               <label htmlFor="rule-attachment" className="block text-xs font-semibold text-gray-700">

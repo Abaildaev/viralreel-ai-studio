@@ -18,7 +18,7 @@ import type {
   TelegramFunnelStats,
   TelegramSubscriber,
 } from '../types';
-import { Button, Callout, PageHeader, PageShell, cn } from '../components/ui';
+import { Badge, Button, Callout, PageHeader, PageShell, cn } from '../components/ui';
 import BotSetupTab from '../components/telegram/BotSetupTab';
 import FunnelsTab from '../components/telegram/FunnelsTab';
 import FunnelEditorModal, { blankFunnel, defaultSteps } from '../components/telegram/FunnelEditorModal';
@@ -70,6 +70,15 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'subscribers', label: 'Подписчики', icon: <UserGroupIcon className="h-4 w-4" /> },
   { id: 'analytics', label: 'Аналитика', icon: <ChartBarIcon className="h-4 w-4" /> },
 ];
+
+function pluralizeRu(count: number, one: string, few: string, many: string): string {
+  const mod100 = count % 100;
+  const mod10 = count % 10;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
 
 export default function TelegramPage() {
   const { user } = useAuth();
@@ -315,10 +324,10 @@ export default function TelegramPage() {
   const currentTab = needsBot ? 'bot' : activeTab;
 
   return (
-    <PageShell width="wide" className="space-y-6">
+    <PageShell width="wide" className="telegram-page space-y-8">
       <PageHeader
         title="Telegram"
-        description="Воронки после кодового слова, рассылки по подписчикам и сквозная аналитика от Reels до регистрации"
+        description="Свяжите Instagram с Telegram: бот встретит человека, выдаст материал и поможет довести его до заявки."
         className="mb-0"
         actions={
           bot && currentTab === 'funnels' ? (
@@ -341,9 +350,16 @@ export default function TelegramPage() {
         }
       />
 
-      <div className="scroll-x flex w-fit max-w-full items-center gap-1 rounded-2xl border border-gray-200/60 bg-gray-100/90 p-1">
+      <div className="scroll-x flex w-full max-w-full items-center gap-1.5 rounded-2xl border border-gray-200/60 bg-gray-100/90 p-1.5">
         {TABS.map((tab) => {
           const disabled = !bot && tab.id !== 'bot';
+          const count = tab.id === 'funnels'
+            ? funnels.length
+            : tab.id === 'broadcasts'
+              ? broadcasts.length
+              : tab.id === 'subscribers'
+                ? totals.active
+                : null;
           return (
             <button
               key={tab.id}
@@ -352,7 +368,7 @@ export default function TelegramPage() {
               onClick={() => setActiveTab(tab.id)}
               aria-current={currentTab === tab.id ? 'page' : undefined}
               className={cn(
-                'flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-xs font-semibold transition-all',
+                'flex min-w-[8.25rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all',
                 currentTab === tab.id
                   ? 'bg-white text-gray-900 shadow-xs'
                   : 'text-gray-500 hover:text-gray-900',
@@ -361,9 +377,46 @@ export default function TelegramPage() {
             >
               {tab.icon}
               {tab.label}
+              {count !== null && bot && (
+                <span className={cn(
+                  'rounded-full px-1.5 py-0.5 text-xs font-semibold tabular',
+                  currentTab === tab.id ? 'bg-brand-50 text-brand-700' : 'bg-white/70 text-gray-500',
+                )}>
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
+      </div>
+
+      <div className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-brand-50/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-xs">
+            <PaperAirplaneIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-gray-900">Путь подписчика</p>
+            <p className="mt-0.5 text-sm leading-relaxed text-gray-600">
+              Instagram → бот → подписка → материал → целевое действие
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Badge tone={bot ? (bot.is_active ? 'success' : 'warning') : 'neutral'} dot>
+            {bot ? (bot.is_active ? 'Бот активен' : 'Бот выключен') : 'Бот не подключён'}
+          </Badge>
+          {bot && (
+            <Badge tone="neutral">
+              {funnels.length} {pluralizeRu(funnels.length, 'воронка', 'воронки', 'воронок')}
+            </Badge>
+          )}
+          {bot && (
+            <Badge tone="neutral">
+              {totals.active} {pluralizeRu(totals.active, 'подписчик', 'подписчика', 'подписчиков')}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {loadError && <Callout tone="danger">{loadError}</Callout>}

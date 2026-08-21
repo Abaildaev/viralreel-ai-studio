@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { INSTAGRAM_ACCOUNT_COLUMNS, supabase } from '../lib/supabase';
-import { LeadMagnet, LeadMagnetStats, InstagramAccount, NO_ATTACHMENT } from '../types';
+import { LeadMagnet, LeadMagnetStats, InstagramAccount, NO_ATTACHMENT, TelegramBot } from '../types';
 import { attachmentFields } from '../services/attachmentService';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../contexts/ModalContext';
@@ -11,9 +11,9 @@ import AiSalesAgentSimulator from '../components/AiSalesAgentSimulator';
 import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
-import AutomationQueueHealth from '../components/automations/AutomationQueueHealth';
 import ConversationsTab from '../components/automations/ConversationsTab';
 import { Button, PageHeader, PageShell } from '../components/ui';
+import { loadBot } from '../services/telegramService';
 import {
   DEFAULT_SALES_AGENT_CONFIG,
   loadSalesAgentConfig,
@@ -28,11 +28,11 @@ import {
   BeakerIcon,
   SparklesIcon,
   PlusIcon,
-  ArrowRightIcon,
   ChatBubbleLeftRightIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
-type Tab = 'rules' | 'analytics' | 'live' | 'sales_agent' | 'conversations' | 'tester';
+type Tab = 'rules' | 'leads' | 'analytics' | 'events' | 'sales_agent' | 'conversations' | 'tester';
 
 const blankForm: AutomationForm = {
   id: null,
@@ -49,6 +49,10 @@ const blankForm: AutomationForm = {
   public_reply_variants: [
     'Отправил в Direct! Проверяйте сообщения 🚀',
     'Ссылка уже у вас в Direct 🙌',
+    'Материал отправлен в личные сообщения!',
+    'Если сообщение не пришло, проверьте папку «Запросы» в Direct 📩',
+    'Не видите сообщение? Загляните в папку «Запросы» — иногда оно попадает туда 👀',
+    'Проверьте папку «Запросы» в Direct, если сообщение не появилось сразу 🔎',
   ],
   reply_text: '',
   direct_reply_variants: [''],
@@ -69,6 +73,7 @@ export default function AutomationsPage() {
   const [stats, setStats] = useState<LeadMagnetStats[]>([]);
   const [events, setEvents] = useState<LiveAutomationEvent[]>([]);
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
+  const [telegramBot, setTelegramBot] = useState<TelegramBot | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Editor Modal state
@@ -124,7 +129,7 @@ export default function AutomationsPage() {
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [rRes, sRes, eRes, aRes] = await Promise.all([
+      const [rRes, sRes, eRes, aRes, currentTelegramBot] = await Promise.all([
         supabase.from('lead_magnets').select('*').order('created_at', { ascending: false }),
         supabase.from('lead_magnet_stats').select('*'),
         /*
@@ -147,6 +152,7 @@ export default function AutomationsPage() {
           .from('instagram_accounts')
           .select(INSTAGRAM_ACCOUNT_COLUMNS)
           .order('created_at', { ascending: false }),
+        loadBot().catch(() => null),
       ]);
 
       // Supabase reports failures in the result rather than throwing, so a
@@ -158,6 +164,7 @@ export default function AutomationsPage() {
       if (sRes.data) setStats(sRes.data);
       if (eRes.data) setEvents(eRes.data as unknown as LiveAutomationEvent[]);
       if (aRes.data) setAccounts(aRes.data);
+      setTelegramBot(currentTelegramBot);
     } catch (err: any) {
       console.error('Error loading automations:', err);
       toast({ message: `Не удалось загрузить автоматизации: ${err.message}`, tone: 'error' });
@@ -289,10 +296,10 @@ export default function AutomationsPage() {
   };
 
   return (
-    <PageShell width="wide" className="space-y-6">
+    <PageShell width="wide" className="crm-page space-y-8">
       <PageHeader
-        title="Автоматизации & CRM"
-        description="Управляйте сценариями Comment-to-DM, обучайте ИИ-продавца и отслеживайте конверсии"
+        title="Автоматизации"
+        description="Настройте воронки: от кодового слова в комментарии до выдачи материала в Direct."
         className="mb-0"
         actions={
           activeTab === 'rules' ? (
@@ -301,35 +308,31 @@ export default function AutomationsPage() {
               onClick={handleCreateNew}
               icon={<PlusIcon className="h-4 w-4" />}
             >
-              Создать сценарий
+              Создать воронку
             </Button>
           ) : undefined
         }
       />
 
-      {/* Above the tabs on purpose: a queue that has stopped draining is worth
-          seeing whichever tab is open. */}
-      <AutomationQueueHealth />
-
       {/* Tabs Navigation */}
-      <div className="flex items-center gap-1 p-1 bg-gray-100/90 rounded-2xl w-fit border border-gray-200/60 overflow-x-auto max-w-full">
+      <div className="scroll-x flex w-full max-w-full items-center gap-1.5 rounded-2xl border border-gray-200/60 bg-gray-100/90 p-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('rules')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'rules'
               ? 'bg-white text-gray-900 shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <BoltIcon className="w-4 h-4" />
-          Сценарии
+          Воронка
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('sales_agent')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'sales_agent'
               ? 'bg-white text-brand-600 shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
@@ -345,20 +348,33 @@ export default function AutomationsPage() {
         <button
           type="button"
           onClick={() => setActiveTab('analytics')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'analytics'
               ? 'bg-white text-gray-900 shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <ChartBarIcon className="w-4 h-4" />
-          CRM & Аналитика
+          Аналитика
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('leads')}
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+            activeTab === 'leads'
+              ? 'bg-white text-gray-900 shadow-xs'
+              : 'text-gray-500 hover:text-gray-900'
+          }`}
+        >
+          <UserGroupIcon className="w-4 h-4" />
+          Лиды
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('conversations')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'conversations'
               ? 'bg-white text-gray-900 shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
@@ -370,21 +386,21 @@ export default function AutomationsPage() {
 
         <button
           type="button"
-          onClick={() => setActiveTab('live')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
-            activeTab === 'live'
+          onClick={() => setActiveTab('events')}
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
+            activeTab === 'events'
               ? 'bg-white text-gray-900 shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
           }`}
         >
           <RadioIcon className="w-4 h-4" />
-          Live Feed
+          События
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('tester')}
-          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 whitespace-nowrap ${
+          className={`flex min-w-[9rem] flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
             activeTab === 'tester'
               ? 'bg-white text-gray-900 shadow-xs'
               : 'text-gray-500 hover:text-gray-900'
@@ -434,16 +450,21 @@ export default function AutomationsPage() {
         </div>
       )}
 
-      {/* Tab 3: CRM & Analytics */}
+      {/* Leads */}
+      {activeTab === 'leads' && (
+        <AutomationAnalyticsDashboard view="leads" events={events} rules={rules} stats={stats} />
+      )}
+
+      {/* Analytics */}
       {activeTab === 'analytics' && (
-        <AutomationAnalyticsDashboard events={events} rules={rules} stats={stats} />
+        <AutomationAnalyticsDashboard view="analytics" events={events} rules={rules} stats={stats} />
       )}
 
       {activeTab === 'conversations' && <ConversationsTab />}
 
-      {/* Tab 4: Live Feed */}
-      {activeTab === 'live' && (
-        <div className="max-w-4xl mx-auto">
+      {/* Events */}
+      {activeTab === 'events' && (
+        <div className="mx-auto w-full max-w-5xl">
           <AutomationLiveFeed initialEvents={events} onRefresh={loadAll} />
         </div>
       )}
