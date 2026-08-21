@@ -29,8 +29,8 @@ import { advanceSequence } from "../_shared/step-sender.ts";
 import {
   type AttachmentColumns,
   ATTACHMENT_COLUMNS,
-  type SignedAttachment,
-  signRowAttachment,
+  type PreparedTelegramAttachment,
+  prepareTelegramRowAttachment,
 } from "../_shared/attachment.ts";
 
 interface BotRow {
@@ -185,7 +185,7 @@ async function promptForSubscription(
   funnel: FunnelRow,
   chatId: number,
   text: string,
-  attachment: SignedAttachment | null = null,
+  attachment: PreparedTelegramAttachment | null = null,
 ): Promise<void> {
   await sendMessage(botToken, {
     chatId,
@@ -313,7 +313,7 @@ async function handleStart(
     Only when neither will carry it does the file need a message of its own; a
     file with no words is a valid greeting.
   */
-  const attachment = await signRowAttachment(supabase, funnel);
+  const attachment = await prepareTelegramRowAttachment(supabase, bot.id, funnel);
   const greeting = funnel.welcome_text.trim();
 
   if (greeting || (attachment && !gateComing)) {

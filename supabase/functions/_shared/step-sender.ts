@@ -19,7 +19,7 @@ import {
   type AttachmentColumns,
   ATTACHMENT_COLUMNS,
   readAttachment,
-  signAttachment,
+  prepareTelegramAttachment,
 } from "./attachment.ts";
 
 export const STEP_COLUMNS =
@@ -127,16 +127,20 @@ export async function advanceSequence(
       continue;
     }
 
-    /* Signed here rather than at load time: only the steps actually going out
-       right now need a URL, and each is used within seconds of being minted. */
-    const signed = await signAttachment(supabase, attachment);
+    /* Telegram reuses its own file_id after the first delivery. Only a cold
+       cache mints a Storage URL; every later subscriber gets Telegram media. */
+    const prepared = await prepareTelegramAttachment(
+      supabase,
+      subscriber.telegram_bot_id,
+      attachment,
+    );
 
     await sendMessage(botToken, {
       chatId: subscriber.telegram_user_id,
       // A bare file needs no filler caption; only a text step does.
-      text: step.body.trim() || (signed ? "" : "…"),
+      text: step.body.trim() || (prepared ? "" : "…"),
       buttons: [{ text: step.button_text, url: step.button_url }],
-      attachment: signed,
+      attachment: prepared,
     });
 
     await supabase

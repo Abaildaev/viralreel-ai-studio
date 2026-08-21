@@ -14,6 +14,7 @@
 */
 
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
+import type { OutgoingAttachment } from "./telegram-api.ts";
 
 export const ATTACHMENT_BUCKET = "funnel-media";
 
@@ -51,6 +52,9 @@ export interface SignedAttachment {
   url: string;
   name: string;
 }
+
+/** A signed first send or a reusable file already resident in Telegram. */
+export type PreparedTelegramAttachment = OutgoingAttachment;
 
 /** Two hours: far longer than any single send, far shorter than the file lives. */
 const SIGNED_URL_TTL_SECONDS = 7200;
@@ -90,6 +94,112 @@ export function signRowAttachment(
   row: Partial<AttachmentColumns> | null | undefined,
 ): Promise<SignedAttachment | null> {
   return signAttachment(supabase, readAttachment(row));
+}
+
+/**
+ * Resolves an attachment for Telegram without making Telegram fetch Storage on
+ * every delivery.
+ *
+ * Telegram returns a durable `file_id` whenever it accepts uploaded media. The
+ * first reader warms this cache from a signed URL; every later reader sends the
+ * id, so the bytes travel from Telegram's own storage and the message appears
+ * without waiting on Supabase. The object path is part of the key, therefore
+ * replacing the file invalidates the cache automatically.
+ */
+export async function prepareTelegramAttachment(
+  supabase: SupabaseClient,
+  telegramBotId: string,
+  attachment: Attachment | null,
+): Promise<PreparedTelegramAttachment | null> {
+  if (!attachment) return null;
+
+  const { data: cached, error: cacheError } = await supabase
+    .from("telegram_attachment_cache")
+    .select("telegram_file_id")
+    .eq("telegram_bot_id", telegramBotId)
+    .eq("attachment_path", attachment.path)
+    .eq("attachment_type", attachment.type)
+    .maybeSingle();
+
+  if (cacheError) {
+    console.warn(`Telegram attachment cache lookup failed: ${cacheError.message}`);
+  }
+
+  const cachedFileId = String(cached?.telegram_file_id ?? "").trim();
+  if (cachedFileId) {
+    const prepared: PreparedTelegramAttachment = {
+      type: attachment.type,
+      url: cachedFileId,
+      name: attachment.name,
+      telegramFileId: cachedFileId,
+      recoverFromInvalidTelegramFileId: async () => {
+        await supabase
+          .from("telegram_attachment_cache")
+          .delete()
+          .eq("telegram_bot_id", telegramBotId)
+          .eq("attachment_path", attachment.path)
+          .eq("attachment_type", attachment.type);
+
+        const freshUrl = (await signAttachment(supabase, attachment))?.url ?? null;
+        if (freshUrl) {
+          prepared.telegramFileId = undefined;
+          prepared.url = freshUrl;
+        }
+        return freshUrl;
+      },
+      rememberTelegramFileId: async (fileId) => {
+        prepared.telegramFileId = fileId;
+        prepared.url = fileId;
+        await rememberTelegramFileId(supabase, telegramBotId, attachment, fileId);
+      },
+    };
+
+    return prepared;
+  }
+
+  const signed = await signAttachment(supabase, attachment);
+  if (!signed) return null;
+
+  const prepared: PreparedTelegramAttachment = {
+    ...signed,
+    rememberTelegramFileId: async (fileId) => {
+      /* Reuse the new id immediately in a broadcast loop instead of waiting
+         for the next Edge Function invocation to read the cache row. */
+      prepared.telegramFileId = fileId;
+      prepared.url = fileId;
+      await rememberTelegramFileId(supabase, telegramBotId, attachment, fileId);
+    },
+  };
+
+  return prepared;
+}
+
+async function rememberTelegramFileId(
+  supabase: SupabaseClient,
+  telegramBotId: string,
+  attachment: Attachment,
+  telegramFileId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("telegram_attachment_cache")
+    .upsert({
+      telegram_bot_id: telegramBotId,
+      attachment_path: attachment.path,
+      attachment_type: attachment.type,
+      telegram_file_id: telegramFileId,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "telegram_bot_id,attachment_path,attachment_type" });
+
+  if (error) throw error;
+}
+
+/** Convenience for a row selected from a funnel, step or broadcast. */
+export function prepareTelegramRowAttachment(
+  supabase: SupabaseClient,
+  telegramBotId: string,
+  row: Partial<AttachmentColumns> | null | undefined,
+): Promise<PreparedTelegramAttachment | null> {
+  return prepareTelegramAttachment(supabase, telegramBotId, readAttachment(row));
 }
 
 /**

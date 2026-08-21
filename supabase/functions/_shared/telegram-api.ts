@@ -87,11 +87,22 @@ export function inlineKeyboard(buttons: InlineButton[]): Record<string, unknown>
   };
 }
 
-/** A file already signed and reachable — see `_shared/attachment.ts`. */
+/**
+ * A file Telegram can send.
+ *
+ * `url` is the signed Storage URL used only to warm the cache. Once Telegram
+ * has accepted the file, `telegramFileId` is the durable copy kept on
+ * Telegram's own servers and avoids downloading the same object again.
+ */
 export interface OutgoingAttachment {
   type: "photo" | "video" | "document";
   url: string;
   name?: string;
+  telegramFileId?: string;
+  /** Persists the file id returned by Telegram after the first URL send. */
+  rememberTelegramFileId?: (fileId: string) => Promise<void> | void;
+  /** Deletes a stale id and returns a fresh signed URL for one repair attempt. */
+  recoverFromInvalidTelegramFileId?: () => Promise<string | null>;
 }
 
 export interface SendMessageOptions {
@@ -150,26 +161,40 @@ function isMediaFetchFailure(error: unknown): boolean {
  * bad trade. So a parse failure retries once unformatted: the reader loses the
  * bold, not the material.
  */
+interface TelegramMessageResult {
+  message_id: number;
+  photo?: Array<{ file_id: string }>;
+  video?: { file_id: string };
+  document?: { file_id: string };
+}
+
 async function sendFormatted(
   botToken: string,
   method: string,
   payload: Record<string, unknown>,
-): Promise<number> {
+): Promise<TelegramMessageResult> {
   try {
-    const result = await callTelegram<{ message_id: number }>(botToken, method, {
+    return await callTelegram<TelegramMessageResult>(botToken, method, {
       ...payload,
       parse_mode: "HTML",
     });
-    return result.message_id;
   } catch (error) {
     const isParseFailure = error instanceof TelegramApiError &&
       error.code === 400 &&
       error.message.toLowerCase().includes("parse entities");
     if (!isParseFailure) throw error;
 
-    const result = await callTelegram<{ message_id: number }>(botToken, method, payload);
-    return result.message_id;
+    return await callTelegram<TelegramMessageResult>(botToken, method, payload);
   }
+}
+
+function attachmentFileId(
+  result: TelegramMessageResult,
+  type: OutgoingAttachment["type"],
+): string {
+  if (type === "photo") return result.photo?.at(-1)?.file_id ?? "";
+  if (type === "video") return result.video?.file_id ?? "";
+  return result.document?.file_id ?? "";
 }
 
 /**
@@ -214,35 +239,77 @@ export async function sendMessage(
   });
 
   const attachment = options.attachment ?? null;
-  if (!attachment) return sendFormatted(botToken, "sendMessage", textPayload(options.text));
+  if (!attachment) {
+    return (await sendFormatted(botToken, "sendMessage", textPayload(options.text))).message_id;
+  }
 
   const media = MEDIA_METHODS[attachment.type];
   const captioned = options.text.length <= MAX_CAPTION_CHARS;
+  const mediaPayload = (source: string): Record<string, unknown> => ({
+    chat_id: options.chatId,
+    [media.field]: source,
+    disable_notification: disableNotification,
+    ...(attachment.type === "video" ? { supports_streaming: true } : {}),
+    ...(captioned && options.text.trim() ? { caption: options.text } : {}),
+    ...(captioned && keyboard ? { reply_markup: keyboard } : {}),
+  });
+
+  let mediaResult: TelegramMessageResult | null = null;
 
   try {
-    const mediaMessageId = await sendFormatted(botToken, media.method, {
-      chat_id: options.chatId,
-      [media.field]: attachment.url,
-      disable_notification: disableNotification,
-      ...(attachment.type === "video" ? { supports_streaming: true } : {}),
-      ...(captioned && options.text.trim() ? { caption: options.text } : {}),
-      ...(captioned && keyboard ? { reply_markup: keyboard } : {}),
-    });
-
-    if (captioned) return mediaMessageId;
+    mediaResult = await sendFormatted(
+      botToken,
+      media.method,
+      mediaPayload(attachment.telegramFileId || attachment.url),
+    );
   } catch (error) {
     if (!isMediaFetchFailure(error)) throw error;
+
+    /* Telegram file ids are intended to be persistent, but a bot token reset
+       or a malformed legacy row can still make one unusable. Repair the cache
+       from Storage once instead of dropping the image from this message. */
+    if (attachment.telegramFileId && attachment.recoverFromInvalidTelegramFileId) {
+      const freshUrl = await attachment.recoverFromInvalidTelegramFileId();
+      if (freshUrl) {
+        try {
+          mediaResult = await sendFormatted(botToken, media.method, mediaPayload(freshUrl));
+        } catch (retryError) {
+          if (!isMediaFetchFailure(retryError)) throw retryError;
+          console.warn(
+            `Telegram rejected refreshed attachment ${freshUrl}: ${describeTelegramError(retryError)}`,
+          );
+        }
+      }
+    } else {
+      console.warn(`Telegram rejected attachment ${attachment.url}: ${describeTelegramError(error)}`);
+    }
 
     /* A file-only message has nothing left to fall back to, and Telegram
        rejects an empty one anyway. Report the real failure rather than
        inventing a message the author never wrote. */
-    if (!options.text.trim()) throw error;
-
-    // The file is unusable, but the message is not. Say the words anyway.
-    console.warn(`Telegram rejected attachment ${attachment.url}: ${describeTelegramError(error)}`);
+    if (!mediaResult && !options.text.trim()) throw error;
   }
 
-  return sendFormatted(botToken, "sendMessage", textPayload(options.text));
+  if (mediaResult) {
+    const returnedFileId = attachmentFileId(mediaResult, attachment.type);
+    if (
+      returnedFileId &&
+      returnedFileId !== attachment.telegramFileId &&
+      attachment.rememberTelegramFileId
+    ) {
+      try {
+        await attachment.rememberTelegramFileId(returnedFileId);
+      } catch (error) {
+        // Telegram already delivered the message. A cache miss next time is
+        // slower, but it must never turn a successful delivery into a failure.
+        console.warn(`Could not cache Telegram file id: ${describeTelegramError(error)}`);
+      }
+    }
+
+    if (captioned) return mediaResult.message_id;
+  }
+
+  return (await sendFormatted(botToken, "sendMessage", textPayload(options.text))).message_id;
 }
 
 export const SUBSCRIBED_STATUSES = new Set(["member", "administrator", "creator"]);

@@ -29,8 +29,8 @@ import {
 import {
   type AttachmentColumns,
   ATTACHMENT_COLUMNS,
-  type SignedAttachment,
-  signRowAttachment,
+  type PreparedTelegramAttachment,
+  prepareTelegramRowAttachment,
 } from "../_shared/attachment.ts";
 
 /* Telegram tolerates about 30 messages a second to distinct users. Sending a
@@ -157,7 +157,7 @@ async function drain(
   broadcast: BroadcastRow,
   botToken: string,
   deadline: number,
-  attachment: SignedAttachment | null,
+  attachment: PreparedTelegramAttachment | null,
 ): Promise<{ sent: number; failed: number; drained: boolean }> {
   let sent = 0;
   let failed = 0;
@@ -280,13 +280,14 @@ async function runBroadcast(
     }
   }
 
-  /*
-    Signed once for the whole tick, not once per recipient. A send to ten
-    thousand people would otherwise mint ten thousand identical URLs, and the
-    two-hour lifetime comfortably outlasts the hundred-second budget a tick is
-    allowed to spend.
-  */
-  const attachment = await signRowAttachment(supabase, broadcast);
+  /* The first recipient warms Telegram's file cache when necessary. The
+     prepared object switches itself to file_id immediately, so every remaining
+     recipient in this tick already sends from Telegram. */
+  const attachment = await prepareTelegramRowAttachment(
+    supabase,
+    broadcast.telegram_bot_id,
+    broadcast,
+  );
 
   const { sent, failed, drained } = await drain(
     supabase,

@@ -26,7 +26,7 @@ import { advanceSequence } from "../_shared/step-sender.ts";
 import {
   type AttachmentColumns,
   ATTACHMENT_COLUMNS,
-  signRowAttachment,
+  prepareTelegramRowAttachment,
 } from "../_shared/attachment.ts";
 
 /* Telegram tolerates about 30 messages a second; the drip shares that budget
@@ -178,10 +178,13 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      /* Signed per delivery rather than per tick: a batch is a hundred
-         different steps belonging to different funnels, so there is no shared
-         file to sign once the way a broadcast has. */
-      const attachment = await signRowAttachment(supabase, step);
+      /* A warm Telegram cache resolves to a file_id. Only the first delivery
+         of a new object path needs a signed Storage URL. */
+      const attachment = await prepareTelegramRowAttachment(
+        supabase,
+        delivery.telegram_bot_id,
+        step,
+      );
 
       await sendMessage(botToken, {
         chatId: subscriber.telegram_user_id,

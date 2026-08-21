@@ -64,6 +64,51 @@ describe("Telegram captioned funnel messages", () => {
     expect(requests[1].url).toContain("/sendMessage");
     expect(requests[1].body.text).toHaveLength(1025);
   });
+
+  it("stores the Telegram file id returned by the first URL delivery", async () => {
+    const requests = mockTelegram({
+      message_id: 42,
+      photo: [{ file_id: "small-photo" }, { file_id: "telegram-photo-file-id" }],
+    });
+    const rememberTelegramFileId = vi.fn(async () => undefined);
+
+    await sendMessage("123:token", {
+      chatId: 77,
+      text: "Пак промптов",
+      attachment: {
+        type: "photo",
+        url: "https://storage.example.com/cover.png",
+        rememberTelegramFileId,
+      },
+    });
+
+    expect(requests[0].body.photo).toBe("https://storage.example.com/cover.png");
+    expect(rememberTelegramFileId).toHaveBeenCalledOnce();
+    expect(rememberTelegramFileId).toHaveBeenCalledWith("telegram-photo-file-id");
+  });
+
+  it("sends a cached image directly by Telegram file id", async () => {
+    const requests = mockTelegram({
+      message_id: 42,
+      photo: [{ file_id: "telegram-photo-file-id" }],
+    });
+    const rememberTelegramFileId = vi.fn(async () => undefined);
+
+    await sendMessage("123:token", {
+      chatId: 77,
+      text: "Пак промптов",
+      attachment: {
+        type: "photo",
+        url: "telegram-photo-file-id",
+        telegramFileId: "telegram-photo-file-id",
+        rememberTelegramFileId,
+      },
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].body.photo).toBe("telegram-photo-file-id");
+    expect(rememberTelegramFileId).not.toHaveBeenCalled();
+  });
 });
 
 describe("isChannelMember", () => {
