@@ -14,6 +14,7 @@ import { formatDelay, orderedSteps } from '../../supabase/functions/_shared/funn
 
 const PROMPT_PARTNER_BOT_URL = 'https://t.me/Integer_ai_bot?start=REF00009284';
 const PROMPT_CATALOGUE_URL = 'https://nanobanana-prompts.netlify.app/';
+const TELEGRAM_CAPTION_LIMIT = 1024;
 
 /*
   A greeting and then a separate "please subscribe" is two bubbles saying the
@@ -127,6 +128,12 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
 
   const deepLink = funnelDeepLink(bot.bot_username, form.slug || 'slug');
   const gated = form.require_subscription && Boolean(bot.channel_id);
+  const greeting = form.welcome_text.trim();
+  const subscriptionOwnsFirstAttachment = form.require_subscription && !greeting;
+  const hasFirstAttachment = form.attachment_type !== 'none' && Boolean(form.attachment_path);
+  const subscriptionCaptionTooLong = subscriptionOwnsFirstAttachment &&
+    hasFirstAttachment &&
+    form.not_subscribed_text.length > TELEGRAM_CAPTION_LIMIT;
 
   const messages: PreviewMessage[] = useMemo(() => {
     const channelUrl = bot.channel_invite_url ||
@@ -212,7 +219,7 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     const slug = slugify(form.slug || form.name);
-    if (!form.name.trim() || slug.length < 2) return;
+    if (!form.name.trim() || slug.length < 2 || subscriptionCaptionTooLong) return;
     onSave({ ...form, slug }, steps);
   };
 
@@ -355,18 +362,20 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
               )}
             </Field>
 
-            <Field
-              label="Изображение первого сообщения"
-              hint="Сядет на приветствие, а если приветствие пустое — на просьбу подписаться. Часто это фото того, что вы обещали"
-            >
-              {({ id }) => (
-                <AttachmentPicker
-                  id={id}
-                  value={form}
-                  onChange={(attachment) => setForm((current) => ({ ...current, ...attachment }))}
-                />
-              )}
-            </Field>
+            {!subscriptionOwnsFirstAttachment && (
+              <Field
+                label={greeting ? 'Изображение к приветствию' : 'Изображение первого сообщения'}
+                hint="Telegram отправит изображение вместе с текстом этого сообщения."
+              >
+                {({ id }) => (
+                  <AttachmentPicker
+                    id={id}
+                    value={form}
+                    onChange={(attachment) => setForm((current) => ({ ...current, ...attachment }))}
+                  />
+                )}
+              </Field>
+            )}
 
             <div className="space-y-4 rounded-xl border border-gray-200 p-4">
               <Switch
@@ -394,6 +403,29 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
                       />
                     )}
                   </Field>
+
+                  {subscriptionOwnsFirstAttachment && (
+                    <Field
+                      label="Изображение к сообщению с подпиской"
+                      hint="Изображение, текст выше и кнопка на канал уйдут одним сообщением."
+                    >
+                      {({ id }) => (
+                        <AttachmentPicker
+                          id={id}
+                          value={form}
+                          onChange={(attachment) => setForm((current) => ({ ...current, ...attachment }))}
+                        />
+                      )}
+                    </Field>
+                  )}
+
+                  {subscriptionOwnsFirstAttachment && hasFirstAttachment && (
+                    <Callout tone={subscriptionCaptionTooLong ? 'warning' : 'success'}>
+                      {subscriptionCaptionTooLong
+                        ? `Текст длиннее ${TELEGRAM_CAPTION_LIMIT} символов — Telegram разделит изображение и текст. Сократите ещё на ${form.not_subscribed_text.length - TELEGRAM_CAPTION_LIMIT}.`
+                        : `Одно сообщение подтверждено: изображение + ${form.not_subscribed_text.length}/${TELEGRAM_CAPTION_LIMIT} символов текста + кнопка подписки.`}
+                    </Callout>
+                  )}
 
                   <Field label="Кнопка на канал">
                     {({ id }) => (
@@ -472,6 +504,7 @@ const FunnelEditorModal: React.FC<FunnelEditorModalProps> = ({
                   type="submit"
                   variant="primary"
                   loading={saving}
+                  disabled={subscriptionCaptionTooLong}
                   fullWidth
                   className="sm:w-auto"
                 >

@@ -59,7 +59,7 @@ async function resolveChannel(
   botToken: string,
   botId: number,
   channel: string,
-): Promise<{ id: string; title: string; username: string; inviteUrl: string }> {
+): Promise<{ id: string; title: string; username: string; inviteUrl: string; botStatus: string }> {
   const chat = await callTelegram<ChatInfo>(botToken, "getChat", { chat_id: channel });
 
   const member = await callTelegram<{ status: string }>(botToken, "getChatMember", {
@@ -80,7 +80,15 @@ async function resolveChannel(
     username,
     // A public channel needs no invite link; a private one cannot be joined without it.
     inviteUrl: chat.invite_link ?? (username ? `https://t.me/${username}` : ""),
+    botStatus: member.status,
   };
+}
+
+interface WebhookInfo {
+  url?: string;
+  pending_update_count?: number;
+  allowed_updates?: string[];
+  last_error_message?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -150,7 +158,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: bot } = await supabase
       .from("telegram_bots")
-      .select("id,bot_token_encrypted,bot_username")
+      .select("id,bot_token_encrypted,bot_username,webhook_secret,channel_id")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -183,6 +191,65 @@ Deno.serve(async (req: Request) => {
         channelTitle: resolved.title,
         channelUsername: resolved.username,
         channelInviteUrl: resolved.inviteUrl,
+      });
+    }
+
+    if (action === "verify_subscription") {
+      const channelId = String(bot.channel_id ?? "").trim();
+      const secret = String(bot.webhook_secret ?? "").trim();
+      if (!channelId) return response({ error: "Сначала подключите канал" }, 400);
+      if (!secret) return response({ error: "У вебхука нет секретного ключа — переустановите его" }, 400);
+
+      /*
+        This is the same Telegram method the funnel later uses for every
+        visitor. Resolving the already-saved channel proves both that the bot
+        can see it and that getChatMember reports the bot as an administrator.
+      */
+      const me = await callTelegram<{ id: number }>(botToken, "getMe");
+      const resolved = await resolveChannel(botToken, me.id, channelId);
+
+      /* Re-applying the webhook is intentional: old registrations that omit
+         chat_member never receive the event that releases a subscriber from
+         the gate. This verification also repairs that state in one click. */
+      const expectedUrl = webhookUrl(bot.id as string);
+      await callTelegram(botToken, "setWebhook", {
+        url: expectedUrl,
+        secret_token: secret,
+        allowed_updates: ALLOWED_UPDATES,
+      });
+
+      const info = await callTelegram<WebhookInfo>(botToken, "getWebhookInfo");
+      const allowedUpdates = info.allowed_updates ?? [];
+      const missingUpdates = ALLOWED_UPDATES.filter((update) => !allowedUpdates.includes(update));
+      if (info.url !== expectedUrl || missingUpdates.length > 0) {
+        throw new Error(
+          `Webhook Telegram настроен не полностью: ${missingUpdates.join(", ") || "неверный URL"}`,
+        );
+      }
+      if (info.last_error_message) {
+        throw new Error(`Telegram сообщает об ошибке webhook: ${info.last_error_message}`);
+      }
+
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("telegram_bots")
+        .update({
+          channel_id: resolved.id,
+          channel_title: resolved.title,
+          channel_username: resolved.username,
+          channel_invite_url: resolved.inviteUrl,
+          webhook_set_at: now,
+          last_error: null,
+          updated_at: now,
+        })
+        .eq("id", bot.id);
+
+      if (error) throw error;
+      return response({
+        ok: true,
+        botStatus: resolved.botStatus,
+        allowedUpdates,
+        pendingUpdates: info.pending_update_count ?? 0,
       });
     }
 

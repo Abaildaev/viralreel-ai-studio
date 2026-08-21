@@ -87,6 +87,21 @@ export function refreshWebhook() {
   return callSetup<{ ok: true; pendingUpdates: number }>({ action: 'refresh_webhook' });
 }
 
+export interface SubscriptionSetupCheck {
+  ok: true;
+  botStatus: 'administrator' | 'creator';
+  allowedUpdates: string[];
+  pendingUpdates: number;
+}
+
+/**
+ * Proves the subscription gate against the live Telegram API and repairs the
+ * webhook's chat_member subscription if an older registration omitted it.
+ */
+export function verifySubscriptionSetup() {
+  return callSetup<SubscriptionSetupCheck>({ action: 'verify_subscription' });
+}
+
 export function disconnectBot() {
   return callSetup<{ ok: true }>({ action: 'disconnect' });
 }

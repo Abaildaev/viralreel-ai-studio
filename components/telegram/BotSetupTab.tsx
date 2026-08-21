@@ -16,6 +16,7 @@ import {
   refreshWebhook,
   setBotChannel,
   updateBot,
+  verifySubscriptionSetup,
 } from '../../services/telegramService';
 
 interface BotSetupTabProps {
@@ -29,7 +30,9 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
   const [token, setToken] = useState('');
   const [channel, setChannel] = useState('');
   const [goal, setGoal] = useState(String(bot?.subscriber_goal ?? 1000));
-  const [busy, setBusy] = useState<'connect' | 'channel' | 'webhook' | 'disconnect' | 'goal' | null>(null);
+  const [busy, setBusy] = useState<
+    'connect' | 'channel' | 'subscription' | 'webhook' | 'disconnect' | 'goal' | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   const run = async (kind: typeof busy, action: () => Promise<void>, success: string) => {
@@ -184,6 +187,17 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                     </a>
                   )}
                 </div>
+
+                <Button
+                  variant="secondary"
+                  loading={busy === 'subscription'}
+                  icon={<ShieldCheckIcon className="h-4 w-4" />}
+                  onClick={() => run('subscription', async () => {
+                    await verifySubscriptionSetup();
+                  }, 'Подписка работает: бот — администратор, webhook получает вступления')}
+                >
+                  Проверить канал и подписку
+                </Button>
 
                 <Field label="Заменить канал" hint="Укажите @имя или числовой ID">
                   {({ id }) => (
