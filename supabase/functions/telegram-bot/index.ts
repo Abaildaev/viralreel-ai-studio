@@ -175,17 +175,7 @@ async function deliver(
     .is("subscribed_at", null);
 
   // Below every position, so the plan starts from the first step.
-  const result = await advanceSequence(supabase, botToken, subscriber, funnel.id, 0, options);
-
-  /* A file-only funnel with no immediate step is still valid. Most funnels
-     merge the cover into step one, but this fallback prevents an empty start. */
-  if (options.leadingAttachment && result.sent === 0) {
-    await sendMessage(botToken, {
-      chatId: subscriber.telegram_user_id,
-      text: "",
-      attachment: options.leadingAttachment,
-    });
-  }
+  await advanceSequence(supabase, botToken, subscriber, funnel.id, 0, options);
 }
 
 /**
@@ -220,6 +210,7 @@ async function handleStart(
   from: TelegramUser,
   chatId: number,
   payload: string,
+  forceMembershipCheck = false,
 ): Promise<void> {
   const { slug, eventId } = parseStartPayload(payload);
   const funnel = await selectFunnel(supabase, bot, slug);
@@ -306,7 +297,7 @@ async function handleStart(
     come back the reader's own button will work without them starting over.
   */
   let subscribed = true;
-  const confirmedMembership = hasConfirmedChannelMembership(existing);
+  const confirmedMembership = !forceMembershipCheck && hasConfirmedChannelMembership(existing);
 
   if (gated && !confirmedMembership) {
     const membership = await isChannelMember(botToken, bot.channel_id, String(from.id));
@@ -417,21 +408,20 @@ async function handleSubscriptionCheck(
     return;
   }
 
-  /*
-    Tapping the button twice must not restart the course, and it does not: a
-    step is claimed through a unique constraint before it is sent, so a second
-    run finds every step taken and sends nothing.
-
-    Returning early on `delivered_at` used to save that second run, at the cost
-    of the case this gate exists for — a reader who already finished one funnel
-    and has just opened another. For them `delivered_at` is long set, and the
-    early return meant the second lead magnet never arrived at all.
-  */
-  await deliver(supabase, botToken, funnel as FunnelRow, {
-    id: subscriber.id as string,
-    telegram_user_id: subscriber.telegram_user_id as string,
-    telegram_bot_id: subscriber.telegram_bot_id as string,
-  });
+  /* A successful manual check is the same gate-clear event as chat_member.
+     Replaying the immediate hand-off makes the button useful for an old test
+     account while existing delivery claims keep delayed follow-ups unique. */
+  await deliver(
+    supabase,
+    botToken,
+    funnel as FunnelRow,
+    {
+      id: subscriber.id as string,
+      telegram_user_id: subscriber.telegram_user_id as string,
+      telegram_bot_id: subscriber.telegram_bot_id as string,
+    },
+    { replayImmediate: true },
+  );
 }
 
 /**
@@ -467,11 +457,20 @@ async function handleChannelJoin(
 
   if (!funnel) return;
 
-  await deliver(supabase, botToken, funnel as FunnelRow, {
-    id: subscriber.id as string,
-    telegram_user_id: subscriber.telegram_user_id as string,
-    telegram_bot_id: subscriber.telegram_bot_id as string,
-  });
+  await deliver(
+    supabase,
+    botToken,
+    funnel as FunnelRow,
+    {
+      id: subscriber.id as string,
+      telegram_user_id: subscriber.telegram_user_id as string,
+      telegram_bot_id: subscriber.telegram_bot_id as string,
+    },
+    /* A real new channel membership is an explicit request to hand the
+       promised material over again. Replay only the zero-delay steps; their
+       scheduled follow-ups retain the original delivery claims. */
+    { replayImmediate: true },
+  );
 }
 
 async function processUpdate(
@@ -489,6 +488,11 @@ async function processUpdate(
 
     if (text.startsWith("/start")) {
       await handleStart(supabase, bot, botToken, from, chatId, text.slice("/start".length));
+      return;
+    }
+
+    if (text.startsWith("/restart")) {
+      await handleStart(supabase, bot, botToken, from, chatId, "", true);
       return;
     }
 
