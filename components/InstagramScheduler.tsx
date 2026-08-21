@@ -55,6 +55,14 @@ function nextHalfHour(date: Date): string {
   return `${rounded.getHours().toString().padStart(2, '0')}:${rounded.getMinutes().toString().padStart(2, '0')}`;
 }
 
+/** Supabase may return a UTC timestamp without the trailing timezone marker. */
+function appendZ(dateStr: string): string {
+  const normalized = dateStr.replace(' ', 'T');
+  return normalized.endsWith('Z') || normalized.includes('+')
+    ? normalized
+    : `${normalized}Z`;
+}
+
 const InstagramScheduler: React.FC = () => {
   const { user } = useAuth();
   const { selectedAccount, accounts } = useAccount();
@@ -396,11 +404,6 @@ const InstagramScheduler: React.FC = () => {
     } catch (err) {
       console.error('Failed to save reordered posts:', err);
     }
-  };
-
-  const appendZ = (dateStr: string) => {
-    let s = dateStr.replace(' ', 'T');
-    return s.endsWith('Z') || s.includes('+') ? s : `${s}Z`;
   };
 
   const formatDate = (dateStr: string) => {
