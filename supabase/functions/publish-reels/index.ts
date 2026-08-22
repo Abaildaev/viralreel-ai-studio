@@ -3,7 +3,11 @@ import { createAdminClient, getAuthenticatedUser } from "../_shared/auth.ts";
 import { createSignedVideoUrl } from "../_shared/storage.ts";
 import {
   createReelsContainer,
+  isVideoProcessingFailure,
   publishContainer,
+  VIDEO_PROCESSING_ERROR,
+  VIDEO_PUBLISH_RETRY_DELAY_MS,
+  VIDEO_PUBLISH_RETRY_LIMIT,
   waitForProcessing,
 } from "../_shared/instagram.ts";
 import { notifyUser } from "../_shared/telegram.ts";
@@ -91,6 +95,9 @@ Deno.serve(async (req: Request) => {
 
     const post = posts[0];
     const account = post.instagram_accounts;
+    const publishAttempt = post.status === "failed"
+      ? 1
+      : Number(post.publish_attempts ?? 0) + 1;
     if (!account?.is_active || !account.access_token || !account.ig_user_id) {
       return new Response(
         JSON.stringify({ error: "Instagram account is inactive or missing its access token" }),
@@ -109,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: claimed } = await supabase
       .from("scheduled_posts")
-      .update({ status: "publishing" })
+      .update({ status: "publishing", publish_attempts: publishAttempt })
       .eq("id", post.id)
       .eq("status", post.status)
       .select("id");
@@ -132,7 +139,7 @@ Deno.serve(async (req: Request) => {
       );
 
       const processed = await waitForProcessing(containerId, accessToken);
-      if (!processed) throw new Error("Ошибка Facebook: Видео не прошло обработку (Video processing failed or timed out)");
+      if (!processed) throw new Error(VIDEO_PROCESSING_ERROR);
 
       const mediaId = await publishContainer(igUserId, accessToken, containerId);
 
@@ -141,6 +148,7 @@ Deno.serve(async (req: Request) => {
         .update({
           status: "published",
           instagram_media_id: mediaId,
+          publish_attempts: 0,
           published_at: new Date().toISOString(),
         })
         .eq("id", post.id);
@@ -174,11 +182,19 @@ Deno.serve(async (req: Request) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (publishError: any) {
+      const canRetry = isVideoProcessingFailure(publishError)
+        && publishAttempt < VIDEO_PUBLISH_RETRY_LIMIT;
+      const retryAt = new Date(Date.now() + VIDEO_PUBLISH_RETRY_DELAY_MS).toISOString();
+      const errorMessage = canRetry
+        ? `${VIDEO_PROCESSING_ERROR}. Автоповтор ${publishAttempt}/${VIDEO_PUBLISH_RETRY_LIMIT} запланирован на ${retryAt}.`
+        : publishError.message;
+
       await supabase
         .from("scheduled_posts")
         .update({
-          status: "failed",
-          error_message: publishError.message,
+          status: canRetry ? "pending" : "failed",
+          scheduled_at: canRetry ? retryAt : post.scheduled_at,
+          error_message: errorMessage,
         })
         .eq("id", post.id);
 
@@ -190,8 +206,8 @@ Deno.serve(async (req: Request) => {
       );
 
       return new Response(
-        JSON.stringify({ error: publishError.message, published: 0 }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: errorMessage, published: 0, retry_scheduled: canRetry }),
+        { status: canRetry ? 202 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
   } catch (error: any) {

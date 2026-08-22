@@ -50,7 +50,9 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
   const [events, setEvents] = useState<LiveAutomationEvent[]>(initialEvents);
   const [selectedLead, setSelectedLead] = useState<LiveAutomationEvent | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'sent' | 'received' | 'failed'>('all');
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'sent' | 'received' | 'ignored' | 'failed'
+  >('all');
   const [isLiveActive, setIsLiveActive] = useState(true);
   const [newEventFlashId, setNewEventFlashId] = useState<string | null>(null);
 
@@ -157,7 +159,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
         {/* Filter Chips & Refresh */}
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-gray-100 p-0.5 rounded-xl text-xs font-medium">
-            {(['all', 'sent', 'received', 'failed'] as const).map((s) => (
+            {(['all', 'sent', 'received', 'ignored', 'failed'] as const).map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
@@ -173,6 +175,8 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
                   ? 'Доставлено'
                   : s === 'received'
                   ? 'В обработке'
+                  : s === 'ignored'
+                  ? 'Пропущено'
                   : 'Ошибки'}
               </button>
             ))}
@@ -227,6 +231,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
             const isFlash = newEventFlashId === evt.id;
             const isSent = evt.status === 'sent' || evt.dm_status === 'sent';
             const isFailed = evt.status === 'failed' || evt.dm_status === 'failed';
+            const isIgnored = evt.status === 'ignored';
 
             return (
               <div
@@ -274,6 +279,10 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
                     ) : isFailed ? (
                       <span className="text-red-700 font-medium bg-red-50 border border-red-200/60 px-2 py-0.5 rounded-md">
                         Ошибка: {evt.error_message || 'Неизвестно'}
+                      </span>
+                    ) : isIgnored ? (
+                      <span className="text-amber-700 font-medium bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-md">
+                        Пропущено{evt.error_message ? `: ${evt.error_message}` : ''}
                       </span>
                     ) : (
                       <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
@@ -336,6 +345,17 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
                   </span>
                   <p className="font-medium text-gray-900">
                     {selectedLead.lead_magnets.title}
+                  </p>
+                </div>
+              )}
+
+              {(selectedLead.status === 'ignored' || selectedLead.error_message) && (
+                <div className="bg-amber-50 rounded-xl p-3 border border-amber-200/70">
+                  <span className="text-[11px] text-amber-600 block mb-1">
+                    {selectedLead.status === 'ignored' ? 'Почему пропущено' : 'Примечание обработки'}
+                  </span>
+                  <p className="font-medium text-amber-900">
+                    {selectedLead.error_message || 'Событие не подошло под условия активной воронки.'}
                   </p>
                 </div>
               )}

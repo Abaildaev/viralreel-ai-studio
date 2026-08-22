@@ -3,7 +3,11 @@ import { createAdminClient, hasValidCronSecret } from "../_shared/auth.ts";
 import { createSignedVideoUrl } from "../_shared/storage.ts";
 import {
   createReelsContainer,
+  isVideoProcessingFailure,
   publishContainer,
+  VIDEO_PROCESSING_ERROR,
+  VIDEO_PUBLISH_RETRY_DELAY_MS,
+  VIDEO_PUBLISH_RETRY_LIMIT,
   waitForProcessing,
 } from "../_shared/instagram.ts";
 import { notifyUser } from "../_shared/telegram.ts";
@@ -61,6 +65,7 @@ Deno.serve(async (req: Request) => {
 
     const post = posts[0];
     const account = post.instagram_accounts;
+    const publishAttempt = Number(post.publish_attempts ?? 0) + 1;
 
     if (!account?.is_active || !account.access_token || !account.ig_user_id) {
       await supabase
@@ -86,7 +91,7 @@ Deno.serve(async (req: Request) => {
     // Claim the post
     const { data: claimed } = await supabase
       .from("scheduled_posts")
-      .update({ status: "publishing" })
+      .update({ status: "publishing", publish_attempts: publishAttempt })
       .eq("id", post.id)
       .eq("status", "pending")
       .select();
@@ -114,8 +119,7 @@ Deno.serve(async (req: Request) => {
         containerId,
         account.access_token
       );
-      if (!processed)
-        throw new Error("Ошибка Facebook: Видео не прошло внутреннюю обработку (Video processing failed or timed out)");
+      if (!processed) throw new Error(VIDEO_PROCESSING_ERROR);
 
       const mediaId = await publishContainer(
         account.ig_user_id,
@@ -128,6 +132,7 @@ Deno.serve(async (req: Request) => {
         .update({
           status: "published",
           instagram_media_id: mediaId,
+          publish_attempts: 0,
           published_at: new Date().toISOString(),
         })
         .eq("id", post.id);
@@ -185,11 +190,19 @@ Deno.serve(async (req: Request) => {
         }
       );
     } catch (publishError: any) {
+      const canRetry = isVideoProcessingFailure(publishError)
+        && publishAttempt < VIDEO_PUBLISH_RETRY_LIMIT;
+      const retryAt = new Date(Date.now() + VIDEO_PUBLISH_RETRY_DELAY_MS).toISOString();
+      const errorMessage = canRetry
+        ? `${VIDEO_PROCESSING_ERROR}. Автоповтор ${publishAttempt}/${VIDEO_PUBLISH_RETRY_LIMIT} запланирован на ${retryAt}.`
+        : publishError.message;
+
       await supabase
         .from("scheduled_posts")
         .update({
-          status: "failed",
-          error_message: publishError.message,
+          status: canRetry ? "pending" : "failed",
+          scheduled_at: canRetry ? retryAt : post.scheduled_at,
+          error_message: errorMessage,
         })
         .eq("id", post.id);
 
@@ -197,17 +210,20 @@ Deno.serve(async (req: Request) => {
       await notifyUser(
         supabase,
         account.user_id,
-        `❌ <b>Ошибка публикации Reels</b>\n\nАккаунт: @${account.username}\nПост: <i>"${previewText}"</i>\n\n<b>Ошибка:</b>\n<code>${publishError.message}</code>\n\nВам необходимо проверить аккаунт или видео.`
+        canRetry
+          ? `⏳ <b>Instagram обрабатывает видео дольше обычного</b>\n\nАккаунт: @${account.username}\nПост: <i>"${previewText}"</i>\n\nПовторю публикацию автоматически через 5 минут (попытка ${publishAttempt} из ${VIDEO_PUBLISH_RETRY_LIMIT}).`
+          : `❌ <b>Ошибка публикации Reels</b>\n\nАккаунт: @${account.username}\nПост: <i>"${previewText}"</i>\n\n<b>Ошибка:</b>\n<code>${publishError.message}</code>\n\nВам необходимо проверить аккаунт или видео.`
       );
 
       return new Response(
         JSON.stringify({
-          error: publishError.message,
+          error: errorMessage,
           published: 0,
           post_id: post.id,
+          retry_scheduled: canRetry,
         }),
         {
-          status: 500,
+          status: canRetry ? 202 : 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );

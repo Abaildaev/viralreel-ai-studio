@@ -740,12 +740,16 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
               </label>
               <input
                 type="number"
-                min={1}
+                min={0}
                 max={168}
                 value={form.repeat_delay_hours}
-                onChange={(e) =>
-                  setForm((c) => ({ ...c, repeat_delay_hours: parseInt(e.target.value) || 24 }))
-                }
+                onChange={(e) => {
+                  const parsed = Number.parseInt(e.target.value, 10);
+                  setForm((current) => ({
+                    ...current,
+                    repeat_delay_hours: Number.isNaN(parsed) ? 24 : Math.max(0, parsed),
+                  }));
+                }}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 text-xs outline-none"
               />
               <p className="text-[10px] text-gray-400 mt-0.5">Не слать повторно одному человеку</p>

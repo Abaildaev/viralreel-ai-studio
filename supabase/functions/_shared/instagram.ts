@@ -74,6 +74,21 @@ export async function publishContainer(
   return data.id;
 }
 
+/** Shared processing/retry policy for cron and manual publication. */
+export const VIDEO_PROCESSING_POLL_ATTEMPTS = 18; // 90 seconds at 5s intervals
+export const VIDEO_PUBLISH_RETRY_LIMIT = 3;
+export const VIDEO_PUBLISH_RETRY_DELAY_MS = 5 * 60 * 1000;
+export const VIDEO_PROCESSING_ERROR =
+  "Ошибка Facebook: Видео не прошло внутреннюю обработку (Video processing failed or timed out)";
+
+export function isVideoProcessingFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  return normalized.includes("video processing")
+    || normalized.includes("видео не прошло")
+    || normalized.includes("видео не прошло обработку");
+}
+
 /** Carries Meta's numeric codes so callers can explain the failure. */
 export class InstagramApiError extends Error {
   constructor(
@@ -127,7 +142,7 @@ export function describeInstagramError(error: unknown): string {
 export async function waitForProcessing(
   containerId: string,
   accessToken: string,
-  maxAttempts = 12,
+  maxAttempts = VIDEO_PROCESSING_POLL_ATTEMPTS,
 ): Promise<boolean> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const status = await checkContainerStatus(containerId, accessToken);
