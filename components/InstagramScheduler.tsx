@@ -163,6 +163,16 @@ const InstagramScheduler: React.FC = () => {
     setIsLoading(false);
   };
 
+  const allQueuePosts = posts;
+  /* Selection is a set in the UI; scheduling must always follow the visible
+     queue order, never the order in which cards were clicked. */
+  const orderedSelectedPostIds = useMemo(
+    () => allQueuePosts
+      .filter(post => selectedPostIds.includes(post.id))
+      .map(post => post.id),
+    [allQueuePosts, selectedPostIds],
+  );
+
 
 
   const handleDeleteSelected = async () => {
@@ -190,15 +200,20 @@ const InstagramScheduler: React.FC = () => {
   };
 
   const handleScheduleSelected = async () => {
-    if (plannedTimes.length !== selectedPostIds.length || !selectedAccount || !user) return;
+    if (plannedTimes.length !== orderedSelectedPostIds.length || !selectedAccount || !user) return;
     setIsScheduling(true);
     try {
       // One round trip's worth of latency instead of one request per post.
       const results = await Promise.all(
-        selectedPostIds.map((id, index) =>
+        orderedSelectedPostIds.map((id, index) =>
           supabase
             .from('scheduled_posts')
-            .update({ scheduled_at: plannedTimes[index].toISOString(), status: 'pending' })
+            .update({
+              scheduled_at: plannedTimes[index].toISOString(),
+              status: 'pending',
+              error_message: null,
+              publish_attempts: 0,
+            })
             .eq('id', id),
         ),
       );
@@ -311,22 +326,59 @@ const InstagramScheduler: React.FC = () => {
 
     setIsShuffling(true);
 
-    const ids = allQueuePosts.map(p => p.id);
-    const shuffledIds = [...ids];
-    for (let i = shuffledIds.length - 1; i > 0; i--) {
+    const shuffledQueue = [...allQueuePosts];
+    for (let i = shuffledQueue.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [shuffledIds[i], shuffledIds[j]] = [shuffledIds[j], shuffledIds[i]];
+      [shuffledQueue[i], shuffledQueue[j]] = [shuffledQueue[j], shuffledQueue[i]];
     }
 
-    for (let i = 0; i < shuffledIds.length; i++) {
-      await supabase
+    /* Existing scheduled posts need their actual publication slots swapped;
+       changing sort_order alone only changes the cards in the UI because the
+       worker publishes by scheduled_at. */
+    const scheduled = allQueuePosts
+      .filter(post => post.status === 'pending' && post.scheduled_at)
+      .sort((left, right) => Date.parse(appendZ(left.scheduled_at!)) - Date.parse(appendZ(right.scheduled_at!)));
+    const scheduledTimes = scheduled.map(post => post.scheduled_at!);
+    const shuffledScheduled = shuffledQueue.filter(post =>
+      post.status === 'pending' && post.scheduled_at,
+    );
+    const scheduledTimeById = new Map(
+      shuffledScheduled.map((post, index) => [post.id, scheduledTimes[index]]),
+    );
+
+    const updates = await Promise.all(shuffledQueue.map((post, index) =>
+      supabase
         .from('scheduled_posts')
-        .update({ sort_order: i + 1 })
-        .eq('id', shuffledIds[i]);
+        .update({
+          sort_order: index + 1,
+          ...(scheduledTimeById.has(post.id)
+            ? { scheduled_at: scheduledTimeById.get(post.id) }
+            : {}),
+        })
+        .eq('id', post.id),
+    ));
+    const failedUpdate = updates.find(result => result.error);
+    if (failedUpdate?.error) {
+      setPublishStatus({ type: 'error', msg: `Не удалось перемешать очередь: ${failedUpdate.error.message}` });
+    } else {
+      setPosts(shuffledQueue);
+      setSelectedPostIds(current => shuffledQueue
+        .filter(post => current.includes(post.id))
+        .map(post => post.id));
+      setPublishStatus({ type: 'success', msg: 'Очередь и порядок публикаций перемешаны' });
+    }
+
+    /* Re-read the server order after all updates so a later scheduling action
+       uses the same order the worker will see. */
+    await fetchPosts();
+
+    /* Keep this guard close to the updates: an empty time list is valid when
+       the queue contains only drafts. */
+    if (scheduled.length !== shuffledScheduled.length) {
+      console.warn('Scheduler queue changed while shuffling scheduled slots');
     }
 
     setIsShuffling(false);
-    await fetchPosts();
   };
 
   const handlePublishNow = async (post: ScheduledPost) => {
@@ -432,8 +484,6 @@ const InstagramScheduler: React.FC = () => {
 
   const draftPosts = posts.filter(p => p.status === 'draft');
   const scheduledPosts = posts.filter(p => p.status === 'pending');
-
-  const allQueuePosts = posts;
 
   // The reels bucket is private — previews need short-lived signed URLs.
   const videoUrls = useSignedUrls('reels', posts.map(post => post.video_path));
@@ -915,7 +965,7 @@ const InstagramScheduler: React.FC = () => {
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Расписание ({selectedPostIds.length} постов)</label>
                       <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-48 overflow-y-auto">
-                        {selectedPostIds.map((id, i) => {
+                        {orderedSelectedPostIds.map((id, i) => {
                           const post = posts.find(p => p.id === id);
                           const time = plannedTimes[i];
                           return (
