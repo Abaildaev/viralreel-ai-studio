@@ -30,6 +30,7 @@ import {
   QueueListIcon,
   ArrowsRightLeftIcon,
   ArrowsUpDownIcon,
+  ArrowUturnLeftIcon,
   RocketLaunchIcon,
   Bars3Icon,
 } from '@heroicons/react/24/outline';
@@ -174,6 +175,68 @@ const InstagramScheduler: React.FC = () => {
   );
 
 
+
+  /* Selected posts that are actually on the schedule. A draft has nothing to
+     be taken off, and a post already being published is past recall. */
+  const scheduledSelection = useMemo(
+    () => allQueuePosts.filter(
+      (post) => selectedPostIds.includes(post.id)
+        && post.scheduled_at
+        && post.status === 'pending',
+    ),
+    [allQueuePosts, selectedPostIds],
+  );
+
+  /*
+    Takes posts off the schedule without destroying them.
+
+    Deleting was the only way to stop a publication, and it removes the video
+    from storage with the row — an hour of rendering gone because the time was
+    wrong. This returns them to drafts instead: same queue, same files, no
+    date, and the publisher only ever looks at `pending`.
+
+    The update is conditional on the status it expects. Between drawing the
+    queue and clicking the button the worker may have claimed a post, and a
+    plain update by id would pull it out from under a publication already on
+    its way to Instagram. Written this way the cancel simply loses that race,
+    and says how many it got.
+  */
+  const handleUnscheduleSelected = async () => {
+    if (scheduledSelection.length === 0) return;
+
+    const ok = await confirm({
+      title: 'Снять с публикации?',
+      message: `${scheduledSelection.length} постов вернутся в черновики. Видео и тексты останутся на месте — можно будет запланировать заново.`,
+      confirmText: 'Снять',
+      variant: 'warning',
+      icon: 'arrows',
+    });
+    if (!ok) return;
+
+    const { data, error } = await supabase
+      .from('scheduled_posts')
+      .update({ status: 'draft', scheduled_at: null, error_message: null })
+      .in('id', scheduledSelection.map((post) => post.id))
+      .eq('status', 'pending')
+      .select('id');
+
+    if (error) {
+      setPublishStatus({ type: 'error', msg: `Не удалось снять с публикации: ${error.message}` });
+      return;
+    }
+
+    const removed = data?.length ?? 0;
+    const missed = scheduledSelection.length - removed;
+    setPublishStatus({
+      type: missed > 0 ? 'error' : 'success',
+      msg: missed > 0
+        ? `Снято ${removed} из ${scheduledSelection.length}. Остальные уже публикуются — их не остановить.`
+        : `Снято с публикации: ${removed}. Посты ждут в черновиках.`,
+    });
+
+    setSelectedPostIds([]);
+    await fetchPosts();
+  };
 
   const handleDeleteSelected = async () => {
     if (selectedPostIds.length === 0) return;
@@ -661,6 +724,15 @@ const InstagramScheduler: React.FC = () => {
 
             {viewTab === 'queue' && (
               <div className="flex items-center gap-2 flex-wrap">
+                {scheduledSelection.length > 0 && (
+                  <button
+                    onClick={handleUnscheduleSelected}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50 border border-amber-200 transition-colors"
+                  >
+                    <ArrowUturnLeftIcon className="w-3.5 h-3.5 inline mr-1" />
+                    Снять с публикации {scheduledSelection.length}
+                  </button>
+                )}
                 {selectedPostIds.length > 0 && (
                   <button onClick={handleDeleteSelected} className="px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 border border-red-200 transition-colors">
                     <TrashIcon className="w-3.5 h-3.5 inline mr-1" />
