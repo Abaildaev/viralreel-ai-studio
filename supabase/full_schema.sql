@@ -3558,3 +3558,534 @@ ALTER TABLE scheduled_posts
 ALTER TABLE scheduled_posts
   ADD CONSTRAINT scheduled_posts_publish_attempts_check
   CHECK (publish_attempts >= 0);
+
+-- ------------------------------------------------------------------------
+-- 20260823110000_instagram_direct_copy_rewrite.sql
+-- ------------------------------------------------------------------------
+
+/*
+  New Instagram copy for the prompt funnel: the Direct message and the public
+  comment reply.
+
+  Both fields are arrays the sender picks from at random, and both are read by
+  people who see several of our replies in a row — the same words under every
+  comment is what a spam filter is looking for. So the sets below are written
+  to differ in wording, not only in punctuation.
+
+  The five Direct variants split into two groups on purpose. Three of them say
+  nothing about the channel and promise the catalogue outright; two name the
+  subscription as a step on the way to it. Which group converts better is a
+  question about this audience that only running both can answer.
+
+  One caveat worth writing down: `button_text` is a single column, so every
+  variant ships the same button. The wording chosen below is the one that fits
+  under all five — it names both halves of the offer, the catalogue and the
+  test, without contradicting a variant that leads with either.
+*/
+
+UPDATE lead_magnets magnet
+SET
+  direct_reply_variants = ARRAY[
+    E'Забирай 1000+ готовых промптов для генерации картинок в нейросетях!\n\nВнутри — формулы под рекламу, людей, предметку и свет. Главное: там же ты сможешь сразу протестировать любой промпт и забрать результат за пару кликов.\n\nЖми кнопку ниже 👇',
+    E'Хватит мучиться с генерацией картинок в нейросетях.\n\nЯ собрал 1000+ готовых промптов для идеального визуала (свет, ракурсы, стили) и настроил место, где ты сразу протестируешь их в один клик без танцев с бубном.\n\nЗабирай доступ 👇',
+    E'Твой чит-код для сочного визуала в нейросетях!\n\nВ базе — 1000+ промптов для генерации фото, товаров и рекламы. Копируешь готовый текст, там же сразу запускаешь генерацию и получаешь топ-кадр за 60 секунд.\n\nЖми кнопку 👇',
+    E'Лови 1000+ промптов для визуала в нейросетях!\n\nВнутри — формулы для картинок и место для их мгновенного теста. Схема: жми кнопку, подпишись на мой канал с AI-разборами — и бот моментально выдаст доступ к базе.\n\nЗабирай по кнопке 👇',
+    E'Делай студийные картинки в нейросетях с 1-й попытки!\n\nЯ упаковал 1000+ промптов для сочного визуала и подключил движок для быстрого теста. Подпишись на канал — и бот сразу пришлет базу и откроет генерации.\n\nЖми кнопку ниже 👇'
+  ],
+  /* The fallback for a rule whose variants are all blank. Kept in step with
+     the list above so a cleared array cannot resurrect last month's promise. */
+  reply_text = E'Забирай 1000+ готовых промптов для генерации картинок в нейросетях!\n\nВнутри — формулы под рекламу, людей, предметку и свет. Главное: там же ты сможешь сразу протестировать любой промпт и забрать результат за пару кликов.\n\nЖми кнопку ниже 👇',
+  button_text = 'Забрать базу и тест',
+  public_reply_variants = ARRAY[
+    'Отправил в Direct! Если не видишь — проверь вкладку "Запросы", Инста часто туда прячет 📩',
+    'Закинул в личку! Лови. Если уведомление не пришло — глянь в скрытых запросах или спаме 🤝',
+    'Уже скинул! Проверяй Direct (и папку "Запросы", если во входящих пусто) 🔥',
+    'Материал уже у тебя в личке! Забирай. Если не всплыло — 100% упало в запросы 🚀',
+    'Лови в директе! Обязательно проверь скрытые сообщения, Инстаграм любит туда спамить 👀',
+    'Отправил! Если в основных нет — посмотри в запросах на переписку, всё там 📨'
+  ],
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND (
+      funnel.name ILIKE '10 пром%'
+      OR funnel.name ILIKE '10 готов%'
+      OR funnel.name ILIKE '1000+ пром%'
+      OR funnel.name ILIKE '1000+ готов%'
+    )
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260823120000_direct_reply_buttons.sql
+-- ------------------------------------------------------------------------
+
+/*
+  A button of its own for every Direct variant.
+
+  One rule used to carry several ways of saying the same thing and exactly one
+  button under all of them, so a variant that opened with «Хватит мучиться»
+  and one that opened with «Твой чит-код» had to share a caption written for
+  neither. The titles live in a second array beside the words, matched by
+  index: a position left empty falls back to `button_text`, which is what every
+  rule written before this column did and keeps doing.
+
+  Parallel arrays rather than a column of pairs, because the variants are
+  already in production and rewriting them into objects would need a data
+  migration for something the reader never sees.
+*/
+
+ALTER TABLE lead_magnets
+  ADD COLUMN IF NOT EXISTS direct_reply_buttons text[] NOT NULL DEFAULT '{}'::text[];
+
+COMMENT ON COLUMN lead_magnets.direct_reply_buttons IS
+  'Надписи на кнопке для direct_reply_variants, по индексу. Пустое место — берётся button_text.';
+
+/*
+  The prompt funnel's own set, in the order its variants are stored. The first
+  three promise the catalogue outright, the last two name the subscription on
+  the way to it, and the buttons follow that split: «тестировать» where the
+  copy leads with the test, «забрать» where it leads with the base.
+*/
+UPDATE lead_magnets magnet
+SET
+  direct_reply_buttons = ARRAY[
+    'Тестировать промпты',
+    'Забрать базу и тест',
+    'Забрать 1000+ схем',
+    'Забрать базу и тест',
+    'Тестировать формулы'
+  ],
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND (
+      funnel.name ILIKE '10 пром%'
+      OR funnel.name ILIKE '10 готов%'
+      OR funnel.name ILIKE '1000+ пром%'
+      OR funnel.name ILIKE '1000+ готов%'
+    )
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260823130000_short_direct_reply_buttons.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Button titles short enough to survive either reading of Meta's limit.
+
+  The limit is documented in characters, and the sender now measures it that
+  way. But the code measured bytes until today, nobody outside Meta can say
+  which of the two the platform enforces, and the cost of being wrong is the
+  message failing to send at the one moment the reader is ready to tap.
+
+  Ten Cyrillic letters is twenty bytes, so a title of that length passes under
+  both readings at once. Digits and latin cost a byte each rather than two,
+  which is why «1000+ схем» fits at ten characters and fourteen bytes.
+
+  Shorter titles also lose something: «Тестировать промпты» said what would
+  happen, «1000+ схем» only names the prize. Naming the prize is the half
+  worth keeping when only half fits.
+*/
+
+UPDATE lead_magnets magnet
+SET
+  direct_reply_buttons = ARRAY[
+    '1000+ схем',
+    'Хочу базу',
+    'Хочу чит',
+    'Забрать',
+    'К формулам'
+  ],
+  /* The fallback for a variant left without its own title, kept under the
+     same ceiling — it is the one that ships when someone clears a field. */
+  button_text = 'Забрать',
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND (
+      funnel.name ILIKE '10 пром%'
+      OR funnel.name ILIKE '10 готов%'
+      OR funnel.name ILIKE '1000+ пром%'
+      OR funnel.name ILIKE '1000+ готов%'
+    )
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260823140000_prompt_of_the_day_sequence.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The prompt-a-day sequence.
+
+  The funnel used to hand over the catalogue, point at the partner bot and
+  then nudge three times about doing something with it. It now teaches instead
+  of nudging: every day carries one finished prompt, the picture it produces
+  and the four taps that reproduce it. The ask is identical each time and sits
+  at the end of a message the reader wanted to open anyway.
+
+  Two messages per day rather than one, because a prompt long enough to be
+  worth having is longer than a photo caption may be. The first carries the
+  picture and the instructions, the second carries the prompt itself and the
+  button — and the second has no delay, so the pair arrives together and the
+  button lands under the reader's thumb while the instructions are still on
+  screen.
+
+  Every prompt is wrapped in <code>, which is what makes Telegram copy it on a
+  single tap. Without it the reader has to select two thousand characters by
+  hand on a phone, and the instruction to "just tap the text" is a lie. None of
+  the four prompts contains <, > or &, so the markup cannot fail to parse.
+
+  The «2-3 seconds» the copy was written for is not expressible: the column
+  holds whole minutes. Zero is closer than one — consecutive zero-delay steps
+  are sent in one pass, which is a couple of seconds apart in practice.
+
+  The photo steps ship without their photos. The pictures are what those
+  messages are for, and the account owner uploads them in the funnel editor;
+  until then the step sends its caption as a plain message and the sequence
+  still works.
+*/
+
+INSERT INTO telegram_funnel_steps (
+  user_id, funnel_id, position, title, body, button_text, button_url, delay_minutes, is_active
+)
+SELECT
+  funnel.user_id,
+  funnel.id,
+  step.position,
+  step.title,
+  step.body,
+  step.button_text,
+  step.button_url,
+  step.delay_minutes,
+  true
+FROM telegram_funnels funnel
+CROSS JOIN (VALUES
+  (1, E'Каталог промптов', E'Ты на месте! Твой доступ к 1000+ промптам открыт 🚀\n\nСобрал для тебя огромную библиотеку формул под любые визуальные задачи: от предметной съемки товаров до киношных портретов с правильным светом.\n\nЖми кнопку ниже, чтобы открыть сайт с фильтрами и сохранить его в закладки.\n\nА прямо следующим сообщением я пришлю тебе первый готовый промпт дня и инструмент, где его можно сразу протестировать 👇',
+   E'Открыть каталог промптов', E'https://nanobanana-prompts.netlify.app/', 0),
+  (2, E'Промпт дня 1 · как это работает', E'Помимо базы формул, я каждый день буду присылать тебе топовые решения под фотосессии, товары и креативы. Чтобы ты сразу делал сочный визуал без тестов наугад.\n\nКак сделать такой арт из своего фото:\n\n1. Нажми на промпт в следующем сообщении — он скопируется в один клик.\n2. Переходи в бота по кнопке внизу 👇\n3. Нажимай «🎨 Создать изображение», листай вниз и выбирай модель ChatGPT Image (GPT).\n4. Прикрепи своё фото, вставь скопированный промпт и нажми «Отправить».\n\nТекст промпта для копирования прилетит прямо под этим сообщением 👇',
+   E'', E'', 1),
+  (3, E'Промпт дня 1 · текст', E'Промпт для копирования (просто нажми на текст ниже):\n\n<code>Полностью сохранить реальные сцены, композицию, пространственные отношения, здания, улицы, предметы интерьера, детали окружения, естественный свет и тени, реальные материалы и фотографические текстуры на исходном изображении Фон выполнен в стиле реальной фотографии с высоким разрешением, без изменения исходного окружения, без перерисовки фона и без изменения угла обзора объектива Заменить только персонажей на изображении на минималистичные черно-белые стикеры с нарисованными от руки линиями Персонажи остаются на исходном изображении: поза действие направление Количество персонажей Пропорции тела Взаимное расположение Контуры одежды и основные характеристики Персонажи выполнены в минималистичном черно-белом стиле однолинейной ручной иллюстрации, с небрежными и грубоватыми штрихами, естественными линиями, неровностями и легким намеком на мастерство. В персонажах используются только два цвета: чистый черный и чистый белый, без оттенков серого, без цвета и без градиента. Одежда, волосы, черты лица и детали тела прорисованы простыми черными линиями, и лишь небольшое количество чистых черных блоков используется для прорисовки волос, складок на одежде или теней. По краям каждого персонажа добавлены четкие, аккуратные и равномерные белые штрихи, имитирующие наклейки, чтобы создать эффект стикеров и коллажа в стиле «вырезано ножом». Наклейки с персонажами естественным образом накладываются на реальный фотографический фон, при этом персонажи сохраняют двухмерную плоскую текстуру иллюстрации, создавая четкий контраст с реальным фоном. Общий стиль: Минималистичное граффити в стиле INS, черно-белые наброски от руки, стикеры, бумажные коллажи, репортажная съемка, сочетание реальных сцен и двухмерных иллюстраций, редакционный коллаж, смешанная техника. Фон реалистичный и детализированный, персонажи плоские и лаконичные, границы между двумя визуальными языками четкие. Детализация высокой четкости, резкость и ясность, реалистичная фотографическая текстура, визуальные эффекты 8K.</code>\n\nВ боте у тебя 2 бесплатные генерации — загружай фото и проверяй!',
+   E'Сделать 2D-стикер', E'https://t.me/Integer_ai_bot?start=REF00009284', 0),
+  (4, E'Промпт дня 2 · как это работает', E'Сегодня разбираем создание готового рекламного плаката и журнальной обложки уровня Vogue или Behance. Нейросеть сама собирает композицию, крупную типографику, багажные бирки, графические штампы и объемный свет.\n\n💡 Ты можешь заменить текст в кавычках "СТИРАЮ ШАБЛОНЫ" на свой слоган или название бренда, а также поменять цвет фона (например, на синий или красный).\n\nКак сгенерировать такой постер за 1 минуту:\n\n1. Нажми на промпт в следующем сообщении — он скопируется в один клик.\n2. Переходи в бота по кнопке внизу 👇\n3. Нажимай «🎨 Создать изображение», листай вниз и выбирай модель ChatGPT Image (GPT).\n4. Прикрепи своё фото (или фото модели/одежды), вставь скопированный промпт и нажми «Отправить».\n\nТекст промпта для копирования прилетит прямо под этим сообщением 👇',
+   E'', E'', 1440),
+  (5, E'Промпт дня 2 · текст', E'Промпт для копирования (просто нажми на текст ниже):\n\n<code>Ультрареалистичная рекламная кампания уличной одежды премиум-класса, на снимке красивая девушка, уверенно сидящий на хромированной багажной тележке в аэропорту, непринужденная поза с естественно расставленными ногами, одна рука лежит на тележке, а другая крепко держится за верхнюю ручку, смотрит прямо в камеру со спокойным уверенным выражением лица, одета в одежду из фото, эффектный широкоугольный объектив с низким углом обзора, создающий объемную обувь на переднем плане, центрированную композицию, современную эстетику путешествия в аэропорту., гигантская белая типографская надпись "СТИРАЮ ШАБЛОНЫ" на зеленом фоне, элементы графического дизайна, включая этикетки со штрих-кодом, туристические наклейки, графические штампы в паспортах, значки глобуса, стрелки, ярлыки для приоритетного багажа, минималистичный фирменный стиль, хромированные блики, чистый белый пол, реклама модной одежды премиум-класса, кампания роскошной уличной одежды, ультрадетализированный дизайн., гиперреалистичная, коммерческая фотография, кинематографическое освещение, HDR, макет обложки журнала, четкий фокус, естественная текстура кожи, реалистичные складки ткани, глубина резкости, высокая контрастность, профессиональная цветопередача, 8K, шедевр, редакция журнала Vogue, Изображение Behance, коммерческая реклама премиум-класса, соотношение сторон 9:16, низкое качество, размытость, шум, водяной знак, искажение логотипа, лишние пальцы, лишние конечности, плохая анатомия, деформированное лицо, обрезанное тело, повторяющиеся объекты, передержка, перенасыщение, текстовые артефакты, плохая типографика, нереалистичные пропорции, размытие при движении, низкое разрешение, мультфильм, аниме, компьютерная графика, пластиковая оболочка, беспорядочная композиция, наклоненный горизонт.</code>\n\nЗапускай бота и забирай готовый постер со своим фото:',
+   E'Создать постер в боте', E'https://t.me/Integer_ai_bot?start=REF00009284', 0),
+  (6, E'Промпт дня 3 · как это работает', E'Промпт #3: Винтажный постер в стиле ретро-шелкографии 🏛️🎨\n\nСегодня делаем музейную эстетику: винтажный архитектурный плакат первой половины XX века (в стиле ретро-афиш Токио, Стамбула или Парижа). Нейросеть превращает портрет в стильную трафаретную графику, добавляет геометрический диск и прорисовывает атмосферный город на фоне.\n\n💡 Ты можешь заменить город и год в промпте (например, написать «ТОКИО», «ПАРИЖ» или «МОСКВА» и указать свои памятники), чтобы получить уникальный постер под любую поездку или страну.\n\nКак сделать такой постер из своего фото:\n\n1. Нажми на промпт в следующем сообщении — он скопируется в один клик.\n2. Переходи в бота по кнопке внизу 👇\n3. Нажимай «🎨 Создать изображение», листай вниз и выбирай модель ChatGPT Image (GPT).\n4. Прикрепи своё фото (лучше всего крупный или поясной портрет), вставь скопированный промпт и нажми «Отправить».\n\nТекст промпта для копирования прилетит прямо под этим сообщением 👇',
+   E'', E'', 1440),
+  (7, E'Промпт дня 3 · текст', E'Промпт для копирования (просто нажми на текст ниже):\n\n<code>Создай ретро-иллюстрацию архитектурного плаката в эстетике трафаретной печати, вертикальный формат 3:4, посвященную Стамбулу первой половины XX века. ТИПОГРАФИКА В верхнем левом углу размести крупный заголовок: «СТАМБУЛ» Используй жирный, сильно сжатый шрифт без засечек, прописные буквы. Непосредственно под ним размести меньший подзаголовок: «СВЯТАЯ СОФИЯ И ГОЛУБАЯ МЕЧЕТЬ — БОСФОР · 5:50 утра · 1934 год» Сохрани четкую типографическую иерархию и большое количество свободного пространства вокруг текстового блока. Типографика должна выглядеть как часть исторического редакционного плаката, а не как современная рекламная верстка. ГЛАВНЫЙ ОБЪЕКТ Используй объект / человека из прикрепленного фото как центральный визуальный элемент. Сохрани его узнаваемую форму, силуэт и основные характерные особенности, адаптировав изображение под эстетику ретро-трафаретной печати. ГЕОМЕТРИЧЕСКИЙ ДИСК Позади головы или верхней части основного объекта размести один крупный плоский круглый диск, работающий как графический композиционный якорь. Диск должен быть цельным, геометричным и визуально отделять основной объект от архитектурного фона. АРХИТЕКТУРНЫЙ ФОН Построй фон из ровных плоских пространственных слоев без выраженной перспективной точки схода. Дальний план: очертания старого Стамбула, холмистой городской линии, плотной низкой застройки, крыш и прибрежных кварталов, сведенные к простым прямолинейным архитектурным блокам. Средний план: узнаваемые силуэты Святой Софии, Голубой мечети, Галатской башни, минаретов и прибрежных построек Босфора, изображенные как массивные плоские формы. Передний план: ритмичные графические элементы каменной мостовой, арок, фонарей, балюстрад, причальных деталей, декоративных исламских орнаментов, купольных оснований и архитектурных фрагментов, превращенные в выразительный плакатный паттерн. При необходимости добавь исторически уместные детали окружения: легкий морской туман, утренний пар, отдаленные крыши, тонкие провода, редкие лодочные мачты, чайки и башенные элементы. Облака, туман, дым или пар изображай в виде точечных скоплений с мягкими внешними границами. ВИЗУАЛИЗАЦИЯ Сохрани эстетику винтажной трафаретной / шелкографической печати начала–середины XX века. Тональная моделировка создается исключительно точками, растром и плотностью печати: плотные скопления точек в глубоких тенях; редкие точки в светлых областях; крупные полутоновые растры в средних тонах; никаких плавных цифровых градиентов; никаких фотореалистичных мягких теней. Добавь легкое несовпадение печатных слоев, небольшое смещение красок, шероховатые края отдельных форм, видимую зернистость бумаги и очень деликатную фактуру тканого холста. Контуры — четкие, графичные, преимущественно черные, с равномерной визуальной плотностью. Архитектура должна оставаться легко узнаваемой, но быть сильно упрощенной до плакатных геометрических форм. ПАЛИТРА Используй ровно четыре высококонтрастных цвета: глубокий бирюзово-сине-зеленый; теплый цвет старой бумаги / светлая слоновая кость; насыщенный чернильно-черный; терракотово-красный. Не добавляй дополнительные оттенки. Все промежуточные тона создавай исключительно за счет плотности точек, растра, штрихов и наложения четырех заданных красок. ОБЩИЙ ХАРАКТЕР Исторический архитектурный плакат, музейная шелкография, винтажная городская графика, архивная редакционная иллюстрация, четкая геометрия, мощные архитектурные силуэты, много негативного пространства, ограниченная палитра, тактильная печатная фактура. Соотношение сторон: 3:4 по вертикали.</code>\n\nЗагружай своё фото в бота и делай авторский ретро-плакат:',
+   E'Создать ретро-постер', E'https://t.me/Integer_ai_bot?start=REF00009284', 0),
+  (8, E'Промпт дня 4 · как это работает', E'Промпт #4: Эстетичная фотосессия на винтажном авто 🏎️☁️\n\nСегодня делаем журнальный кадр в стиле Harper''s Bazaar и Vogue: винтажный пастельно-розовый Porsche 356, объемные летние облака и кинематографичная эстетика без аренды раритетного авто и фотостудии.\n\n💡 Модель идеально переносит черты лица и внешность с твоего фото. Если на фото парень — можно заменить в тексте her на his и She на He (хотя нейросеть отлично считывает пол и сама по исходнику).\n\nКак сделать такую фотосессию за 1 минуту:\n\n1. Нажми на промпт в следующем сообщении — он скопируется в один клик.\n2. Переходи в бота по кнопке внизу 👇\n3. Нажимай «🎨 Создать изображение», выбирай модель Nana Banana Pro.\n4. Прикрепи своё фото (портрет или в полный рост), вставь скопированный промпт и нажми «Отправить».\n\nТекст промпта для копирования прилетит прямо под этим сообщением 👇',
+   E'', E'', 1440),
+  (9, E'Промпт дня 4 · текст', E'Промпт для копирования (просто нажми на текст ниже):\n\n<code>Use the uploaded photo as an exact personality reference. Fully preserve her face, hairstyle, facial features, proportions, physique, and overall appearance without any changes. Do not alter the personality in any way.\nDreamy minimalist fashion editorial photograph. The model sits gracefully on the roof of a vintage pastel-pink Porsche 356, shot from a dramatic low angle. In the background — huge high cumulus clouds filling most of the sky and creating an expressive cinematic backdrop. The composition has a lot of negative space and a rich deep blue summer sky, making the frame look airy, calm, and refinedly editorial.\nThe model sits on the car roof in a relaxed elegant pose, with a quiet contemplative facial expression. The pose should look natural, effortless, and exquisite. She wears a clean white t-shirt, voluminous dark-blue wide linen trousers with a free-flowing silhouette, and simple brown leather slide sandals. Accessories are minimal and restrained: concise silver earrings and a thin bracelet.\nHer look appears natural and neat, with soft makeup and a clean editorial presentation. A light breeze slightly moves her hair and clothing, adding realism and softness to the scene.\nLighting and mood:\nBright natural summer daylight with soft clean shadows, glowing sky tones, and a calm cinematic atmosphere. The frame should feel serene, spacious, stylish, and poetic.\nStyle and quality:\nUltra-photorealistic luxury fashion editorial photograph, minimalist aesthetic, dreamy summer mood, strong composition, refined color harmony, premium fabric texture, natural skin texture, cinematic realism, light filmic depth, quality of an expensive magazine shot, as for Vogue or Harper''s Bazaar, 8K.</code>\n\nЗагружай фото в Nana Banana Pro и забирай готовый кадр:',
+   E'Сделать фотосессию в боте', E'https://t.me/Integer_ai_bot?start=REF00009284', 0)
+) AS step(position, title, body, button_text, button_url, delay_minutes)
+WHERE funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  )
+ON CONFLICT (funnel_id, position) DO UPDATE
+SET
+  title = EXCLUDED.title,
+  body = EXCLUDED.body,
+  button_text = EXCLUDED.button_text,
+  button_url = EXCLUDED.button_url,
+  delay_minutes = EXCLUDED.delay_minutes,
+  is_active = true,
+  updated_at = now();
+
+-- ------------------------------------------------------------------------
+-- 20260823150000_drop_subscription_gate.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The catalogue stops costing a subscription.
+
+  Everything downstream was built around the gate: the reader arrived from
+  Instagram wanting prompts and was met with a condition, two steps after the
+  promise and before anything had been handed over. That is the most expensive
+  place in the funnel to ask for something, and the ask was mandatory.
+
+  `require_subscription` is all it takes — `handleStart` reads it, and with the
+  gate down the reader goes straight to `deliver`. The funnel's picture moves
+  with them: the greeting is empty, so the file rides on the first step of the
+  sequence instead of on the subscription request it used to open.
+
+  The gate's own copy is left in place rather than cleared. It holds the best
+  paragraph anyone wrote for this funnel — why a neural network returns the
+  wrong picture — and it costs nothing to keep against the day the gate comes
+  back. It simply stops being shown.
+*/
+
+UPDATE telegram_funnels
+SET
+  require_subscription = false,
+  updated_at = now()
+WHERE slug = 'prompts'
+  AND (
+    name ILIKE '10 пром%'
+    OR name ILIKE '10 готов%'
+    OR name ILIKE '1000+ пром%'
+    OR name ILIKE '1000+ готов%'
+  );
+
+/*
+  Two of the five Direct variants sold the subscription as the step that opened
+  the catalogue. With no gate to describe they would be promising a hoop that
+  no longer exists — the one kind of copy that costs more than it earns, since
+  the reader who braced for a condition and met none still remembers being
+  asked. Both are rewritten to say what now actually happens; the other three
+  never mentioned it and are left alone.
+*/
+UPDATE lead_magnets magnet
+SET
+  direct_reply_variants = ARRAY[
+    direct_reply_variants[1],
+    direct_reply_variants[2],
+    direct_reply_variants[3],
+    E'Лови 1000+ промптов для визуала в нейросетях!\n\nВнутри — формулы для картинок и место для их мгновенного теста. Схема простая: жмёшь кнопку — и бот сразу отдаёт доступ к базе. Без условий и регистраций.\n\nЗабирай по кнопке 👇',
+    E'Делай студийные картинки в нейросетях с 1-й попытки!\n\nЯ упаковал 1000+ промптов для сочного визуала и подключил движок для быстрого теста. Бот отдаёт базу сразу, делать ничего не нужно.\n\nЖми кнопку ниже 👇'
+  ],
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND (
+      funnel.name ILIKE '10 пром%'
+      OR funnel.name ILIKE '10 готов%'
+      OR funnel.name ILIKE '1000+ пром%'
+      OR funnel.name ILIKE '1000+ готов%'
+    )
+    AND funnel.lead_magnet_id IS NOT NULL
+)
+  AND array_length(magnet.direct_reply_variants, 1) = 5;
+
+-- ------------------------------------------------------------------------
+-- 20260824000500_replay_sequence_for_owner.sql
+-- ------------------------------------------------------------------------
+
+/*
+  One replay of the whole sequence for the account that owns it.
+
+  Two reasons to do this by hand rather than by pressing /start. The first is
+  that /start cannot: the steps were rewritten in place, so their ids survived,
+  and this reader's delivery rows from the old funnel still hold the unique
+  claim on them — the scheduler tries to claim the next step, loses to the row
+  that is already there, and the chain stops after the immediate ones.
+
+  The second is the file cache. Every photo travels from Supabase Storage the
+  first time and by Telegram's own file_id every time after, keyed on bot and
+  object path. Walking the sequence once warms that cache for everyone who
+  arrives later, which is worth an evening of messages to one person.
+
+  Scoped to a single username on purpose. "The most recent subscriber" would
+  have been enough while the funnel is quiet, and would have meant nine
+  messages — four of them walls of prompt — to a stranger the moment it is not.
+
+  The due times are staggered a second apart in step order rather than set to
+  one instant. The worker takes its batch ordered by due_at, so equal times
+  would leave the order to chance, and a prompt arriving before the
+  instructions that explain it reads as a bug.
+*/
+
+INSERT INTO telegram_step_deliveries (
+  telegram_bot_id, subscriber_id, step_id, due_at, status, attempts, error_message, sent_at
+)
+SELECT
+  subscriber.telegram_bot_id,
+  subscriber.id,
+  step.id,
+  now() - interval '10 minutes' + (step.position * interval '1 second'),
+  'pending',
+  0,
+  NULL,
+  NULL
+FROM telegram_subscribers subscriber
+JOIN telegram_funnels funnel
+  ON funnel.telegram_bot_id = subscriber.telegram_bot_id
+JOIN telegram_funnel_steps step
+  ON step.funnel_id = funnel.id
+ AND step.is_active
+WHERE lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  )
+ON CONFLICT (subscriber_id, step_id) DO UPDATE
+SET
+  due_at = EXCLUDED.due_at,
+  status = 'pending',
+  attempts = 0,
+  error_message = NULL,
+  sent_at = NULL;
+
+/*
+  The sequence is walked from the top, so the two marks that say it already
+  happened are cleared as well. Left in place, `sequence_done_at` would make
+  the reader look finished while nine messages were still on the way.
+*/
+UPDATE telegram_subscribers subscriber
+SET
+  delivered_at = NULL,
+  sequence_done_at = NULL,
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE funnel.telegram_bot_id = subscriber.telegram_bot_id
+  AND lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  );
+
+-- ------------------------------------------------------------------------
+-- 20260824001500_collapse_istanbul_prompt.sql
+-- ------------------------------------------------------------------------
+
+/*
+  One prompt folded into an expandable quote, to see how it reads.
+
+  The Istanbul prompt is the longest of the four — three and a half thousand
+  characters — and it pushes the button that the whole message exists for two
+  screens below the fold. Wrapped in `<blockquote expandable>` it collapses to
+  a few lines with a "show more", and the button comes back into view.
+
+  Done with `replace` rather than by restating the text: the prompt is the one
+  thing in this funnel that must survive rewriting unaltered, and retyping
+  three and a half thousand characters to add forty is how a stray character
+  gets in.
+
+  The tags cost nothing against Telegram's limit — the ceiling is measured on
+  the parsed text, and markup is stripped before it counts.
+
+  Left deliberately as a single step. If the fold reads well the other three
+  follow, and the line that promises a one-tap copy has to change with them:
+  the first tap will open the quote, and only the second will copy.
+*/
+
+UPDATE telegram_funnel_steps step
+SET
+  body = replace(
+    replace(step.body, '<code>', '<blockquote expandable><code>'),
+    '</code>',
+    '</code></blockquote>'
+  ),
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  )
+  AND step.position = 7
+  /* Only if it has not already been folded, so re-running cannot nest one
+     quote inside another. */
+  AND step.body LIKE '%<code>%'
+  AND step.body NOT LIKE '%<blockquote%';
+
+/*
+  Send that one step again to the account that has to look at it. Only this
+  step: the message after it waits a day, so nothing cascades.
+*/
+UPDATE telegram_step_deliveries delivery
+SET
+  due_at = now() - interval '1 minute',
+  status = 'pending',
+  attempts = 0,
+  error_message = NULL,
+  sent_at = NULL
+FROM telegram_subscribers subscriber, telegram_funnel_steps step, telegram_funnels funnel
+WHERE delivery.subscriber_id = subscriber.id
+  AND delivery.step_id = step.id
+  AND step.funnel_id = funnel.id
+  AND lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  )
+  AND step.position = 7;
+
+-- ------------------------------------------------------------------------
+-- 20260824002500_collapse_all_prompts.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The remaining three prompts folded the same way, and the instruction that
+  described the old behaviour brought in line with the new one.
+
+  A folded prompt costs one extra tap: the first opens the quote, the second
+  copies. "Скопируется в один клик" was accurate while the prompt lay open and
+  is not any more — and an instruction that describes something the reader
+  does not see is worse than no instruction, because they stop trusting the
+  rest of the list.
+
+  Both edits are `replace` on the stored text rather than a rewrite: the
+  prompts have to survive untouched, and the instruction line is identical in
+  all four steps that carry it, so one substitution reaches every copy.
+
+  Guarded against a second run — a prompt already inside a quote is skipped
+  rather than wrapped twice.
+*/
+
+UPDATE telegram_funnel_steps step
+SET
+  body = replace(
+    replace(step.body, '<code>', '<blockquote expandable><code>'),
+    '</code>',
+    '</code></blockquote>'
+  ),
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  )
+  AND step.position IN (3, 5, 9)
+  AND step.body LIKE '%<code>%'
+  AND step.body NOT LIKE '%<blockquote%';
+
+UPDATE telegram_funnel_steps step
+SET
+  body = replace(
+    step.body,
+    '1. Нажми на промпт в следующем сообщении — он скопируется в один клик.',
+    '1. Разверни промпт в следующем сообщении и нажми на текст — он скопируется целиком.'
+  ),
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND (
+    funnel.name ILIKE '10 пром%'
+    OR funnel.name ILIKE '10 готов%'
+    OR funnel.name ILIKE '1000+ пром%'
+    OR funnel.name ILIKE '1000+ готов%'
+  )
+  AND step.position IN (2, 4, 6, 8);

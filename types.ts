@@ -220,6 +220,9 @@ export interface LeadMagnet extends MessageAttachment {
   keywords: string[];
   reply_text: string;
   direct_reply_variants: string[];
+  /** Button titles for those variants, aligned by index. A gap falls back
+      to `button_text`. */
+  direct_reply_buttons: string[];
   response_url: string;
   button_text: string;
   match_mode: 'exact' | 'contains';

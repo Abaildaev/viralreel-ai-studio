@@ -56,6 +56,7 @@ const blankForm: AutomationForm = {
   ],
   reply_text: '',
   direct_reply_variants: [''],
+  direct_reply_buttons: [''],
   response_url: '',
   button_text: 'Получить материал',
   repeat_delay_hours: 24,
@@ -201,6 +202,13 @@ export default function AutomationsPage() {
       direct_reply_variants: rule.direct_reply_variants?.length
         ? rule.direct_reply_variants
         : [rule.reply_text || ''],
+      /* Padded to the variants it captions: a rule saved before per-variant
+         buttons existed has none at all, and a short list would leave the
+         editor reading past its end. */
+      direct_reply_buttons: (rule.direct_reply_variants?.length
+        ? rule.direct_reply_variants
+        : [rule.reply_text || '']
+      ).map((_, index) => rule.direct_reply_buttons?.[index] ?? ''),
       response_url: rule.response_url || '',
       button_text: rule.button_text || 'Получить материал',
       repeat_delay_hours: rule.repeat_delay_hours ?? 24,
@@ -262,7 +270,16 @@ export default function AutomationsPage() {
         public_reply_enabled: form.public_reply_enabled,
         public_reply_variants: form.public_reply_variants,
         reply_text: form.reply_text.trim(),
-        direct_reply_variants: form.direct_reply_variants.map((value) => value.trim()).filter(Boolean),
+        /* Kept as pairs through the filter, so a blank variant cannot shift
+           every button below it onto the wrong words. */
+        direct_reply_variants: form.direct_reply_variants
+          .map((value, index) => ({ text: value.trim(), index }))
+          .filter((item) => Boolean(item.text))
+          .map((item) => item.text),
+        direct_reply_buttons: form.direct_reply_variants
+          .map((value, index) => ({ text: value.trim(), index }))
+          .filter((item) => Boolean(item.text))
+          .map((item) => (form.direct_reply_buttons[item.index] ?? '').trim()),
         /*
           Both columns are NOT NULL, and the worker calls `.trim()` on them
           when it builds the Direct message, so an empty field has to travel as

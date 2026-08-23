@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, getAuthenticatedUser } from "../_shared/auth.ts";
 import {
-  buildReplyText,
+  pickDirectReply,
   keywordsOf,
   LEAD_MAGNET_COLUMNS,
   LeadMagnetRow,
@@ -99,6 +99,9 @@ Deno.serve(async (req: Request) => {
 
   const leadMagnets = (rows ?? []) as LeadMagnetRow[];
   const match = selectLeadMagnet(leadMagnets, { triggerType, text, mediaId });
+  /* Picked once, so the panel reports the words and the button that would
+     actually travel together rather than two independent draws. */
+  const directReply = match ? pickDirectReply(match.leadMagnet) : null;
 
   return response({
     blockers,
@@ -108,10 +111,8 @@ Deno.serve(async (req: Request) => {
         title: match.leadMagnet.title,
         keyword: match.keyword,
         delay_seconds: match.leadMagnet.reply_delay_seconds ?? 0,
-        direct_text: buildReplyText(match.leadMagnet),
-        button_text: match.leadMagnet.response_url.trim()
-          ? (match.leadMagnet.button_text.trim() || "Получить материал")
-          : null,
+        direct_text: directReply!.text,
+        button_text: match.leadMagnet.response_url.trim() ? directReply!.buttonText : null,
         response_url: match.leadMagnet.response_url.trim() || null,
         public_reply: triggerType === "comment" && match.leadMagnet.public_reply_enabled
           ? pickPublicReply(match.leadMagnet)

@@ -37,6 +37,7 @@ export interface AutomationForm extends MessageAttachment {
   public_reply_variants: string[];
   reply_text: string;
   direct_reply_variants: string[];
+  direct_reply_buttons: string[];
   response_url: string;
   button_text: string;
   repeat_delay_hours: number;
@@ -202,7 +203,18 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
     setForm((current) => ({
       ...current,
       direct_reply_variants: [...current.direct_reply_variants, ''],
+      direct_reply_buttons: [...current.direct_reply_buttons, ''],
     }));
+  };
+
+  /* Its own button, or none: an empty field means this variant travels with
+     the rule's default, which is what every rule did before these existed. */
+  const updateDirectReplyButton = (index: number, value: string) => {
+    setForm((current) => {
+      const direct_reply_buttons = [...current.direct_reply_buttons];
+      direct_reply_buttons[index] = value;
+      return { ...current, direct_reply_buttons };
+    });
   };
 
   const updateDirectReply = (index: number, value: string) => {
@@ -220,9 +232,13 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
   const removeDirectReply = (index: number) => {
     setForm((current) => {
       const direct_reply_variants = current.direct_reply_variants.filter((_, itemIndex) => itemIndex !== index);
+      /* Removed in step with the text, or every button below this row would
+         slide up one variant. */
+      const direct_reply_buttons = current.direct_reply_buttons.filter((_, itemIndex) => itemIndex !== index);
       return {
         ...current,
         direct_reply_variants: direct_reply_variants.length ? direct_reply_variants : [''],
+        direct_reply_buttons: direct_reply_variants.length ? direct_reply_buttons : [''],
         reply_text: direct_reply_variants.find((item) => item.trim())?.trim() || '',
       };
     });
@@ -241,6 +257,10 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
       setForm((current) => ({
         ...current,
         direct_reply_variants: variants,
+        /* The writer returns words, not buttons. Keeping the old titles at
+           their old indexes would caption new copy with them, so the column
+           is cleared and every fresh variant falls back to the default. */
+        direct_reply_buttons: variants.map(() => ''),
         reply_text: variants[0],
       }));
     } catch (error) {
@@ -260,12 +280,20 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const directReplyVariants = form.direct_reply_variants.map((value) => value.trim()).filter(Boolean);
-    if (!form.title.trim() || form.keywords.length === 0 || directReplyVariants.length === 0) return;
+    /* Filtered as pairs. Dropping the blank variants first and the blank
+       buttons separately is what would renumber one list against the other. */
+    const directReplies = form.direct_reply_variants
+      .map((value, index) => ({
+        text: value.trim(),
+        button: (form.direct_reply_buttons[index] ?? '').trim(),
+      }))
+      .filter((item) => Boolean(item.text));
+    if (!form.title.trim() || form.keywords.length === 0 || directReplies.length === 0) return;
     onSave({
       ...form,
-      direct_reply_variants: directReplyVariants,
-      reply_text: directReplyVariants[0],
+      direct_reply_variants: directReplies.map((item) => item.text),
+      direct_reply_buttons: directReplies.map((item) => item.button),
+      reply_text: directReplies[0].text,
     });
   };
 
@@ -429,14 +457,23 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
                   <span className="mt-2.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-medium text-gray-500">
                     {index + 1}
                   </span>
-                  <textarea
-                    rows={2}
-                    required={index === 0}
-                    value={variant}
-                    onChange={(event) => updateDirectReply(index, event.target.value)}
-                    placeholder="Например: Готово — обещанный материал уже здесь. Нажмите кнопку ниже, чтобы открыть его 👇"
-                    className="flex-1 resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed outline-none focus:border-brand-600"
-                  />
+                  <div className="flex-1 space-y-1.5">
+                    <textarea
+                      rows={2}
+                      required={index === 0}
+                      value={variant}
+                      onChange={(event) => updateDirectReply(index, event.target.value)}
+                      placeholder="Например: Готово — обещанный материал уже здесь. Нажмите кнопку ниже, чтобы открыть его 👇"
+                      className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed outline-none focus:border-brand-600"
+                    />
+                    <input
+                      value={form.direct_reply_buttons[index] ?? ''}
+                      onChange={(event) => updateDirectReplyButton(index, event.target.value)}
+                      maxLength={20}
+                      placeholder={`Кнопка для этого варианта — по умолчанию «${form.button_text.trim() || 'Получить материал'}»`}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-[11px] outline-none focus:border-brand-600"
+                    />
+                  </div>
                   {form.direct_reply_variants.length > 1 && (
                     <button
                       type="button"

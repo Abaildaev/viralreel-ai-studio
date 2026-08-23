@@ -21,7 +21,7 @@ import { createAdminClient, hasValidCronSecret } from "../_shared/auth.ts";
 import { describeInstagramError, InstagramApiError } from "../_shared/instagram.ts";
 import {
   buildDirectMessage,
-  buildReplyText,
+  pickDirectReply,
   LEAD_MAGNET_COLUMNS,
   LeadMagnetRow,
   pickPublicReply,
@@ -571,14 +571,14 @@ async function processEvent(
     Sending the announcement first would publicly claim a delivery that may
     never happen, so the DM goes out first and gates everything else.
   */
-  const directReplyText = buildReplyText(matched);
+  const directReply = pickDirectReply(matched);
   let messageId: string;
 
   try {
     messageId = await sendInstagramReply(
       account,
       event,
-      buildDirectMessage(matched, directReplyText, event.id),
+      buildDirectMessage(matched, directReply, event.id),
     );
   } catch (error) {
     if (isRetryable(error) && event.attempts < MAX_ATTEMPTS) throw error;
@@ -598,7 +598,7 @@ async function processEvent(
       instagram_account_id: account.id,
       sender_igsid: event.sender_igsid,
       role: "agent",
-      content: directReplyText,
+      content: directReply.text,
       detected_intent: "lead_magnet",
     });
   }

@@ -16,6 +16,9 @@ export interface LeadMagnetRow {
   keywords: string[];
   reply_text: string;
   direct_reply_variants: string[];
+  /* Button titles for those variants, aligned by index. Shorter than the
+     variants, or empty, is normal: a gap falls back to `button_text`. */
+  direct_reply_buttons: string[];
   response_url: string;
   button_text: string;
   match_mode: MatchMode;
@@ -36,7 +39,8 @@ export interface LeadMagnetRow {
 }
 
 export const LEAD_MAGNET_COLUMNS =
-  "id,instagram_account_id,title,description,codeword,keywords,reply_text,direct_reply_variants,response_url," +
+  "id,instagram_account_id,title,description,codeword,keywords,reply_text,direct_reply_variants," +
+  "direct_reply_buttons,response_url," +
   "button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled," +
   "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds," +
   "attachment_type,attachment_path,attachment_name";
@@ -139,17 +143,76 @@ export function truncateUtf8(value: string, maxBytes: number): string {
   return result;
 }
 
-export function buildReplyText(leadMagnet: LeadMagnetRow): string {
-  const variants = (leadMagnet.direct_reply_variants ?? [])
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const fallback = leadMagnet.description
-    ? `Вот ваш материал «${leadMagnet.title}».\n\n${leadMagnet.description}`
-    : `Вот ваш материал «${leadMagnet.title}».`;
-  const selected = variants.length
-    ? variants[Math.floor(Math.random() * variants.length)]
-    : leadMagnet.reply_text.trim() || fallback;
-  return truncateUtf8(selected, 640);
+export interface DirectReply {
+  text: string;
+  buttonText: string;
+}
+
+function defaultButtonText(leadMagnet: LeadMagnetRow): string {
+  return leadMagnet.button_text.trim() || "Получить материал";
+}
+
+/**
+ * Picks one Direct variant together with the button that belongs to it.
+ *
+ * The words and the button are chosen in one call rather than read separately,
+ * because a caller that picked the text and then reached for `button_text`
+ * would show one variant's promise under another variant's button — and the
+ * test panel, which does exactly that, would report a message nobody will
+ * receive.
+ *
+ * The two are stored as parallel arrays instead of one column of pairs: the
+ * variants were there first, and a rule whose author never opened the button
+ * fields has to keep working with the single one it already has. So an index
+ * with nothing in it falls back to the rule's own button, and a list that has
+ * drifted out of step costs one variant its button rather than failing.
+ */
+export function pickDirectReply(leadMagnet: LeadMagnetRow): DirectReply {
+  /*
+    The index is the one in the stored array, not in the filtered list.
+    Dropping the blanks first would renumber everything after them and pair a
+    variant with the button of whichever one happened to be blank.
+  */
+  const candidates = (leadMagnet.direct_reply_variants ?? [])
+    .map((value, index) => ({ text: value.trim(), index }))
+    .filter((candidate) => Boolean(candidate.text));
+
+  if (candidates.length === 0) {
+    const fallback = leadMagnet.description
+      ? `Вот ваш материал «${leadMagnet.title}».\n\n${leadMagnet.description}`
+      : `Вот ваш материал «${leadMagnet.title}».`;
+    return {
+      text: truncateUtf8(leadMagnet.reply_text.trim() || fallback, 640),
+      buttonText: defaultButtonText(leadMagnet),
+    };
+  }
+
+  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+  const paired = (leadMagnet.direct_reply_buttons ?? [])[chosen.index]?.trim();
+
+  return {
+    text: truncateUtf8(chosen.text, 640),
+    buttonText: paired || defaultButtonText(leadMagnet),
+  };
+}
+
+/*
+  Meta counts a button title in characters, not in bytes.
+
+  It used to be cut with `truncateUtf8`, which counts bytes — so a Cyrillic
+  title, at two bytes a letter, lost half of itself before it ever left here:
+  «Забрать базу и тест» arrived as «Забрать ба». The message text keeps its
+  byte cap, which is a deliberate limit of our own well under Meta's, but the
+  button has to be measured the way the platform measures it.
+
+  Split with `Array.from` rather than by index, so an emoji is one character
+  and never half of a surrogate pair.
+*/
+const BUTTON_TITLE_CHARS = 20;
+
+export function truncateChars(value: string, maxChars: number): string {
+  const characters = Array.from(value);
+  return characters.length <= maxChars ? value : characters.slice(0, maxChars).join("");
 }
 
 const TELEGRAM_HOSTS = new Set(["t.me", "www.t.me", "telegram.me", "www.telegram.me"]);
@@ -194,10 +257,10 @@ export function withAutomationEventId(rawUrl: string, eventId?: string): string 
 
 export function buildDirectMessage(
   leadMagnet: LeadMagnetRow,
-  replyText = buildReplyText(leadMagnet),
+  reply: DirectReply = pickDirectReply(leadMagnet),
   automationEventId?: string,
 ): Record<string, unknown> {
-  const text = replyText;
+  const text = reply.text;
   const url = withAutomationEventId(leadMagnet.response_url, automationEventId);
   if (!url) return { text };
 
@@ -210,7 +273,7 @@ export function buildDirectMessage(
         buttons: [{
           type: "web_url",
           url,
-          title: truncateUtf8(leadMagnet.button_text.trim() || "Получить материал", 20),
+          title: truncateChars(reply.buttonText, BUTTON_TITLE_CHARS),
         }],
       },
     },
