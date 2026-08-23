@@ -84,6 +84,57 @@ async function claimStep(
   return data.id as string;
 }
 
+/*
+  Statuses that mean this reader has already been past the step.
+
+  A delivery still `pending` belongs to someone else — a concurrent webhook, a
+  tick that got there first — and losing that race is the correct outcome. A
+  finished one is different: it says the reader walked here before, and the
+  only reason to find it in the path again is that they are walking again.
+*/
+const WALKED_PAST = ["sent", "cancelled", "failed"];
+
+/**
+ * Puts the next step on the clock, whether or not this reader has seen it.
+ *
+ * The claim used to be made and its answer thrown away, so a reader with an
+ * old delivery row simply stopped receiving the funnel: no error, no log line,
+ * no change of status — the sequence ended mid-way and nothing said so. It
+ * cost an evening to find, twice.
+ *
+ * Re-arming is decided by the row rather than by a flag from the caller, so
+ * the repair carries down the whole sequence: the drip worker schedules each
+ * following step through here too, and knows nothing about how the walk began.
+ */
+async function scheduleNext(
+  supabase: SupabaseClient,
+  subscriber: SequenceSubscriber,
+  stepId: string,
+  dueAt: Date,
+): Promise<"scheduled" | "rearmed" | "held"> {
+  const claimed = await claimStep(supabase, subscriber, stepId, dueAt);
+  if (claimed) return "scheduled";
+
+  const { data, error } = await supabase
+    .from("telegram_step_deliveries")
+    .update({
+      status: "pending",
+      due_at: dueAt.toISOString(),
+      attempts: 0,
+      error_message: null,
+      sent_at: null,
+    })
+    .eq("subscriber_id", subscriber.id)
+    .eq("step_id", stepId)
+    /* Conditional, so a row another path is holding is never taken from it. */
+    .in("status", WALKED_PAST)
+    .select("id");
+
+  if (error) throw error;
+
+  return (data?.length ?? 0) > 0 ? "rearmed" : "held";
+}
+
 export interface AdvanceResult {
   sent: number;
   scheduledFor: Date | null;
@@ -169,7 +220,20 @@ export async function advanceSequence(
   }
 
   if (plan.schedule) {
-    await claimStep(supabase, subscriber, plan.schedule.step.id, plan.schedule.dueAt);
+    const outcome = await scheduleNext(
+      supabase,
+      subscriber,
+      plan.schedule.step.id,
+      plan.schedule.dueAt,
+    );
+
+    if (outcome === "held") {
+      /* Legitimate, and worth seeing: the sequence continues on whichever
+         path holds the claim. Silence here is what hid the bug. */
+      console.log(
+        `Step ${plan.schedule.step.id} for subscriber ${subscriber.id} is already scheduled elsewhere`,
+      );
+    }
   }
 
   /*
