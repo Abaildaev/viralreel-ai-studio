@@ -19,6 +19,8 @@ import {
   decodeAudio,
   applyAudioUniquification,
   mixAudioLayers,
+  audioRms,
+  loopedLayers,
   AudioLayer,
   findSupportedVideoCodec,
   isAudioCodecSupported,
@@ -28,7 +30,7 @@ import {
   sourceDurationOf,
 } from './render/media';
 import { drawFrame, preloadShowcaseImages } from './render/canvasDraw';
-import { ViralVariation } from '../types';
+import { OutroPresetId, ViralVariation } from '../types';
 import {
   generateUniquifierParams,
   applyUniquifierFilters,
@@ -39,10 +41,9 @@ import {
 } from './uniquifier';
 import { ensureRenderFontsLoaded } from './renderFonts';
 
-export type OutroPresetId =
-  | 'editorial-grid-blue'
-  | 'modern-violet'
-  | 'custom';
+/* Re-exported so the pickers and the batch service can keep taking the id
+   from the module that draws it. */
+export type { OutroPresetId };
 
 export type KeywordFontType = 'cursive' | 'serif' | 'sans';
 export type OutroTextPosition = 'center' | 'upper' | 'lower' | 'upper-left' | 'lower-right';
@@ -99,9 +100,12 @@ export interface OutroRenderOptions {
     here: the batch never sets them, and the card is laid out for 720x1280.
   */
   overlayVariation?: ViralVariation;
-  /** Music replacing the source soundtrack under the main segment. */
+  /** Library music, mixed under whatever audio the source came with. */
   mainAudioUrl?: string;
   mainAudioBuffer?: AudioBuffer | null;
+  /* How loud that music plays, 0…1. Left undefined the level is taken from
+     the reference: quiet under a voiceover, full over silence. */
+  mainAudioVolume?: number;
   // Uniquifier options
   uniquifierEnabled?: boolean;
   uniquifierIntensity?: UniquifierIntensity;
@@ -115,6 +119,67 @@ export interface OutroRenderOptions {
   one lead-in shorter than the sound itself.
 */
 const OUTRO_SOUND_LEAD_IN = 0.25;
+
+/*
+  Anything above this on the reference is something worth hearing — a
+  voiceover, in the workflow this exists for — and the library track drops
+  under it. Below it the reference is silent and the track is the soundtrack.
+  Roughly -40 dBFS, which is above room tone and well below speech.
+*/
+const VOICE_RMS_THRESHOLD = 0.01;
+
+/* Under a voice, the music sits about 13 dB down: present, but not something
+   the viewer has to listen past. Exported because it is also the number a
+   preset starts from when its owner takes the level off automatic. */
+export const MUSIC_UNDER_VOICE_GAIN = 0.22;
+
+/* A track has to be this much longer than the Reel before its entry point is
+   allowed to rove — otherwise the roving is what forces it to loop. */
+const MUSIC_ROVING_HEADROOM_S = 5;
+
+/*
+  Where in a library track this render starts playing.
+
+  A track with room to spare is entered at a different point every time, so
+  two Reels cut from the same one do not open on the same bar — and the point
+  is chosen from the room the track actually has, never past it, so a long
+  track still covers the Reel in a single pass instead of looping to make up
+  for its own head start. A track that barely covers the Reel has no room to
+  give and starts at the beginning. An offset set by hand in the Studio wins
+  over both.
+*/
+export function musicEntryPoint(
+  trackDuration: number,
+  totalDuration: number,
+  manualOffset: number,
+  fraction: number,
+): number {
+  if (manualOffset > 0) return manualOffset;
+  const spare = trackDuration - totalDuration;
+  if (spare <= MUSIC_ROVING_HEADROOM_S) return 0;
+  return spare * Math.min(1, Math.max(0, fraction));
+}
+
+/** How loud a library track sits under the audio the reference came with. */
+export function musicGainUnder(referenceRms: number): number {
+  return referenceRms > VOICE_RMS_THRESHOLD ? MUSIC_UNDER_VOICE_GAIN : 1;
+}
+
+/*
+  How long a card holds when no sound decides it for it.
+
+  The length is asked for as "two and a half to three seconds", so the number
+  below is the middle of that window and the uniquifier's jitter spreads
+  renders across it — no two Reels end on exactly the same beat, and none of
+  them is long enough to be scrolled past.
+
+  It is shared by every card style. Typography is what makes those styles
+  different; how long the viewer is given to read them is one decision.
+*/
+export const DEFAULT_OUTRO_DURATION_S = 2.65;
+
+/** The window that number sits in the middle of. */
+export const OUTRO_CARD_WINDOW_S = { min: 2.3, max: 3 };
 
 /* Bounds for the card. A shorter one reads as a glitch; a longer one would let
    a whole track swallow the Reel it was supposed to close. */
@@ -199,6 +264,26 @@ async function withRenderTimeout<T>(
 const REF_W = 720;
 
 /*
+  The zoom a drifting card needs for its own edges to stay outside the frame.
+
+  Footage is drawn larger than the canvas and cropped, so the uniquifier can
+  shift it freely. The card is drawn to the edges of the frame instead, and a
+  shift alone would expose a strip of whatever was behind it. It is therefore
+  zoomed by at least the drift it is about to take, in both directions, plus a
+  fraction of a per cent against rounding at the boundary.
+*/
+export function outroDriftCover(
+  scale: number,
+  panX: number,
+  panY: number,
+  width: number,
+  height: number,
+): number {
+  const needed = 1 + 2 * Math.max(Math.abs(panX) / width, Math.abs(panY) / height) + 0.004;
+  return Math.max(scale, needed);
+}
+
+/*
   Scene timeline, in seconds from the first outro frame. Taken from the
   reference: the grid is collapsed at the centre at +0.05s, halfway out at
   +0.45s, settled at +1.05s, and nothing moves after that.
@@ -230,6 +315,15 @@ export interface OutroSound {
 */
 export const OUTRO_SOUNDS: OutroSound[] = [];
 
+/*
+  The crimson card is a two-colour poster: one flat red ground and one warm
+  off-white for every line on it. Both are sampled from the reference frame,
+  and the whole preset falls apart if they drift towards pure red and pure
+  white — that combination reads as a system alert, not as print.
+*/
+const CRIMSON_BG = '#bb1817';
+const CRIMSON_INK = '#e7e2d6';
+
 export const OUTRO_BACKGROUNDS = [
   {
     id: 'editorial-grid-blue',
@@ -239,7 +333,7 @@ export const OUTRO_BACKGROUNDS = [
     defaultActionText: 'Повтори этот визуал — ПИШИ',
     defaultSubtitleText: 'и получи 1000+ готовых промптов для визуала',
     defaultBadgeText: '',
-    defaultDuration: 2.2,
+    defaultDuration: DEFAULT_OUTRO_DURATION_S,
     defaultActionColor: '#1f2937',
     defaultKeywordColor: '#0a0a0a',
     defaultSubtitleColor: '#1f2937',
@@ -256,12 +350,29 @@ export const OUTRO_BACKGROUNDS = [
     defaultActionText: 'НЕ ТРАТЬ ЛИМИТЫ — ПИШИ',
     defaultSubtitleText: 'и получи 1000+ готовых промптов для визуала',
     defaultBadgeText: '#нейросети',
-    defaultDuration: 2,
+    defaultDuration: DEFAULT_OUTRO_DURATION_S,
     /* The headline is filled with a gradient; this is its dark end, which is
        also what the picker shows as the accent. */
     defaultActionColor: '#14161a',
     defaultKeywordColor: '#8b5cf6',
     defaultSubtitleColor: '#4b5058',
+    defaultFontType: 'sans' as const,
+    defaultShowQuotes: false,
+    defaultShowGrid: false,
+    defaultShowSparkles: false,
+  },
+  {
+    id: 'crimson-gothic',
+    name: 'Crimson Gothic',
+    description: 'Алый экран, готическое кодовое слово и моноширинная подпись',
+    previewColor: CRIMSON_BG,
+    defaultActionText: 'ПИШИ',
+    defaultSubtitleText: 'и я пришлю подборку промптов в Direct',
+    defaultBadgeText: '',
+    defaultDuration: DEFAULT_OUTRO_DURATION_S,
+    defaultActionColor: CRIMSON_INK,
+    defaultKeywordColor: CRIMSON_INK,
+    defaultSubtitleColor: CRIMSON_INK,
     defaultFontType: 'sans' as const,
     defaultShowQuotes: false,
     defaultShowGrid: false,
@@ -468,11 +579,15 @@ function drawBackground(
       ctx.fillRect(0, 0, width, height);
     } else {
       /* Uploaded art is the background, while the selected preset still owns
-         typography. A light veil keeps the preset's dark text readable over
-         photographs without forcing users to tune three colour pickers. */
-      ctx.fillStyle = options.backgroundStyle === 'modern-violet'
-        ? 'rgba(248, 247, 252, 0.7)'
-        : 'rgba(255, 255, 255, 0.64)';
+         typography. A veil in the preset's own ground keeps its text readable
+         over photographs without forcing users to tune three colour pickers —
+         which means a dark red one where the type is cream, since a white
+         veil would leave the crimson card's copy invisible. */
+      const veils: Partial<Record<OutroPresetId, string>> = {
+        'modern-violet': 'rgba(248, 247, 252, 0.7)',
+        'crimson-gothic': 'rgba(150, 15, 16, 0.74)',
+      };
+      ctx.fillStyle = veils[options.backgroundStyle] ?? 'rgba(255, 255, 255, 0.64)';
       ctx.fillRect(0, 0, width, height);
     }
     return;
@@ -513,6 +628,27 @@ function drawBackground(
       `rgba(56, 189, 248, ${0.1 * bloom})`, 'rgba(56, 189, 248, 0)', width, height);
 
     applyGrain(ctx, width, height, 0.025);
+    return;
+  }
+
+  if (options.backgroundStyle === 'crimson-gothic') {
+    /* Flat, not graded: every pixel of the reference ground measures the same
+       red. A vertical ramp would turn it into a different, softer style, so
+       the depth comes from grain and a corner shadow instead — which is also
+       what keeps a full-frame flat colour from banding once Instagram
+       re-encodes it. */
+    ctx.fillStyle = CRIMSON_BG;
+    ctx.fillRect(0, 0, width, height);
+
+    /* Barely there on purpose: a few points of shade in the corners, not a
+       vignette. Anything stronger and the ground stops reading as one flat
+       colour, which is the whole of this card's design. */
+    fillRadial(
+      ctx, width * 0.5, height * 0.42, width * 1.05,
+      `rgba(255, 96, 74, ${0.03 * bloom})`, 'rgba(112, 6, 10, 0.09)', width, height,
+    );
+
+    applyGrain(ctx, width, height, 0.03);
     return;
   }
 
@@ -1042,6 +1178,265 @@ function drawModernText(
   }
 }
 
+/* Entrance for the crimson card, timed off the reference: the kicker alone
+   for a beat, the code word under it, then the two quiet lines. Nothing moves
+   after ~1.2s, and nothing slides in from anywhere — the card is a poster
+   being lit, not a slide being built. */
+const CRIMSON_STAGGER = {
+  kicker: { at: 0.18, dur: 0.34, rise: 10 },
+  keyword: { at: 0.42, dur: 0.46 },
+  subtitle: { at: 0.72, dur: 0.34, rise: 12 },
+  handle: { at: 0.88, dur: 0.34, rise: 8 },
+};
+
+/*
+  Where each line sits, as a share of the frame. The crimson layout is fixed
+  rather than measured off the keyword the way the editorial one is: in the
+  reference the four lines hold their positions and only the code word changes
+  size, which is what makes a series of these cards look like one series.
+*/
+/* The headline's ink band, as a share of the frame height, and the measure
+   a five-letter word like the reference's has to sit inside. */
+const CRIMSON_KEYWORD_INK = 0.118;
+const CRIMSON_KEYWORD_MEASURE = 0.58;
+
+/* A longer code word is allowed to run wider rather than lose height: holding
+   every word to one measure would make a nine-letter card a third shorter in
+   the headline than a five-letter one, which is exactly the inconsistency the
+   fixed layout exists to avoid. */
+export function crimsonKeywordMeasure(width: number, chars: number): number {
+  return width * Math.min(0.78, CRIMSON_KEYWORD_MEASURE + Math.max(0, chars - 5) * 0.05);
+}
+/* Condensing past this stops reading as a condensed cut and starts reading as
+   a squashed one. A word too long even for it loses size instead. */
+const CRIMSON_MIN_CONDENSE = 0.72;
+
+const CRIMSON_LAYOUT = {
+  kickerY: 0.361,
+  keywordY: 0.438,
+  subtitleY: 0.534,
+  subtitleLine: 0.036,
+  handleY: 0.812,
+};
+
+/*
+  Grenze Gotisch carries the reference's blackletter and covers no Cyrillic at
+  all, so a Russian code word falls through to the next family in the stack.
+
+  That family is Oswald rather than the one Cyrillic blackletter on offer.
+  Ruslan Display is the obvious choice on paper and unusable here: its caps
+  are half as tall as its letters are wide, so a six-letter Russian word set
+  to the width of this card comes out at a third of the headline height the
+  layout is built around. Oswald's proportions are within a few per cent of
+  the reference face's, which keeps the two alphabets making the same card
+  even though only one of them gets the blackletter.
+*/
+const GOTHIC_STACK =
+  '"Grenze Gotisch", "Oswald", "Unbounded", Impact, sans-serif';
+
+/* The typewriter lines around it. */
+const MONO_STACK =
+  '"Roboto Mono", "JetBrains Mono", ui-monospace, Menlo, monospace';
+
+/*
+  A centred line set with tracking lands half a letter-space to the left: the
+  space after the final glyph is measured into the width but has nothing in
+  it. Every tracked line here is nudged back by half of it.
+*/
+function drawTracked(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  centerX: number,
+  y: number,
+  tracking: number,
+) {
+  ctx.fillText(text, centerX + tracking / 2, y);
+}
+
+/* The supporting line is a sentence, not a label, so it breaks onto a second
+   line the way the reference sets it instead of shrinking to a whisper. */
+function wrapToWidth(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let line = '';
+
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line) lines.push(line);
+
+  return lines;
+}
+
+/*
+  The crimson card: a flat red poster with a tracked kicker, the code word in
+  blackletter, one typewritten promise and the account mark at the foot.
+
+  The code word is upper-cased on the way in. The reference sets it that way,
+  Instagram matches comment keywords case-insensitively, and a lowercase word
+  in this face reads as a mistake rather than as a choice.
+*/
+function drawCrimsonText(
+  ctx: CanvasRenderingContext2D,
+  options: OutroRenderOptions,
+  width: number,
+  height: number,
+  keyword: string,
+  action: string,
+  subtitle: string,
+  t: number,
+) {
+  const s = width / REF_W;
+  const centerX = width / 2;
+  const ink = options.keywordColor || CRIMSON_INK;
+  const handle = options.badgeText?.trim();
+
+  ctx.textAlign = 'center';
+
+  // Kicker — the instruction, small and widely tracked
+  const kickerIn = stagger(t, CRIMSON_STAGGER.kicker.at, CRIMSON_STAGGER.kicker.dur);
+  if (kickerIn.alpha > 0) {
+    const tracking = 9 * s;
+    ctx.save();
+    ctx.globalAlpha = kickerIn.alpha;
+    ctx.textBaseline = 'middle';
+    setTracking(ctx, `${tracking}px`);
+    ctx.font = `500 ${27 * s}px ${MONO_STACK}`;
+    ctx.fillStyle = options.actionColor || CRIMSON_INK;
+    const rise = CRIMSON_STAGGER.kicker.rise * s * (1 - kickerIn.eased);
+    drawTracked(
+      ctx, action.toUpperCase(), centerX,
+      height * CRIMSON_LAYOUT.kickerY + rise, tracking,
+    );
+    ctx.restore();
+  }
+
+  // Code word — blackletter, filling most of the width
+  const keyIn = stagger(t, CRIMSON_STAGGER.keyword.at, CRIMSON_STAGGER.keyword.dur);
+  if (keyIn.alpha > 0) {
+    const word = keyword.toUpperCase();
+    ctx.save();
+    ctx.globalAlpha = keyIn.alpha;
+    ctx.textBaseline = 'alphabetic';
+    setTracking(ctx, '0px');
+
+    const font = (px: number) => `700 ${px}px ${GOTHIC_STACK}`;
+    /*
+      Sized by the ink it lays down rather than by its em box or its width.
+
+      The card is built around a headline of one particular height, and the
+      two faces behind this stack disagree about both cap height and set
+      width, so a fixed pixel size would give a Russian card a different
+      headline from an English one. The height is set first, and the word is
+      then condensed — never past the point where the strokes go spindly —
+      until it fits the measure.
+    */
+    const probeSize = 200 * s;
+    ctx.font = font(probeSize);
+    const probe = ctx.measureText(word);
+    const probeInk = probe.actualBoundingBoxAscent + probe.actualBoundingBoxDescent;
+
+    let size = probeInk > 0
+      ? Math.min(probeSize * ((CRIMSON_KEYWORD_INK * height) / probeInk), 260 * s)
+      : probeSize;
+    ctx.font = font(size);
+
+    const measure = crimsonKeywordMeasure(width, word.length);
+    let advance = ctx.measureText(word).width;
+    let condense = 1;
+    if (advance > measure) {
+      condense = Math.max(CRIMSON_MIN_CONDENSE, measure / advance);
+      if (advance * condense > measure) {
+        size *= measure / (advance * condense);
+        ctx.font = font(size);
+        advance = ctx.measureText(word).width;
+      }
+    }
+
+    /* Centred on the ink too. A blackletter cap has almost no descender, so
+       centring the em box instead would hang the word visibly low. */
+    const box = ctx.measureText(word);
+    const ascent = box.actualBoundingBoxAscent;
+    const descent = box.actualBoundingBoxDescent;
+    const centreY = height * CRIMSON_LAYOUT.keywordY;
+    const baseline = Number.isFinite(ascent) && Number.isFinite(descent)
+      ? centreY + (ascent - descent) / 2
+      : centreY + size * 0.35;
+
+    /* The one thing that moves: the word settles the last few per cent into
+       place, so it lands rather than fades. */
+    const pop = 0.96 + 0.04 * keyIn.eased;
+    ctx.translate(centerX, baseline);
+    ctx.scale(pop * condense, pop);
+    ctx.fillStyle = ink;
+    ctx.fillText(word, 0, 0);
+    ctx.restore();
+  }
+
+  // The promise, typewritten, over as many as two lines
+  if (subtitle) {
+    const subIn = stagger(t, CRIMSON_STAGGER.subtitle.at, CRIMSON_STAGGER.subtitle.dur);
+    if (subIn.alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = subIn.alpha;
+      ctx.textBaseline = 'middle';
+      setTracking(ctx, `${0.5 * s}px`);
+
+      let size = 34 * s;
+      /* Narrower than the frame allows: the reference breaks this sentence in
+         two rather than running one long line under a compact headline. */
+      const maxWidth = width * 0.66;
+      ctx.font = `400 ${size}px ${MONO_STACK}`;
+      let lines = wrapToWidth(ctx, subtitle, maxWidth);
+      /* Two lines is the layout; a longer offer loses type size, not the
+         line under the keyword. */
+      while (lines.length > 2 && size > 22 * s) {
+        size *= 0.92;
+        ctx.font = `400 ${size}px ${MONO_STACK}`;
+        lines = wrapToWidth(ctx, subtitle, maxWidth);
+      }
+
+      ctx.fillStyle = options.subtitleColor || CRIMSON_INK;
+      const rise = CRIMSON_STAGGER.subtitle.rise * s * (1 - subIn.eased);
+      lines.forEach((line, index) => {
+        const y = height * (CRIMSON_LAYOUT.subtitleY + index * CRIMSON_LAYOUT.subtitleLine);
+        ctx.fillText(line, centerX, y + rise);
+      });
+      ctx.restore();
+    }
+  }
+
+  // Account mark, dimmed so it signs the card instead of competing with it
+  if (handle) {
+    const handleIn = stagger(t, CRIMSON_STAGGER.handle.at, CRIMSON_STAGGER.handle.dur);
+    if (handleIn.alpha > 0) {
+      const tracking = 6 * s;
+      ctx.save();
+      ctx.globalAlpha = handleIn.alpha * 0.62;
+      ctx.textBaseline = 'middle';
+      setTracking(ctx, `${tracking}px`);
+      ctx.font = `400 ${22 * s}px ${MONO_STACK}`;
+      ctx.fillStyle = options.subtitleColor || CRIMSON_INK;
+      const rise = CRIMSON_STAGGER.handle.rise * s * (1 - handleIn.eased);
+      drawTracked(
+        ctx, handle.toUpperCase(), centerX,
+        height * CRIMSON_LAYOUT.handleY + rise, tracking,
+      );
+      ctx.restore();
+    }
+  }
+}
+
 /**
  * Draws one frame of the outro card. `elapsedSec` is time since the card
  * appeared; anything past OUTRO_TIMELINE.sceneIn is the settled frame.
@@ -1056,6 +1451,10 @@ export function drawOutroFrame(
 ) {
   const t = Math.max(0, elapsedSec);
   const scriptLayout = (options.keywordFontType || 'cursive') === 'cursive';
+  /* The crimson card holds still and is lit line by line. Pulling it out of
+     the centre the way the other two arrive would turn a printed poster into
+     a title animation. */
+  const flatCard = options.backgroundStyle === 'crimson-gothic';
 
   ctx.save();
   ctx.clearRect(0, 0, width, height);
@@ -1063,7 +1462,9 @@ export function drawOutroFrame(
   const sceneT = easeOutCubic(clamp01(t / OUTRO_TIMELINE.sceneIn));
   drawBackground(ctx, options, bgImage, width, height, sceneT);
 
-  const sceneScale = OUTRO_TIMELINE.sceneFrom + (1 - OUTRO_TIMELINE.sceneFrom) * sceneT;
+  const sceneScale = flatCard
+    ? 1
+    : OUTRO_TIMELINE.sceneFrom + (1 - OUTRO_TIMELINE.sceneFrom) * sceneT;
 
   if (options.showGrid) {
     drawGridLines(ctx, width, height, sceneScale);
@@ -1114,6 +1515,8 @@ export function drawOutroFrame(
     /* Its own layout rather than a font swap: the pill, the ramped headline
        and the tilted script are the preset. */
     drawModernText(ctx, options, width, height, keyword, action, subtitle, t);
+  } else if (flatCard) {
+    drawCrimsonText(ctx, options, width, height, keyword, action, subtitle, t);
   } else if (scriptLayout) {
     const textAlpha = clamp01((t - OUTRO_TIMELINE.textDelay) / OUTRO_TIMELINE.textFade);
     if (textAlpha > 0) {
@@ -1169,9 +1572,8 @@ export async function renderVideoWithCtaOutro(
     uniquifier.enabled ? uniquifier.outroDurationJitterSec : 0,
   );
 
-  /* Music that replaces the soundtrack also decides where the Reel ends: a
-     track shorter than the source cuts it, exactly as the overlay renderer
-     has always done. */
+  /* Music from the library. It no longer decides where the Reel ends — a
+     track shorter than the footage repeats instead of cutting it. */
   const mainAudio = options.mainAudioBuffer !== undefined
     ? options.mainAudioBuffer
     : options.mainAudioUrl
@@ -1183,13 +1585,7 @@ export async function renderVideoWithCtaOutro(
      so a long upload loses its tail rather than the outro. */
   const sourceLimit = Math.max(1, MAX_DURATION_S - outroDuration);
   const sourceDuration = sourceDurationOf(video);
-  const availableMusic = mainAudio
-    ? Math.max(0, mainAudio.duration - mainAudioOffset)
-    : Infinity;
-  const rawVideoDuration = Math.max(
-    1,
-    Math.min(sourceDuration, sourceLimit, availableMusic),
-  );
+  const rawVideoDuration = Math.max(1, Math.min(sourceDuration, sourceLimit));
   const trimmed = sourceDuration > sourceLimit + 0.05;
   const totalDuration = rawVideoDuration + outroDuration;
 
@@ -1207,26 +1603,47 @@ export async function renderVideoWithCtaOutro(
   onProgress?.(8, 'Сведение звуковой дорожки...');
 
   /*
-    Source audio and the outro sound live on one timeline: the source fades
-    out as it runs out, the outro sound starts just before the cut so the two
+    The reference, the music and the outro sound live on one timeline.
+
+    The reference keeps its own audio — it is uploaded with a voiceover on it
+    and no soundtrack, and the library track goes underneath rather than over
+    the top of it. The outro sound starts just before the cut so the two
     overlap instead of leaving a hole where the card begins.
   */
-  const sourceAudio = mainAudio
-    ? null
-    : options.sourceAudioBuffer !== undefined
-      ? options.sourceAudioBuffer
-      : await decodeAudio(sourceVideoFile);
+  const sourceAudio = options.sourceAudioBuffer !== undefined
+    ? options.sourceAudioBuffer
+    : await decodeAudio(sourceVideoFile);
 
-  const mainTrack = mainAudio || sourceAudio;
   const layers: AudioLayer[] = [];
-  if (mainTrack) {
+  if (sourceAudio) {
+    /* Clamped to the footage that survived the trim: a reference longer than
+       the ceiling should not go on talking over the card. */
     layers.push({
-      buffer: mainTrack,
+      buffer: sourceAudio,
       startTime: 0,
-      offset: mainAudio ? mainAudioOffset : 0,
-      duration: Math.min(mainTrack.duration - (mainAudio ? mainAudioOffset : 0), totalDuration),
+      duration: Math.min(sourceAudio.duration, rawVideoDuration),
       fadeOut: outroSound ? 0.45 : 0.3,
     });
+  }
+
+  if (mainAudio) {
+    /* A level set on the preset is used as given — including over a silent
+       reference, where the automatic rule would have chosen full. Somebody
+       who moved the slider meant the number they left on it. */
+    const gain = options.mainAudioVolume !== undefined
+      ? Math.min(1, Math.max(0, options.mainAudioVolume))
+      : musicGainUnder(sourceAudio ? audioRms(sourceAudio, 0, rawVideoDuration) : 0);
+    const offset = musicEntryPoint(
+      mainAudio.duration, totalDuration, mainAudioOffset, uniquifier.musicStartFraction,
+    );
+
+    layers.push(...loopedLayers(mainAudio, {
+      totalDuration,
+      offset,
+      gain,
+      startFade: 0.3,
+      endFade: 0.6,
+    }));
   }
   if (outroSound) {
     const leadIn = Math.min(OUTRO_SOUND_LEAD_IN, rawVideoDuration);
@@ -1401,14 +1818,40 @@ export async function renderVideoWithCtaOutro(
       await waitForEncoderRoom();
     }
 
-    // 2. Render Outro Segment
+    /*
+      2. Render Outro Segment.
+
+      The card carries the same uniquifier as the footage, minus the tilt.
+      Without it every Reel from an account ends in a still that is identical
+      to the pixel — the one stretch of the video a duplicate check can match
+      outright, and the jittered length alone does not hide it. The rotation
+      is left out on purpose: a photograph shifted half a degree reads as a
+      hand-held frame, while a poster set half a degree crooked reads as a
+      mistake.
+    */
     for (let j = 0; j < outroFrames; j++) {
       throwIfRenderAborted(options.abortSignal);
       if (encodeError) throw encodeError;
       const elapsed = j / TARGET_FPS;
       const time = rawVideoDuration + elapsed;
 
+      ctx.save();
+      if (uniquifier.enabled) {
+        applyUniquifierFilters(ctx, uniquifier);
+        const cover = outroDriftCover(
+          uniquifier.scale, uniquifier.panX, uniquifier.panY, outputWidth, outputHeight,
+        );
+        ctx.translate(outputWidth / 2 + uniquifier.panX, outputHeight / 2 + uniquifier.panY);
+        ctx.scale(cover, cover);
+        ctx.translate(-outputWidth / 2, -outputHeight / 2);
+      }
+
       drawOutroFrame(ctx, options, bgImage, outputWidth, outputHeight, elapsed);
+
+      if (uniquifier.enabled) {
+        applyUniquifierNoise(ctx, uniquifier, outputWidth, outputHeight);
+      }
+      ctx.restore();
 
       const frame = new VideoFrame(canvas, {
         timestamp: Math.round(time * 1_000_000),

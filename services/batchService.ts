@@ -70,6 +70,16 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/*
+  The renderer repeats a track that runs out before the Reel does, so a short
+  library still works — but a track that covers the whole thing in one pass
+  has no seam to hide, and is worth preferring while the library has one.
+*/
+function pickMusic(audioFiles: AudioFile[], videoDurationSec: number): AudioFile {
+  const covering = audioFiles.filter((item) => item.duration >= videoDurationSec);
+  return pickRandom(covering.length > 0 ? covering : audioFiles);
+}
+
 function resolveTextStyle(preset: BatchPreset): TextStylePreset {
   const saved = preset.text_style;
   if (!saved || !saved.font) return DEFAULT_TEXT_STYLE;
@@ -375,12 +385,10 @@ export async function runBatchGeneration(
         report(presetName, 'Загружаю исходный Reels один раз...');
         const templateUrl = await getTemplateUrl(selectedSourceTemplate.file_path);
         pinnedVideoFile = await fetchAsFile(templateUrl, 'batch-source.mp4', abortSignal);
-        /* Only worth decoding once when the source soundtrack is the one that
-           ends up in the render — a preset with library music replaces it. */
-        const keepsSourceAudio = ctaOutroEnabled
-          && preset.audio_mode !== 'random'
-          && preset.audio_mode !== 'specific';
-        if (keepsSourceAudio) {
+        /* Decoded once for the whole batch. Library music is mixed under the
+           reference rather than swapped for it, so its own audio — the
+           voiceover — is needed whichever audio mode the preset is in. */
+        if (ctaOutroEnabled) {
           report(presetName, 'Подготавливаю звук исходного Reels...');
           pinnedSourceAudioBuffer = await decodeAudio(pinnedVideoFile);
         }
@@ -414,10 +422,14 @@ export async function runBatchGeneration(
           return fetchAsFile(templateUrl, 'template.mp4', abortSignal);
         })();
 
+        /* Music plays in every mode that asks for it, the card-only one
+           included: a reference uploaded with a voiceover and no soundtrack
+           is exactly the case that needs a track laid under it. */
         let audioUrl: string | null = null;
-        if (!ctaOnlyMode && preset.audio_mode === 'random' && audioFiles.length > 0) {
-          audioUrl = await getAudioUrl(pickRandom(audioFiles).file_path);
-        } else if (!ctaOnlyMode && preset.audio_mode === 'specific' && preset.audio_file_id) {
+        if (preset.audio_mode === 'random' && audioFiles.length > 0) {
+          const track = pickMusic(audioFiles, selectedSourceTemplate?.duration || 0);
+          audioUrl = await getAudioUrl(track.file_path);
+        } else if (preset.audio_mode === 'specific' && preset.audio_file_id) {
           const af = audioFiles.find(a => a.id === preset.audio_file_id);
           if (af) audioUrl = await getAudioUrl(af.file_path);
         }
@@ -488,11 +500,12 @@ export async function runBatchGeneration(
             /* A CTA-only preset leaves the source Reel untouched; anything
                else draws its hook onto the same frames. */
             overlayVariation: ctaOnlyMode ? undefined : variation,
-            mainAudioUrl: ctaOnlyMode ? undefined : audioUrl || undefined,
+            mainAudioUrl: audioUrl || undefined,
             sourceAudioBuffer: pinnedSourceAudioBuffer,
             outroSoundUrl: ctaAudioUrl || undefined,
             outroSoundBuffer: ctaAudioBuffer,
             outroSoundVolume: textStyle.ctaOutroSoundVolume ?? 0.9,
+            mainAudioVolume: textStyle.musicVolume,
             uniquifierEnabled: textStyle.uniquifierEnabled !== false,
             uniquifierIntensity: textStyle.uniquifierIntensity || 'medium',
             abortSignal,

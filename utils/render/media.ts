@@ -290,3 +290,110 @@ export async function mixAudioLayers(
 
   return ctx.startRendering();
 }
+
+/*
+  How loud a stretch of a buffer is, as RMS.
+
+  This is what separates a reference with a voiceover on it from one that was
+  exported silent, and it is worth measuring rather than asking: the person
+  uploading twenty references will not tick a box on each of them, and the
+  answer decides whether the library track plays under a voice or becomes the
+  soundtrack itself.
+
+  Every 64th frame is sampled. The figure only has to tell speech from
+  silence, and reading a three-minute buffer in full on every render to learn
+  that costs more than the answer is worth.
+*/
+export function audioRms(
+  buffer: AudioBuffer,
+  fromSec: number = 0,
+  durationSec: number = Infinity,
+): number {
+  const rate = buffer.sampleRate;
+  const start = Math.max(0, Math.floor(fromSec * rate));
+  const end = Math.min(buffer.length, start + Math.ceil(durationSec * rate));
+  if (end <= start) return 0;
+
+  const step = 64;
+  const channels = Math.min(2, buffer.numberOfChannels);
+  let sum = 0;
+  let count = 0;
+
+  for (let channel = 0; channel < channels; channel++) {
+    const data = buffer.getChannelData(channel);
+    for (let i = start; i < end; i += step) {
+      sum += data[i] * data[i];
+      count++;
+    }
+  }
+
+  return count > 0 ? Math.sqrt(sum / count) : 0;
+}
+
+/* A pass shorter than this is a click, not a phrase — and a loop that adds
+   less than this would never reach the end of the timeline. */
+const MIN_LOOP_S = 1;
+
+export interface LoopOptions {
+  /** The timeline the track has to cover, in seconds. */
+  totalDuration: number;
+  /** Where on that timeline the track starts. */
+  startTime?: number;
+  /** Where in the track the first pass begins. Later passes start at zero. */
+  offset?: number;
+  gain?: number;
+  /** Crossfade between one pass and the next. */
+  seamFade?: number;
+  /** Fade at the very end of the timeline. */
+  endFade?: number;
+  /** Fade at the very start. */
+  startFade?: number;
+}
+
+/*
+  Lays a track along a timeline, repeating it as often as it takes to cover it.
+
+  A four-minute library and a thirty-second Reel rarely agree about length.
+  Cutting the video down to the track — which is what this renderer used to do
+  — throws away footage the user asked for, so the track goes round again
+  instead, with the passes crossfaded into each other so the seam is a bar of
+  music rather than a click.
+*/
+export function loopedLayers(buffer: AudioBuffer, options: LoopOptions): AudioLayer[] {
+  const { totalDuration } = options;
+  const gain = options.gain ?? 1;
+  const seam = options.seamFade ?? 0.25;
+  const layers: AudioLayer[] = [];
+
+  if (!buffer || buffer.duration < MIN_LOOP_S || totalDuration <= 0) return layers;
+
+  let cursor = Math.max(0, options.startTime ?? 0);
+  /* An offset that leaves nothing worth playing is treated as no offset,
+     rather than as a first pass of silence. */
+  let offset = Math.max(0, options.offset ?? 0);
+  if (buffer.duration - offset < MIN_LOOP_S) offset = 0;
+
+  while (cursor < totalDuration - 0.05) {
+    const available = buffer.duration - offset;
+    const duration = Math.min(available, totalDuration - cursor);
+    const isFirst = layers.length === 0;
+    const isLast = cursor + duration >= totalDuration - 0.05;
+
+    layers.push({
+      buffer,
+      startTime: cursor,
+      offset,
+      duration,
+      gain,
+      fadeIn: isFirst ? (options.startFade ?? 0) : seam,
+      fadeOut: isLast ? (options.endFade ?? 0) : seam,
+    });
+
+    if (isLast) break;
+    // The next pass starts under the tail of this one, so the two cross.
+    cursor += duration - seam;
+    offset = 0;
+  }
+
+  return layers;
+}

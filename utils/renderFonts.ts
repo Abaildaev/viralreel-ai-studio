@@ -30,6 +30,9 @@ const RENDER_FONTS_HREF =
     'family=Dancing+Script:wght@400;700',
     'family=Great+Vibes',
     'family=Caveat:wght@400;700',
+    'family=Grenze+Gotisch:wght@700',
+    'family=Oswald:wght@700',
+    'family=Roboto+Mono:wght@400;500',
   ].join('&') +
   '&display=swap';
 
@@ -76,7 +79,25 @@ const FACES_TO_LOAD: string[] = [
   '700 40px "Dancing Script"',
   '400 40px "Great Vibes"',
   '700 40px "Caveat"',
+  '700 40px "Oswald"',
+  ...['400', '500'].map((w) => `${w} 40px "Roboto Mono"`),
 ];
+
+/*
+  Faces with no cyrillic subset at all.
+
+  `document.fonts.load` filters the faces it fetches by the unicode-range of
+  the sample text, so asking for a latin-only family with the bilingual
+  sample below matches nothing and quietly downloads nothing — the same
+  silent fallback the sample was introduced to prevent, in reverse. These
+  are requested with latin text instead; a Russian word set in them lands on
+  the next family in the stack by design.
+*/
+const LATIN_ONLY_FACES: string[] = [
+  '700 40px "Grenze Gotisch"',
+];
+
+const LATIN_SAMPLE = 'Sample BESbswy 0123';
 
 /*
   Google serves each family as several @font-face rules split by
@@ -125,11 +146,14 @@ export function ensureRenderFontsLoaded(): Promise<void> {
 
   loadPromise = attachStylesheet()
     .then(() =>
-      Promise.all(
-        FACES_TO_LOAD.map((face) =>
+      Promise.all([
+        ...FACES_TO_LOAD.map((face) =>
           document.fonts.load(face, LOAD_SAMPLE).catch(() => undefined),
         ),
-      ),
+        ...LATIN_ONLY_FACES.map((face) =>
+          document.fonts.load(face, LATIN_SAMPLE).catch(() => undefined),
+        ),
+      ]),
     )
     .then(() => undefined);
 

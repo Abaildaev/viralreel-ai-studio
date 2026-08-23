@@ -7,6 +7,14 @@ export type FontWeight = '100' | '200' | '300' | '400' | '500' | '600' | '700' |
 export type CtaType = 'codeword' | 'telegram' | 'instagram';
 export type ReelFormat = 'ai-story';
 export type ReelOutputMode = 'both' | 'headline' | 'clean';
+/* The CTA card styles. They live here rather than beside the renderer
+   because a saved batch preset stores one of these ids: the list the
+   renderer draws and the list the database holds have to be one list. */
+export type OutroPresetId =
+  | 'editorial-grid-blue'
+  | 'modern-violet'
+  | 'crimson-gothic'
+  | 'custom';
 
 /**
  * Shape returned to the browser. `access_token` is intentionally missing — the
@@ -132,7 +140,7 @@ export interface TextStylePreset {
   sourceTemplateId?: string;
   /** Append the configured comment-to-DM card after every batch Reel. */
   ctaOutroEnabled?: boolean;
-  ctaOutroPresetId?: 'editorial-grid-blue' | 'modern-violet' | 'custom';
+  ctaOutroPresetId?: OutroPresetId;
   /** Private object in the `templates` bucket used as the CTA card background. */
   ctaOutroBackgroundPath?: string;
   ctaOutroBackgroundName?: string;
@@ -142,6 +150,9 @@ export interface TextStylePreset {
   ctaOutroOffer?: string;
   ctaOutroDurationSec?: number;
   ctaOutroSoundVolume?: number;
+  /* How loud the library track sits under the reference, 0…1. Left unset the
+     render decides it by listening to the reference itself. */
+  musicVolume?: number;
 }
 
 export interface BatchPreset {

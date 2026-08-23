@@ -26,7 +26,12 @@ import {
 } from '@heroicons/react/24/outline';
 import AppSelect from './ui/AppSelect';
 import { getSignedUrl, supabase } from '../lib/supabase';
-import { OUTRO_BACKGROUNDS, OutroPresetId } from '../utils/outroRenderer';
+import {
+  DEFAULT_OUTRO_DURATION_S,
+  MUSIC_UNDER_VOICE_GAIN,
+  OUTRO_BACKGROUNDS,
+  OutroPresetId,
+} from '../utils/outroRenderer';
 
 interface Props {
   preset: BatchPreset | null;
@@ -601,10 +606,8 @@ const BatchPresetModal: React.FC<Props> = ({
         topics: presetType === 'cta_outro' ? [] : topics,
         tone,
         cta_type: presetType === 'cta_outro' ? 'codeword' : ctaType,
-        audio_mode: presetType === 'cta_outro' ? 'from_video' : audioMode,
-        audio_file_id: presetType !== 'cta_outro' && audioMode === 'specific'
-          ? (audioFileId || null)
-          : null,
+        audio_mode: audioMode,
+        audio_file_id: audioMode === 'specific' ? (audioFileId || null) : null,
         variations_count: count,
         text_style: nextStyle,
         schedule_interval_minutes: intervalMin,
@@ -887,7 +890,7 @@ const BatchPresetModal: React.FC<Props> = ({
                     ctaOutroPresetId: current.ctaOutroPresetId || 'editorial-grid-blue',
                     ctaOutroKeyword: current.ctaOutroKeyword || 'промпт',
                     ctaOutroOffer: current.ctaOutroOffer || 'Пак готовых промптов',
-                    ctaOutroDurationSec: current.ctaOutroDurationSec || 2.2,
+                    ctaOutroDurationSec: current.ctaOutroDurationSec || DEFAULT_OUTRO_DURATION_S,
                     ctaOutroSoundVolume: current.ctaOutroSoundVolume ?? 0.9,
                     showCarouselBait: false,
                   }));
@@ -977,6 +980,9 @@ const BatchPresetModal: React.FC<Props> = ({
             </div>
           </div>
 
+          </>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Музыка</label>
             <div className="space-y-2">
@@ -1021,9 +1027,55 @@ const BatchPresetModal: React.FC<Props> = ({
                 ))}
               </AppSelect>
             )}
+
+            {audioMode !== 'from_video' && (
+              <div className="mt-3 rounded-xl border border-gray-200 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="music-volume" className="text-sm font-medium text-gray-700">
+                    Громкость музыки
+                  </label>
+                  <span className="text-xs font-semibold text-gray-500">
+                    {style.musicVolume === undefined
+                      ? 'Авто'
+                      : `${Math.round(style.musicVolume * 100)}%`}
+                  </span>
+                </div>
+                <input
+                  id="music-volume"
+                  type="range"
+                  min={0}
+                  max={100}
+                  /* One per cent: a coarser step cannot land on the automatic
+                     level, and a thumb that sits somewhere other than the
+                     number beside it reads as a bug. */
+                  step={1}
+                  value={Math.round((style.musicVolume ?? MUSIC_UNDER_VOICE_GAIN) * 100)}
+                  disabled={style.musicVolume === undefined}
+                  onChange={(e) => setStyle((current) => ({
+                    ...current,
+                    musicVolume: Number(e.target.value) / 100,
+                  }))}
+                  className="mt-2 w-full accent-brand-600 disabled:opacity-40"
+                />
+                <label className="mt-2 flex items-center gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={style.musicVolume === undefined}
+                    onChange={(e) => setStyle((current) => ({
+                      ...current,
+                      musicVolume: e.target.checked ? undefined : MUSIC_UNDER_VOICE_GAIN,
+                    }))}
+                    className="accent-brand-600"
+                  />
+                  Авто — подстроить под озвучку
+                </label>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">
+                  На автомате музыка уходит под голос до {Math.round(MUSIC_UNDER_VOICE_GAIN * 100)}%,
+                  а на референсе без звука играет в полную.
+                </p>
+              </div>
+            )}
           </div>
-          </>
-          )}
 
           {presetType === 'cta_outro' && (
           <div className="rounded-2xl border border-brand-200 bg-brand-50/40 p-4">

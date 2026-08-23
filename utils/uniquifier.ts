@@ -17,16 +17,23 @@ export interface UniquifierParams {
      source then differ in length as well as in pixels, which is the cheapest
      signal a duplicate check has. */
   outroDurationJitterSec: number;
+  /* Where in a library track this render starts, as a share of the room the
+     track has to spare. Two Reels cut from the same track then carry
+     different audio rather than the same opening bars. */
+  musicStartFraction: number;
   // Audio Uniquifier Parameters
   audioPitchShift: number; // Pitch multiplier shift e.g. 0.9985 to 1.0015 (+/- 0.15%)
   subNoiseLevel: number;   // Amplitude of sub-audible high-freq noise (0.0001 - 0.001)
   stripMetadata: boolean;  // Strip ID3 / MP4 metadata boxes
 }
 
+/* `outroJitterMax` tops out at half the width of the card's own window
+   (OUTRO_CARD_WINDOW_S): the strongest setting should spread the card across
+   every length it is allowed to have, and not one frame past them. */
 const intensityMultipliers = {
   low: { scaleMax: 0.015, rotateMax: 0.3, panMax: 2, filterMax: 1.5, noiseMax: 0.015, pitchShiftMax: 0.001, noiseAudioMax: 0.0004, timeOffsetMax: 0.08, outroJitterMax: 0.12 },
   medium: { scaleMax: 0.03, rotateMax: 0.6, panMax: 4, filterMax: 3.0, noiseMax: 0.025, pitchShiftMax: 0.0015, noiseAudioMax: 0.0008, timeOffsetMax: 0.16, outroJitterMax: 0.25 },
-  high: { scaleMax: 0.05, rotateMax: 1.2, panMax: 8, filterMax: 5.0, noiseMax: 0.04, pitchShiftMax: 0.0025, noiseAudioMax: 0.0015, timeOffsetMax: 0.28, outroJitterMax: 0.4 },
+  high: { scaleMax: 0.05, rotateMax: 1.2, panMax: 8, filterMax: 5.0, noiseMax: 0.04, pitchShiftMax: 0.0025, noiseAudioMax: 0.0015, timeOffsetMax: 0.28, outroJitterMax: 0.35 },
 };
 
 export function generateUniquifierParams(
@@ -48,6 +55,7 @@ export function generateUniquifierParams(
       noiseOpacity: 0,
       timeOffsetSeconds: 0,
       outroDurationJitterSec: 0,
+      musicStartFraction: 0,
       audioPitchShift: 1.0,
       subNoiseLevel: 0,
       stripMetadata: false,
@@ -75,6 +83,7 @@ export function generateUniquifierParams(
     // A tiny fresh seek offset changes the frame sequence without becoming visible.
     timeOffsetSeconds: randRange(0.02, mult.timeOffsetMax),
     outroDurationJitterSec: randRange(0.04, mult.outroJitterMax) * randSign(),
+    musicStartFraction: Math.random(),
     // Audio pitch shift +/- 0.15% to 0.25%
     audioPitchShift: 1.0 + randRange(0.0005, mult.pitchShiftMax) * randSign(),
     subNoiseLevel: randRange(0.0002, mult.noiseAudioMax),
