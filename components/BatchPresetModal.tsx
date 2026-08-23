@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   BatchPreset,
   InstagramAccount,
@@ -25,6 +25,12 @@ import {
   CheckCircleIcon,
 } from '@heroicons/react/24/outline';
 import AppSelect from './ui/AppSelect';
+import {
+  buildMusicPreview,
+  MUSIC_PREVIEW_SECONDS,
+  playPreview,
+  type PreviewPlayback,
+} from '../utils/musicPreview';
 import { getSignedUrl, supabase } from '../lib/supabase';
 import {
   DEFAULT_OUTRO_DURATION_S,
@@ -385,6 +391,10 @@ const BatchPresetModal: React.FC<Props> = ({
   const [ctaAudioFile, setCtaAudioFile] = useState<File | null>(null);
   const [ctaBackgroundPreview, setCtaBackgroundPreview] = useState('');
   const [ctaAudioPreview, setCtaAudioPreview] = useState('');
+  const [previewState, setPreviewState] = useState<'idle' | 'loading' | 'playing'>('idle');
+  const [previewNote, setPreviewNote] = useState('');
+  const [previewError, setPreviewError] = useState('');
+  const previewRef = useRef<PreviewPlayback | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [presetType, setPresetType] = useState<'standard' | 'ai_showcase' | 'cta_outro'>(
@@ -496,6 +506,81 @@ const BatchPresetModal: React.FC<Props> = ({
 
   const removeTopic = (index: number) => {
     setTopics(topics.filter((_, i) => i !== index));
+  };
+
+  const stopMusicPreview = () => {
+    previewRef.current?.stop();
+    previewRef.current = null;
+    setPreviewState('idle');
+  };
+
+  /* Stops the clip when the modal closes, so a preview does not go on playing
+     into whatever the author does next. */
+  useEffect(() => () => previewRef.current?.stop(), []);
+
+  /*
+    Twelve seconds of the real mix rather than an imitation: the same decode,
+    the same looping and the same gain rule the render uses. Hearing the
+    balance costs a moment here and a whole batch otherwise.
+  */
+  const handleMusicPreview = async () => {
+    if (previewState === 'playing') {
+      stopMusicPreview();
+      return;
+    }
+
+    setPreviewError('');
+    setPreviewNote('');
+    setPreviewState('loading');
+
+    let localReferenceUrl = '';
+    try {
+      const track = audioMode === 'specific'
+        ? audioFiles.find((item) => item.id === audioFileId)
+        : audioFiles[Math.floor(Math.random() * audioFiles.length)];
+      if (!track) throw new Error('Сначала выберите трек в библиотеке.');
+
+      const musicUrl = await getSignedUrl('audio', track.file_path);
+
+      /* The reference the music has to sit under: the file being uploaded if
+         there is one, otherwise the pinned template. With neither, the
+         preview is the track alone and says so. */
+      let referenceUrl: string | undefined;
+      if (sourceVideoFile) {
+        localReferenceUrl = URL.createObjectURL(sourceVideoFile);
+        referenceUrl = localReferenceUrl;
+      } else if (selectedSourceTemplate) {
+        referenceUrl = await getSignedUrl('templates', selectedSourceTemplate.file_path);
+      }
+
+      const preview = await buildMusicPreview({
+        referenceUrl,
+        musicUrl,
+        volume: style.musicVolume,
+      });
+      if (!preview) throw new Error('Не удалось прочитать звук трека.');
+
+      const level = `музыка на ${Math.round(preview.gain * 100)}%`;
+      const alone = preview.hasReferenceAudio
+        ? ''
+        : ' · на подложке нет звука, слышен только трек';
+      setPreviewNote(`${track.name} · ${level}${alone}`);
+
+      const playback = playPreview(preview.buffer);
+      previewRef.current = playback;
+      setPreviewState('playing');
+      void playback.finished.then(() => {
+        previewRef.current = null;
+        setPreviewState('idle');
+      });
+    } catch (error) {
+      setPreviewState('idle');
+      setPreviewError(
+        error instanceof Error ? error.message : 'Не удалось собрать прослушивание',
+      );
+    } finally {
+      if (localReferenceUrl) URL.revokeObjectURL(localReferenceUrl);
+    }
   };
 
   const handleSave = async () => {
@@ -1073,6 +1158,27 @@ const BatchPresetModal: React.FC<Props> = ({
                   На автомате музыка уходит под голос до {Math.round(MUSIC_UNDER_VOICE_GAIN * 100)}%,
                   а на референсе без звука играет в полную.
                 </p>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={handleMusicPreview}
+                    disabled={previewState === 'loading'}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-medium text-gray-700 transition-colors hover:border-brand-500 hover:text-brand-700 disabled:opacity-50"
+                  >
+                    {previewState === 'playing'
+                      ? 'Остановить'
+                      : previewState === 'loading'
+                        ? 'Готовлю…'
+                        : `Прослушать ${MUSIC_PREVIEW_SECONDS} секунд`}
+                  </button>
+                  {previewNote && (
+                    <span className="text-[11px] text-gray-500">{previewNote}</span>
+                  )}
+                </div>
+                {previewError && (
+                  <p className="mt-1 text-[11px] text-red-600">{previewError}</p>
+                )}
               </div>
             )}
           </div>

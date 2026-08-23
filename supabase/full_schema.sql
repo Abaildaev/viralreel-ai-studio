@@ -4219,3 +4219,161 @@ WHERE delivery.subscriber_id = subscriber.id
     OR funnel.name ILIKE '1000+ готов%'
   )
   AND step.position IN (3, 5, 9);
+
+-- ------------------------------------------------------------------------
+-- 20260824005500_fix_missed_fold_and_wording.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The two statements that quietly matched nothing.
+
+  Folding the Istanbul prompt and rewording the four instruction steps both
+  reported success and changed no rows — an UPDATE that matches nothing is not
+  an error. The rows carry their proof: every step except 3, 5 and 9 still
+  showed the timestamp of the migration that created it.
+
+  Rewritten as plainly as the statement allows, with no commentary inside the
+  WHERE clause and the funnel found by slug alone. Verified afterwards by
+  reading the rows back rather than by trusting the word "applied".
+*/
+
+UPDATE telegram_funnel_steps step
+SET
+  body = replace(
+    replace(step.body, '<code>', '<blockquote expandable><code>'),
+    '</code>',
+    '</code></blockquote>'
+  ),
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND step.position = 7
+  AND step.body LIKE '%<code>%'
+  AND step.body NOT LIKE '%<blockquote%';
+
+UPDATE telegram_funnel_steps step
+SET
+  body = replace(
+    step.body,
+    'Нажми на промпт в следующем сообщении — он скопируется в один клик.',
+    'Разверни промпт в следующем сообщении и нажми на текст — он скопируется целиком.'
+  ),
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND step.body LIKE '%скопируется в один клик%';
+
+-- ------------------------------------------------------------------------
+-- 20260824010500_resend_istanbul_pair.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The instruction and the prompt it explains, sent as a pair.
+
+  Both halves changed since the reader last saw them — the wording on one, the
+  fold on the other — and each only makes sense against the other: an
+  instruction that says "разверни" is right or wrong depending on whether the
+  message under it is folded.
+*/
+
+UPDATE telegram_step_deliveries delivery
+SET
+  due_at = now() - interval '1 minute' + (step.position * interval '1 second'),
+  status = 'pending',
+  attempts = 0,
+  error_message = NULL,
+  sent_at = NULL
+FROM telegram_subscribers subscriber, telegram_funnel_steps step, telegram_funnels funnel
+WHERE delivery.subscriber_id = subscriber.id
+  AND delivery.step_id = step.id
+  AND step.funnel_id = funnel.id
+  AND lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts'
+  AND step.position IN (6, 7);
+
+-- ------------------------------------------------------------------------
+-- 20260824011500_rewrite_opening_message.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The opening message, rewritten.
+
+  It keeps the two things the old one got right — the first line closes the
+  promise the reader came here for, and the last one warns that two more
+  messages follow, so they read as the promised continuation rather than as a
+  bot talking to itself.
+
+  What it gains is the reason to open the catalogue at all: every formula
+  carries an example of what it produces. That is the difference between this
+  and any list of prompts, and it was the one argument the opening never made.
+
+  The number stays. It is in the Reels card, in the caption and in the Direct
+  message, and an opening that answered «1000+» with «десятки» would read as a
+  climbdown at the exact moment the reader is checking whether they were told
+  the truth.
+
+  Five hundred characters, which leaves room under Telegram's caption limit:
+  this message carries the funnel's cover, and a caption over the limit would
+  be split away from it.
+*/
+
+UPDATE telegram_funnel_steps step
+SET
+  body = E'Ты на месте! Доступ к 1000+ промптам открыт ✦\n\nФото, видео, дизайн, Reels, персонажи, реклама — под каждую задачу готовая формула, и к каждой пример результата. Видно, что получится, ещё до того, как ты нажмёшь «создать».\n\nНе нужно часами придумывать запрос с нуля: выбираешь то, что нравится → копируешь промпт → создаёшь своё.\n\nЖми кнопку, чтобы открыть каталог с фильтрами — и сразу сохрани его в закладки.\n\nА следующим сообщением пришлю первый промпт дня и инструмент, где его можно тут же протестировать 👇',
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE step.funnel_id = funnel.id
+  AND funnel.slug = 'prompts'
+  AND step.position = 1;
+
+-- ------------------------------------------------------------------------
+-- 20260824012500_replay_full_path_for_owner.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The whole path again, in its finished state.
+
+  Since the last full run every one of the nine changed: a new opening, four
+  prompts folded into quotes, and four instructions rewritten to describe the
+  fold. Judging that as a conversation needs it in order, from the top.
+*/
+
+INSERT INTO telegram_step_deliveries (
+  telegram_bot_id, subscriber_id, step_id, due_at, status, attempts, error_message, sent_at
+)
+SELECT
+  subscriber.telegram_bot_id,
+  subscriber.id,
+  step.id,
+  now() - interval '10 minutes' + (step.position * interval '1 second'),
+  'pending',
+  0,
+  NULL,
+  NULL
+FROM telegram_subscribers subscriber
+JOIN telegram_funnels funnel
+  ON funnel.telegram_bot_id = subscriber.telegram_bot_id
+JOIN telegram_funnel_steps step
+  ON step.funnel_id = funnel.id
+ AND step.is_active
+WHERE lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts'
+ON CONFLICT (subscriber_id, step_id) DO UPDATE
+SET
+  due_at = EXCLUDED.due_at,
+  status = 'pending',
+  attempts = 0,
+  error_message = NULL,
+  sent_at = NULL;
+
+UPDATE telegram_subscribers subscriber
+SET
+  delivered_at = NULL,
+  sequence_done_at = NULL,
+  updated_at = now()
+FROM telegram_funnels funnel
+WHERE funnel.telegram_bot_id = subscriber.telegram_bot_id
+  AND lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts';

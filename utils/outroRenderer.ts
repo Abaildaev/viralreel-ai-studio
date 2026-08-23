@@ -166,6 +166,26 @@ export function musicGainUnder(referenceRms: number): number {
 }
 
 /*
+  The level the music actually plays at.
+
+  A number set on the preset is used as given — including over a silent
+  reference, where the automatic rule would have chosen full. Somebody who
+  moved the slider meant the number they left on it.
+
+  Exported because the audition button has to answer the same question, and a
+  preview that worked this out for itself would start lying the first time
+  either side changed.
+*/
+export function resolveMusicGain(
+  requested: number | undefined,
+  reference: AudioBuffer | null,
+  referenceSeconds: number,
+): number {
+  if (requested !== undefined) return Math.min(1, Math.max(0, requested));
+  return musicGainUnder(reference ? audioRms(reference, 0, referenceSeconds) : 0);
+}
+
+/*
   How long a card holds when no sound decides it for it.
 
   The length is asked for as "two and a half to three seconds", so the number
@@ -1627,12 +1647,7 @@ export async function renderVideoWithCtaOutro(
   }
 
   if (mainAudio) {
-    /* A level set on the preset is used as given — including over a silent
-       reference, where the automatic rule would have chosen full. Somebody
-       who moved the slider meant the number they left on it. */
-    const gain = options.mainAudioVolume !== undefined
-      ? Math.min(1, Math.max(0, options.mainAudioVolume))
-      : musicGainUnder(sourceAudio ? audioRms(sourceAudio, 0, rawVideoDuration) : 0);
+    const gain = resolveMusicGain(options.mainAudioVolume, sourceAudio, rawVideoDuration);
     const offset = musicEntryPoint(
       mainAudio.duration, totalDuration, mainAudioOffset, uniquifier.musicStartFraction,
     );
