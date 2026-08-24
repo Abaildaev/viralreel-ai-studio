@@ -350,7 +350,7 @@ export const OUTRO_BACKGROUNDS = [
     name: 'Editorial Grid',
     description: 'Светлый градиент, сетка видоискателя, 3D-звёзды и каллиграфия',
     previewColor: '#e0f2fe',
-    defaultActionText: 'Повтори этот визуал — ПИШИ',
+    defaultActionText: 'Повтори этот визуал — ПИШИ В ДИРЕКТ',
     defaultSubtitleText: 'и получи 1000+ готовых промптов для визуала',
     defaultBadgeText: '',
     defaultDuration: DEFAULT_OUTRO_DURATION_S,
@@ -367,7 +367,7 @@ export const OUTRO_BACKGROUNDS = [
     name: 'Modern Violet',
     description: 'Точечная сетка, жирный градиентный заголовок и фиолетовый росчерк',
     previewColor: '#f7f7f9',
-    defaultActionText: 'НЕ ТРАТЬ ЛИМИТЫ — ПИШИ',
+    defaultActionText: 'НЕ ТРАТЬ ЛИМИТЫ — ПИШИ В ДИРЕКТ',
     defaultSubtitleText: 'и получи 1000+ готовых промптов для визуала',
     defaultBadgeText: '#нейросети',
     defaultDuration: DEFAULT_OUTRO_DURATION_S,
@@ -386,7 +386,7 @@ export const OUTRO_BACKGROUNDS = [
     name: 'Crimson Gothic',
     description: 'Алый экран, готическое кодовое слово и моноширинная подпись',
     previewColor: CRIMSON_BG,
-    defaultActionText: 'ПИШИ',
+    defaultActionText: 'ПИШИ В ДИРЕКТ',
     defaultSubtitleText: 'и я пришлю подборку промптов в Direct',
     defaultBadgeText: '',
     defaultDuration: DEFAULT_OUTRO_DURATION_S,
@@ -1326,12 +1326,32 @@ function drawCrimsonText(
   // Kicker — the instruction, small and widely tracked
   const kickerIn = stagger(t, CRIMSON_STAGGER.kicker.at, CRIMSON_STAGGER.kicker.dur);
   if (kickerIn.alpha > 0) {
-    const tracking = 9 * s;
     ctx.save();
     ctx.globalAlpha = kickerIn.alpha;
     ctx.textBaseline = 'middle';
-    setTracking(ctx, `${tracking}px`);
-    ctx.font = `500 ${27 * s}px ${MONO_STACK}`;
+
+    /*
+      The kicker used to be one fixed size, which was safe while it said
+      «ПИШИ» and stopped being safe the moment it said where to write. A
+      generated line runs to five words before the instruction, so it is
+      measured and shrunk to the measure like every other line on the card.
+    */
+    let kickerSize = 27 * s;
+    let tracking = 9 * s;
+    const kickerMeasure = width * 0.84;
+    const setKickerFont = () => {
+      setTracking(ctx, `${tracking}px`);
+      ctx.font = `500 ${kickerSize}px ${MONO_STACK}`;
+    };
+    setKickerFont();
+    const kickerWidth = ctx.measureText(action.toUpperCase()).width;
+    if (kickerWidth > kickerMeasure) {
+      const shrink = kickerMeasure / kickerWidth;
+      kickerSize *= shrink;
+      tracking *= shrink;
+      setKickerFont();
+    }
+
     ctx.fillStyle = options.actionColor || CRIMSON_INK;
     const rise = CRIMSON_STAGGER.kicker.rise * s * (1 - kickerIn.eased);
     drawTracked(

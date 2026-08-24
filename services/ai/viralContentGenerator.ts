@@ -130,7 +130,7 @@ export const generateAiStoryReels = async ({
 - открой желанием аудитории создавать эффектные AI-Reels без съёмочной команды и сложного монтажа;
 - объясни, что такие видео создаются в Seedance 2.0 с помощью одного грамотно собранного промпта;
 - отдельным абзацем продай бесплатный мини-курс: «я записал для вас»; внутри — как писать промпты, задавать сцены, движение камеры, сохранять героя и исправлять ошибки;
-- последний абзац — прямой CTA написать «${codeword}» в комментариях или директ, чтобы получить мини-курс;
+- последний абзац — прямой CTA написать «${codeword}» в директ, чтобы получить мини-курс;
 - не начинай CTA фразой «Хотите научиться?» и не пиши канцелярским языком;
 - не описывай макет: запрещены фразы про вертикальный кадр, горизонтальное видео, текст сверху, hook, композицию и «всё по формуле»;
 - не выдумывай кейсы, цифры и гарантии; не повторяй одинаковые фразы между вариантами.
@@ -212,7 +212,7 @@ export const generateAiShowcaseContent = async ({
 
 Для каждого варианта:
 - hook: короткий сильный заголовок на видео на русском, СТРОГО 5–12 слов и не более 85 символов, без кликбейта и ложных обещаний;
-- caption: оригинальное описание на русском длиной 300–900 символов, раскрывающее мысль ролика и завершающееся естественным CTA написать «${cleanCodeword}» в комментариях или директ;
+- caption: оригинальное описание на русском длиной 300–900 символов, раскрывающее мысль ролика и завершающееся естественным CTA написать «${cleanCodeword}» в директ;
 - не используй хэштеги, не копируй текст между вариантами.
 - чередуй визуальные рецепты между вариантами. Поле visualStyle используй ТОЛЬКО из списка:
   - white-badge — короткий чёткий заголовок для белой плашки с чёрным текстом;
@@ -412,7 +412,7 @@ function normalizeCaptionKeyword(value: string): string {
 }
 
 export function buildReelsCaptionCta(keyword: string): string {
-  return `ПИШИ «${normalizeCaptionKeyword(keyword)}» — и получи ${REELS_PROMPT_PACK_OFFER}.`;
+  return `ПИШИ «${normalizeCaptionKeyword(keyword)}» в директ — и получи ${REELS_PROMPT_PACK_OFFER}.`;
 }
 
 /*
@@ -421,18 +421,18 @@ export function buildReelsCaptionCta(keyword: string): string {
   the promise intact while changing the call to action naturally.
 */
 const REELS_CAPTION_CTA_VARIANTS = [
-  (keyword: string) => `ПИШИ «${keyword}» — и получи ${REELS_PROMPT_PACK_OFFER}.`,
-  (keyword: string) => `Напиши «${keyword}» — отправлю ${REELS_PROMPT_PACK_OFFER}.`,
-  (keyword: string) => `Хочешь ${REELS_PROMPT_PACK_OFFER}? Пиши «${keyword}».`,
-  (keyword: string) => `Оставь «${keyword}» — пришлю ${REELS_PROMPT_PACK_OFFER}.`,
-  (keyword: string) => `Пиши «${keyword}» в комментариях — забирай ${REELS_PROMPT_PACK_OFFER}.`,
-  (keyword: string) => `Нужны промпты для визуала? Напиши «${keyword}» — отправлю пак из 1000+.`,
-  (keyword: string) => `Напиши «${keyword}» и получи пак: 1000+ готовых промптов для визуала.`,
-  (keyword: string) => `Чтобы забрать 1000+ готовых промптов для визуала, напиши «${keyword}».`,
-  (keyword: string) => `Пиши кодовое слово «${keyword}» — вышлю пак из 1000+ промптов для визуала.`,
-  (keyword: string) => `Готовый пак из 1000+ промптов для визуала — по слову «${keyword}».`,
-  (keyword: string) => `Оставь кодовое слово «${keyword}», и я отправлю 1000+ промптов для визуала.`,
-  (keyword: string) => `Хочешь готовую базу для визуала? Пиши «${keyword}» — внутри 1000+ промптов.`,
+  (keyword: string) => `ПИШИ «${keyword}» в директ — и получи ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Напиши «${keyword}» в личку — отправлю ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Хочешь ${REELS_PROMPT_PACK_OFFER}? Напиши «${keyword}» в директ.`,
+  (keyword: string) => `Отправь «${keyword}» в директ — пришлю ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Пиши «${keyword}» в директ — забирай ${REELS_PROMPT_PACK_OFFER}.`,
+  (keyword: string) => `Нужны промпты для визуала? Напиши «${keyword}» в директ — отправлю пак из 1000+.`,
+  (keyword: string) => `Напиши «${keyword}» в личные сообщения и получи пак: 1000+ готовых промптов для визуала.`,
+  (keyword: string) => `Чтобы забрать 1000+ готовых промптов для визуала, напиши «${keyword}» в директ.`,
+  (keyword: string) => `Пиши кодовое слово «${keyword}» в директ — вышлю пак из 1000+ промптов для визуала.`,
+  (keyword: string) => `Готовый пак из 1000+ промптов для визуала — по слову «${keyword}» в директ.`,
+  (keyword: string) => `Отправь кодовое слово «${keyword}» в личку, и я пришлю 1000+ промптов для визуала.`,
+  (keyword: string) => `Хочешь готовую базу для визуала? Напиши «${keyword}» в директ — внутри 1000+ промптов.`,
 ];
 
 export function buildReelsCaptionCtaVariant(keyword: string, index = 0): string {
@@ -514,15 +514,15 @@ export function normalizeCtaOutroAction(value: string): string {
     .filter(Boolean)
     .slice(0, 5)
     .join(' ');
-  return `${hook || 'Забери готовое'} — ПИШИ`;
+  return `${hook || 'Забери готовое'} — ПИШИ В ДИРЕКТ`;
 }
 
 function normalizeCaptionCtaAction(value: string): string {
   const clean = value.replace(/[\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
   const hasWriteWord = /(^|[^\p{L}\p{N}_])(?:на)?пиши(?=$|[^\p{L}\p{N}_])/iu.test(clean);
-  if (!hasWriteWord) return clean || 'Пиши';
+  if (!hasWriteWord) return clean || 'Пиши в директ';
   const hook = stripCtaWriteWords(clean);
-  return hook ? `${hook} — Пиши` : 'Пиши';
+  return hook ? `${hook} — Пиши в директ` : 'Пиши в директ';
 }
 
 function buildCtaOutroCopyFallback(count: number): CtaOutroCopyVariant[] {
@@ -559,12 +559,12 @@ export const generateCtaOutroCopyVariants = async (
 Подготовь ровно ${total} заметно разных пар текста.
 
 На карточке всегда три строки:
-1) actionText — короткий заход и обязательное слово «ПИШИ»;
+1) actionText — короткий заход и обязательная концовка «ПИШИ В ДИРЕКТ»;
 2) кодовое слово «${keyword}» — его возвращать не нужно;
 3) subtitleText — всегда ровно «${CTA_OUTRO_SUBTITLE}».
 
 ПРАВИЛА:
-- actionText: 2–6 слов, обязательно заканчивается словом «ПИШИ», до него допустимо тире;
+- actionText: 2–6 слов, обязательно заканчивается на «ПИШИ В ДИРЕКТ», до него допустимо тире;
 - subtitleText: не меняй, всегда используй ровно «${CTA_OUTRO_SUBTITLE}»;
 - меняй только actionText: экономия времени, понятная структура, готовая база, управление стилем, светом и композицией;
 - не пиши «КОММЕНТАРИЙ», «напиши», «оставь», хэштеги, кавычки и эмодзи;

@@ -4377,3 +4377,134 @@ FROM telegram_funnels funnel
 WHERE funnel.telegram_bot_id = subscriber.telegram_bot_id
   AND lower(subscriber.username) = 'abaildaev'
   AND funnel.slug = 'prompts';
+
+-- ------------------------------------------------------------------------
+-- 20260824020000_prove_rearm_on_second_walk.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Puts the reader back at the top of the sequence with every later step still
+  marked sent — the exact state that used to end the funnel after one message.
+
+  With the scheduler fixed, sending step one is enough: the step that follows
+  is re-armed from its own finished row instead of being silently skipped, and
+  the walk carries on by itself.
+*/
+
+UPDATE telegram_step_deliveries delivery
+SET
+  due_at = now() - interval '1 minute',
+  status = 'pending',
+  attempts = 0,
+  error_message = NULL,
+  sent_at = NULL
+FROM telegram_subscribers subscriber, telegram_funnel_steps step, telegram_funnels funnel
+WHERE delivery.subscriber_id = subscriber.id
+  AND delivery.step_id = step.id
+  AND step.funnel_id = funnel.id
+  AND lower(subscriber.username) = 'abaildaev'
+  AND funnel.slug = 'prompts'
+  AND step.position = 1;
+
+-- ------------------------------------------------------------------------
+-- 20260824030000_public_replies_without_spam_word.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The word «спам» out of the public replies.
+
+  Two of the six told readers to look for the message in their spam folder,
+  which labelled our own message as spam in public, under our own post. The
+  fact behind it is real and worth keeping: Instagram files messages from
+  accounts you do not follow in the Requests tab, for everyone, always — a
+  reader who has never heard of that tab simply never sees the Direct.
+
+  What changed is the framing. «Отфильтровали как мусор» and «Instagram кладёт
+  письма от неподписанных отдельно» describe the same event, and only one of
+  them costs the account anything. The first variant now explains why it
+  happens, which turns an apology into an instruction.
+
+  Three variants rather than six: the account owner picked the ones that carry
+  the tip. Rotation is thinner, which matters only under a post with many
+  comments in a row.
+*/
+
+UPDATE lead_magnets magnet
+SET
+  public_reply_variants = ARRAY[
+    'Отправил в Direct! Если во входящих пусто — загляни во вкладку «Запросы»: туда Instagram кладёт сообщения от тех, на кого ты не подписан 📩',
+    'Уже в личке! Не видно — проверь «Запросы» в Direct 👀',
+    'Отправил! Если не всплыло — сообщение ждёт в «Запросах» 📨'
+  ],
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260824031000_six_public_replies.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Back to six variants.
+
+  Three carry the Requests tip and three do not. Identical text under every
+  comment is the single loudest automation signal a post can carry, and three
+  variants is the floor of what rotation needs — under a post with a run of
+  comments the repeat starts showing.
+
+  Mixing plain ones in also spares the readers who follow the account: their
+  Direct arrives in the main inbox, and a note about where to dig for it is
+  noise they do not need.
+*/
+
+UPDATE lead_magnets magnet
+SET
+  public_reply_variants = ARRAY[
+    'Отправил в Direct! Если во входящих пусто — загляни во вкладку «Запросы»: туда Instagram кладёт сообщения от тех, на кого ты не подписан 📩',
+    'Уже в личке! Не видно — проверь «Запросы» в Direct 👀',
+    'Отправил! Если не всплыло — сообщение ждёт в «Запросах» 📨',
+    'Отправил в Direct, лови 🙌',
+    'Улетело в личку 🚀',
+    'Готово, проверяй Direct 👇'
+  ],
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260824040000_direct_trigger_needs_contains.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The keyword has to be findable inside a sentence now.
+
+  With the call to action moved from comments to Direct, `exact` stops being a
+  reasonable rule: under a post people type the code word and nothing else,
+  but in a private message they write to a person — «привет, промпт»,
+  «промпт пожалуйста». Every one of those was being dropped.
+
+  `contains` matches the word anywhere in the message and allows up to three
+  letters of Russian inflection after it. «ПРОМПТ» was checked against the
+  ordinary things people write and stays clean: it catches «промпты»,
+  «промптом» and «а какой промпт?» — all of them requests — and does not fire
+  on any common word that merely starts the same way.
+*/
+
+UPDATE lead_magnets magnet
+SET
+  match_mode = 'contains',
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND funnel.lead_magnet_id IS NOT NULL
+);

@@ -30,10 +30,11 @@ describe('generateCtaOutroCopyVariants fallback', () => {
   });
 
   it('keeps exactly one Cyrillic ПИШИ when AI already returned it', () => {
+    // The instruction names where to write, and still only once.
     expect(normalizeCtaOutroAction('Ускорь генерацию — ПИШИ — ПИШИ'))
-      .toBe('Ускорь генерацию — ПИШИ');
+      .toBe('Ускорь генерацию — ПИШИ В ДИРЕКТ');
     expect(normalizeCtaOutroAction('Сделай так же — напиши'))
-      .toBe('Сделай так же — ПИШИ');
+      .toBe('Сделай так же — ПИШИ В ДИРЕКТ');
   });
 
   it('keeps one Пиши in a caption even when the action is duplicated', () => {
@@ -59,7 +60,7 @@ describe('generateCtaOutroCopyVariants fallback', () => {
       count: 1,
     }, 0);
 
-    expect(caption).toContain(`ПИШИ «промпт» — и получи ${REELS_PROMPT_PACK_OFFER}.`);
+    expect(caption).toContain(`ПИШИ «промпт» в директ — и получи ${REELS_PROMPT_PACK_OFFER}.`);
     expect(caption).not.toMatch(/2 генерац|две генерац|бесплатн\w*\s+генерац/iu);
   });
 
