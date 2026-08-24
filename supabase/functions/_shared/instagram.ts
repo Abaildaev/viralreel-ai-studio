@@ -90,6 +90,111 @@ export function isVideoProcessingFailure(error: unknown): boolean {
 }
 
 /** Carries Meta's numeric codes so callers can explain the failure. */
+export interface InstagramProfile {
+  id: string;
+  username?: string;
+  name?: string;
+  profile_picture_url?: string;
+  followers_count?: number;
+  media_count?: number;
+}
+
+export interface InstagramTokenCheck {
+  valid: boolean;
+  /** Meta's verdict, in words the account owner can act on. */
+  reason?: string;
+  code?: number;
+  /**
+   * Meta could not be reached, or answered with a fault of its own. That says
+   * nothing about the token, and an account must never be switched off for it.
+   */
+  inconclusive?: boolean;
+  profile?: InstagramProfile;
+}
+
+/*
+  Rate limits and Meta's own outages. A token is not dead because the platform
+  was busy, and treating those alike would disconnect a working account on the
+  first bad minute.
+*/
+const TRANSIENT_META_CODES = new Set([1, 2, 4, 17, 32, 341, 613]);
+
+/**
+ * Asks Meta whether the token still works.
+ *
+ * The check used to be a comparison against the calendar: a token was healthy
+ * if its stored expiry was in the future. Nothing about a revoked token, a
+ * removed permission or a restricted account moves that date, so the one
+ * signal the owner relies on stayed green through exactly the failures it
+ * exists to announce.
+ *
+ * Shared rather than written twice: the button in the app and the nightly job
+ * have to answer this question the same way, or one of them starts lying.
+ */
+export async function checkInstagramToken(
+  igUserId: string,
+  accessToken: string,
+): Promise<InstagramTokenCheck> {
+  if (!igUserId || !accessToken) {
+    return { valid: false, reason: "Аккаунт не подключён: нет токена или идентификатора." };
+  }
+
+  const fields = accessToken.startsWith("IGAA")
+    ? "id,user_id,username,name,profile_picture_url,followers_count,media_count"
+    : "id,username,name,profile_picture_url,followers_count,media_count";
+
+  let response: Response;
+  try {
+    response = await fetch(`${getGraphBaseUrl(accessToken)}/${igUserId}?fields=${fields}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+  } catch (error) {
+    return {
+      valid: false,
+      inconclusive: true,
+      reason: `Не удалось связаться с Instagram: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (data?.error) {
+    const code = Number(data.error.code);
+    const failure = new InstagramApiError(
+      String(data.error.message ?? "Instagram отклонил запрос"),
+      Number.isFinite(code) ? code : undefined,
+      Number(data.error.error_subcode) || undefined,
+    );
+
+    return {
+      valid: false,
+      code: failure.code,
+      reason: describeInstagramError(failure),
+      inconclusive: failure.code !== undefined && TRANSIENT_META_CODES.has(failure.code),
+    };
+  }
+
+  if (!response.ok) {
+    return {
+      valid: false,
+      inconclusive: true,
+      reason: `Instagram ответил ${response.status} без объяснения.`,
+    };
+  }
+
+  return {
+    valid: true,
+    profile: {
+      id: String(data.id ?? igUserId),
+      username: data.username,
+      name: data.name,
+      profile_picture_url: data.profile_picture_url,
+      followers_count: data.followers_count,
+      media_count: data.media_count,
+    },
+  };
+}
+
 export class InstagramApiError extends Error {
   constructor(
     message: string,

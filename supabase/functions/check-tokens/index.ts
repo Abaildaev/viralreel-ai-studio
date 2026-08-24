@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, hasValidCronSecret } from "../_shared/auth.ts";
 import { notifyUser } from "../_shared/telegram.ts";
+import { checkInstagramToken } from "../_shared/instagram.ts";
 import { decryptCredential } from "../_shared/credentials.ts";
 import { callTelegram, describeTelegramError } from "../_shared/telegram-api.ts";
 import { clearBotFault, reportBotFault } from "../_shared/bot-health.ts";
@@ -139,9 +140,54 @@ Deno.serve(async (req: Request) => {
       notificationsSent++;
     }
 
+    /*
+      And now the question the calendar cannot answer: does the token still
+      work? Nothing about a revoked token, a withdrawn permission or a
+      restricted account moves the stored expiry date, so an account can fail
+      for weeks while this job reports it healthy.
+
+      An account is only switched off when Meta says the token itself is bad.
+      A rate limit or an outage leaves it alone: the platform being busy is not
+      the same as the account being disconnected, and disconnecting on the
+      first bad minute would create the outage it was meant to warn about.
+    */
+    const { data: liveAccounts } = await supabase
+      .from("instagram_accounts")
+      .select("id, user_id, username, ig_user_id, access_token")
+      .eq("is_active", true);
+
+    let revoked = 0;
+
+    for (const acc of (liveAccounts || [])) {
+      const check = await checkInstagramToken(
+        String(acc.ig_user_id ?? ""),
+        String(acc.access_token ?? ""),
+      );
+
+      if (check.valid || check.inconclusive) {
+        if (check.inconclusive) {
+          console.warn(`Token check for @${acc.username} was inconclusive: ${check.reason}`);
+        }
+        continue;
+      }
+
+      await notifyUser(
+        supabase,
+        acc.user_id,
+        `🔥 <b>Instagram больше не принимает токен</b>\n\nАккаунт: @${acc.username} отключён.\n\nПричина: ${check.reason}\n\nПереподключите аккаунт в разделе «Аккаунты» — до этого автоответы и автопубликация работать не будут.`,
+      );
+
+      await supabase
+        .from("instagram_accounts")
+        .update({ is_active: false })
+        .eq("id", acc.id);
+
+      revoked++;
+    }
+
     const telegramChecked = await checkTelegramBots(supabase);
 
-    return new Response(JSON.stringify({ success: true, checked: (expiringAccounts?.length || 0) + (expiredAccounts?.length || 0), alerts: notificationsSent, telegramBotsChecked: telegramChecked }), {
+    return new Response(JSON.stringify({ success: true, checked: (expiringAccounts?.length || 0) + (expiredAccounts?.length || 0), verified: liveAccounts?.length || 0, revoked, alerts: notificationsSent + revoked, telegramBotsChecked: telegramChecked }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
