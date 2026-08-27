@@ -7,6 +7,7 @@ import AudioModal from '../components/AudioModal';
 import { generateAiShowcaseContent } from '../services/geminiService';
 import { PageHeader, PageShell, Section } from '../components/ui';
 import AppSelect from '../components/ui/AppSelect';
+import { getErrorMessage } from '../utils/errorMessage';
 import {
   SparklesIcon,
   CloudArrowUpIcon,
@@ -212,7 +213,7 @@ const AiShowcasePage: React.FC = () => {
       gen.setVariations(newVariations);
       gen.setAppState(AppState.PREVIEW);
     } catch (error) {
-      setGenerationError(error instanceof Error ? error.message : 'Не удалось сгенерировать варианты через DeepSeek.');
+      setGenerationError(getErrorMessage(error, 'Не удалось сгенерировать варианты через DeepSeek.'));
     } finally {
       gen.setIsGenerating(false);
       gen.setProgressMsg('');

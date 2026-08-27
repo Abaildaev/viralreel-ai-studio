@@ -61,6 +61,9 @@ const blankForm: AutomationForm = {
   button_text: 'Получить материал',
   repeat_delay_hours: 24,
   reply_delay_seconds: 5,
+  ab_quick_reply_percent: 0,
+  ab_quick_reply_text: 'Материал готов 🙌 Нажми кнопку ниже — и я сразу пришлю доступ.',
+  ab_quick_reply_button: 'Забрать базу',
   is_active: true,
   ...NO_ATTACHMENT,
 };
@@ -133,11 +136,8 @@ export default function AutomationsPage() {
       const [rRes, sRes, eRes, aRes, currentTelegramBot] = await Promise.all([
         supabase.from('lead_magnets').select('*').order('created_at', { ascending: false }),
         supabase.from('lead_magnet_stats').select('*'),
-        /*
-          The table is `instagram_automation_events`; `lead_magnet_events` has
-          never existed, so the live feed and the analytics tab were always fed
-          an empty list.
-        */
+        /* The live feed stays capped at 50 rows. Analytics and CRM contacts are
+           calculated by bounded RPCs only when their tabs are mounted. */
         supabase
           .from('instagram_automation_events')
           .select('*, lead_magnets(title, codeword, response_url), instagram_accounts(username)')
@@ -213,6 +213,10 @@ export default function AutomationsPage() {
       button_text: rule.button_text || 'Получить материал',
       repeat_delay_hours: rule.repeat_delay_hours ?? 24,
       reply_delay_seconds: rule.reply_delay_seconds ?? 5,
+      ab_quick_reply_percent: rule.ab_quick_reply_percent ?? 0,
+      ab_quick_reply_text:
+        rule.ab_quick_reply_text || 'Материал готов 🙌 Нажми кнопку ниже — и я сразу пришлю доступ.',
+      ab_quick_reply_button: rule.ab_quick_reply_button || 'Забрать базу',
       is_active: rule.is_active,
       attachment_type: rule.attachment_type ?? 'none',
       attachment_path: rule.attachment_path ?? '',
@@ -242,10 +246,11 @@ export default function AutomationsPage() {
   const handleToggleActive = async (rule: LeadMagnet) => {
     const nextState = !rule.is_active;
     try {
-      await supabase.from('lead_magnets').update({ is_active: nextState }).eq('id', rule.id);
+      const { error } = await supabase.from('lead_magnets').update({ is_active: nextState }).eq('id', rule.id);
+      if (error) throw error;
       setRules((prev) => prev.map((r) => (r.id === rule.id ? { ...r, is_active: nextState } : r)));
     } catch (err: any) {
-      console.error('Toggle error:', err);
+      await alert({ title: 'Ошибка изменения статуса', message: err.message || 'Не удалось изменить статус сценария', variant: 'error' });
     }
   };
 
@@ -291,6 +296,12 @@ export default function AutomationsPage() {
         button_text: form.button_text.trim(),
         repeat_delay_hours: form.repeat_delay_hours,
         reply_delay_seconds: form.reply_delay_seconds,
+        ab_quick_reply_percent: form.trigger_comments
+          ? Math.max(0, Math.min(100, form.ab_quick_reply_percent))
+          : 0,
+        ab_quick_reply_text:
+          form.ab_quick_reply_text.trim() || 'Материал готов 🙌 Нажми кнопку ниже — и я сразу пришлю доступ.',
+        ab_quick_reply_button: form.ab_quick_reply_button.trim() || 'Забрать базу',
         is_active: form.is_active,
         ...attachmentFields(form),
       };
@@ -469,12 +480,12 @@ export default function AutomationsPage() {
 
       {/* Leads */}
       {activeTab === 'leads' && (
-        <AutomationAnalyticsDashboard view="leads" events={events} rules={rules} stats={stats} />
+        <AutomationAnalyticsDashboard view="leads" rules={rules} />
       )}
 
       {/* Analytics */}
       {activeTab === 'analytics' && (
-        <AutomationAnalyticsDashboard view="analytics" events={events} rules={rules} stats={stats} />
+        <AutomationAnalyticsDashboard view="analytics" rules={rules} />
       )}
 
       {activeTab === 'conversations' && <ConversationsTab />}

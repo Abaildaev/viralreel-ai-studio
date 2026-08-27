@@ -201,7 +201,7 @@ export async function advanceSequence(
     const outgoingAttachment = prepared ?? leadingAttachment;
     leadingAttachmentConsumed = true;
 
-    await sendMessage(botToken, {
+    const telegramMessageId = await sendMessage(botToken, {
       chatId: subscriber.telegram_user_id,
       // A bare file needs no filler caption; only a text step does.
       text: step.body.trim() || (outgoingAttachment ? "" : "…"),
@@ -212,7 +212,12 @@ export async function advanceSequence(
     if (deliveryId) {
       await supabase
         .from("telegram_step_deliveries")
-        .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          telegram_message_id: String(telegramMessageId),
+          error_message: null,
+        })
         .eq("id", deliveryId);
     }
 

@@ -148,8 +148,10 @@ const AudioPage: React.FC = () => {
     if (!ok) return;
 
     try {
-      await supabase.storage.from('audio').remove([audioFile.file_path]);
-      await supabase.from('audio_files').delete().eq('id', audioFile.id);
+      const { error: storageError } = await supabase.storage.from('audio').remove([audioFile.file_path]);
+      if (storageError) throw storageError;
+      const { error: rowError } = await supabase.from('audio_files').delete().eq('id', audioFile.id);
+      if (rowError) throw rowError;
       await loadAudioFiles();
     } catch (error: any) {
       await alert({

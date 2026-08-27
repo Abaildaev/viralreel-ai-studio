@@ -10,6 +10,7 @@ import {
 import type { TelegramBot } from '../../types';
 import { Badge, Button, Callout, Card, Field, Input, Section, Switch } from '../ui';
 import { useConfirm } from '../../contexts/ModalContext';
+import { getErrorMessage } from '../../utils/errorMessage';
 import {
   connectBot,
   disconnectBot,
@@ -43,7 +44,7 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
       await onChanged();
       toast(success);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(getErrorMessage(caught));
     } finally {
       setBusy(null);
     }

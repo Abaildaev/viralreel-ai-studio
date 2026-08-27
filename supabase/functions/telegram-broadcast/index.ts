@@ -8,9 +8,10 @@
   each tick drains as much of that queue as it can afford before handing the
   rest to the next tick.
 
-  The queue is what makes the run resumable. A worker killed mid-batch loses
-  nothing but the in-flight message, and nobody is written to twice, because a
-  recipient leaves `pending` only after Telegram has accepted it.
+  The queue is what makes the run resumable. A worker atomically leases rows
+  before sending, so overlapping cron invocations cannot send the same row.
+  Telegram itself has no idempotency key, so a crash after Telegram accepts a
+  message but before `sent` is persisted still has at-least-once semantics.
 */
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -103,7 +104,8 @@ async function materialiseRecipients(
       supabase
         .from("telegram_subscribers")
         .select("id,telegram_user_id")
-        .eq("telegram_bot_id", broadcast.telegram_bot_id),
+        .eq("telegram_bot_id", broadcast.telegram_bot_id)
+        .eq("user_id", broadcast.user_id),
       filters,
     );
 
@@ -163,22 +165,41 @@ async function drain(
   let failed = 0;
 
   while (Date.now() < deadline) {
-    const { data: batch, error } = await supabase
-      .from("telegram_broadcast_recipients")
-      .select("id,telegram_user_id,subscriber_id,attempts")
-      .eq("broadcast_id", broadcast.id)
-      .eq("status", "pending")
-      .lt("attempts", MAX_ATTEMPTS)
-      .limit(100);
+    const claimToken = crypto.randomUUID();
+    const { data: batch, error } = await supabase.rpc(
+      "claim_telegram_broadcast_recipients",
+      {
+        p_broadcast_id: broadcast.id,
+        p_limit: 100,
+        p_claim_token: claimToken,
+      },
+    );
 
     if (error) throw error;
-    if (!batch || batch.length === 0) return { sent, failed, drained: true };
+    if (!batch || batch.length === 0) {
+      /* Another invocation may still be sending its claimed rows. Do not mark
+         the broadcast complete until those leases have finished (or expired). */
+      const { count: processingCount, error: processingError } = await supabase
+        .from("telegram_broadcast_recipients")
+        .select("id", { count: "exact", head: true })
+        .eq("broadcast_id", broadcast.id)
+        .eq("status", "processing");
+      if (processingError) throw processingError;
+      return { sent, failed, drained: (processingCount ?? 0) === 0 };
+    }
 
     for (const recipient of batch) {
-      if (Date.now() >= deadline) return { sent, failed, drained: false };
+      if (Date.now() >= deadline) {
+        await supabase
+          .from("telegram_broadcast_recipients")
+          .update({ status: "pending", claimed_at: null, claim_token: null })
+          .eq("claim_token", claimToken)
+          .eq("status", "processing");
+        return { sent, failed, drained: false };
+      }
 
       try {
-        await sendMessage(botToken, {
+        const telegramMessageId = await sendMessage(botToken, {
           chatId: recipient.telegram_user_id as string,
           text: broadcast.message_text,
           buttons: [{ text: broadcast.button_text, url: broadcast.button_url }],
@@ -186,10 +207,21 @@ async function drain(
           attachment,
         });
 
-        await supabase
+        const { data: sentRows, error: sentError } = await supabase
           .from("telegram_broadcast_recipients")
-          .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
-          .eq("id", recipient.id);
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            telegram_message_id: String(telegramMessageId),
+            error_message: null,
+            claimed_at: null,
+            claim_token: null,
+          })
+          .eq("id", recipient.id)
+          .eq("claim_token", claimToken)
+          .select("id");
+        if (sentError) throw sentError;
+        if (!sentRows?.length) continue;
         sent++;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -197,6 +229,16 @@ async function drain(
         // A flood wait applies to the whole bot, so pausing the run beats
         // burning the remaining budget on calls Telegram will reject.
         if (error instanceof TelegramApiError && error.code === 429) {
+          await supabase
+            .from("telegram_broadcast_recipients")
+            .update({ status: "pending", claimed_at: null, claim_token: null })
+            .eq("id", recipient.id)
+            .eq("claim_token", claimToken);
+          await supabase
+            .from("telegram_broadcast_recipients")
+            .update({ status: "pending", claimed_at: null, claim_token: null })
+            .eq("claim_token", claimToken)
+            .eq("status", "processing");
           const wait = Math.min((error.retryAfter ?? 5) * 1000, 30_000);
           if (Date.now() + wait >= deadline) return { sent, failed, drained: false };
           await sleep(wait);
@@ -206,14 +248,20 @@ async function drain(
         const permanent = isPermanentDeliveryFailure(error);
         const attempts = Number(recipient.attempts ?? 0) + 1;
 
-        await supabase
+        const { data: updatedRows, error: updateError } = await supabase
           .from("telegram_broadcast_recipients")
           .update({
             status: permanent || attempts >= MAX_ATTEMPTS ? "failed" : "pending",
             attempts,
             error_message: message,
+            claimed_at: null,
+            claim_token: null,
           })
-          .eq("id", recipient.id);
+          .eq("id", recipient.id)
+          .eq("claim_token", claimToken)
+          .select("id");
+        if (updateError) throw updateError;
+        if (!updatedRows?.length) continue;
 
         if (permanent) {
           // They cannot receive anything again — keep every future broadcast
@@ -239,13 +287,31 @@ async function runBroadcast(
   broadcast: BroadcastRow,
   deadline: number,
 ): Promise<void> {
-  const { data: bot } = await supabase
+  const { data: bot, error: botError } = await supabase
     .from("telegram_bots")
-    .select("id,bot_token_encrypted,is_active")
+    .select("id,user_id,bot_token_encrypted,is_active")
     .eq("id", broadcast.telegram_bot_id)
     .maybeSingle();
 
-  if (!bot?.is_active) {
+  if (botError) throw botError;
+
+  if (!bot || bot.user_id !== broadcast.user_id) {
+    throw new Error("Telegram bot ownership mismatch");
+  }
+
+  if (broadcast.segment_funnel_id) {
+    const { data: funnel, error: funnelError } = await supabase
+      .from("telegram_funnels")
+      .select("id")
+      .eq("id", broadcast.segment_funnel_id)
+      .eq("user_id", broadcast.user_id)
+      .eq("telegram_bot_id", broadcast.telegram_bot_id)
+      .maybeSingle();
+    if (funnelError) throw funnelError;
+    if (!funnel) throw new Error("Telegram funnel ownership mismatch");
+  }
+
+  if (!bot.is_active) {
     await supabase
       .from("telegram_broadcasts")
       .update({

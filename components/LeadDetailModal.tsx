@@ -35,6 +35,9 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ lead, onClose 
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lead-detail-title"
         className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden border border-gray-200/80 flex flex-col max-h-[90vh] animate-in fade-in duration-150"
         onClick={(e) => e.stopPropagation()}
       >
@@ -52,7 +55,7 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({ lead, onClose 
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-base text-gray-900 truncate">
+                <h3 id="lead-detail-title" className="font-semibold text-base text-gray-900 truncate">
                   @{username}
                 </h3>
                 <button

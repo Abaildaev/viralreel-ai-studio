@@ -39,13 +39,16 @@ const AudioModal: React.FC<AudioModalProps> = ({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="audio-modal-title"
         className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150 border border-gray-100"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-gray-50/50">
           <div>
-            <h3 className="font-bold text-gray-900 text-base">Музыкальное сопровождение</h3>
+            <h3 id="audio-modal-title" className="font-bold text-gray-900 text-base">Музыкальное сопровождение</h3>
             <p className="text-xs text-gray-500 mt-0.5">Выберите трек и настройте момент старта музыки</p>
           </div>
           <button

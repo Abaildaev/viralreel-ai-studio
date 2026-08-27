@@ -110,9 +110,11 @@ const SettingsPage: React.FC = () => {
     }
 
     let telegramError: string | null = null;
+    let timezoneError: string | null = null;
 
     if (user) {
-      await supabase.from('profiles').update({ timezone }).eq('id', user.id);
+      const { error } = await supabase.from('profiles').update({ timezone }).eq('id', user.id);
+      if (error) timezoneError = `Часовой пояс: ${error.message}`;
     }
 
     if (user && tgToken && tgChatId) {
@@ -141,8 +143,13 @@ const SettingsPage: React.FC = () => {
     setSaving(false);
     setDeepseekTestResult(null);
 
-    if (telegramError || deepseekError) {
-      toast({ message: deepseekError || `Не удалось сохранить настройки Telegram: ${telegramError}`, tone: 'error' });
+    if (timezoneError || telegramError || deepseekError) {
+      toast({
+        message: [deepseekError, timezoneError, telegramError && `Telegram: ${telegramError}`]
+          .filter(Boolean)
+          .join(' · '),
+        tone: 'error',
+      });
     } else {
       toast('Настройки сохранены');
     }

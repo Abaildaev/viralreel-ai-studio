@@ -10,6 +10,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { AiSalesMessage } from '../../types';
 import { generateSalesAgentReply, loadSalesAgentConfig } from '../../services/aiSalesAgentService';
+import { getErrorMessage } from '../../utils/errorMessage';
 
 type MessageRole = 'user' | 'agent';
 
@@ -192,7 +193,7 @@ export default function ConversationsTab() {
       const { reply } = await generateSalesAgentReply(history, config);
       setDraft(reply);
     } catch (error) {
-      setSendError(error instanceof Error ? error.message : 'Не удалось подготовить ответ с ИИ');
+      setSendError(getErrorMessage(error, 'Не удалось подготовить ответ с ИИ'));
     } finally {
       setAssisting(false);
     }

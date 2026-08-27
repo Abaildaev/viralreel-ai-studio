@@ -67,6 +67,17 @@ Deno.serve(async (req: Request) => {
     const account = post.instagram_accounts;
     const publishAttempt = Number(post.publish_attempts ?? 0) + 1;
 
+    if (!account || account.user_id !== post.user_id) {
+      await supabase
+        .from("scheduled_posts")
+        .update({ status: "failed", error_message: "Instagram account ownership mismatch" })
+        .eq("id", post.id);
+      return new Response(JSON.stringify({ error: "Instagram account ownership mismatch", published: 0 }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!account?.is_active || !account.access_token || !account.ig_user_id) {
       await supabase
         .from("scheduled_posts")

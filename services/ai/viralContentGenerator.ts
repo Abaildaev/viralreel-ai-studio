@@ -75,9 +75,9 @@ function getMockAiStoryContent(
   const codeword = leadMagnet?.codeword?.trim().toUpperCase() || 'ИИ';
   const hooks = [
     'Seedance 2 + 1 промпт',
-    '1 промпт = Reels на миллион',
+    '1 промпт — готовая идея для Reels',
     'Этот Reel полностью создал ИИ',
-    'Мини-фильм за 15 секунд',
+    'Мини-фильм из одной идеи',
     'Нейросеть сняла это без камеры',
     'Такие Reels создаются одним промптом',
   ];
@@ -121,8 +121,8 @@ export const generateAiStoryReels = async ({
 - 2–8 слов, не более 68 символов;
 - сложность читается за одну секунду;
 - чередуй модель + промпт, результат, удивление, скорость и мини-фильм;
-- допустимые конструкции: «Seedance 2 + 1 промпт», «1 промпт = Reels на миллион», «Этот Reel создал ИИ»;
-- не повторяй примеры дословно во всех вариантах и не обещай гарантированные просмотры.
+- допустимые конструкции: «Seedance 2 + 1 промпт», «1 промпт — готовая идея для Reels», «Этот Reel создал ИИ»;
+- не повторяй примеры дословно во всех вариантах, не обещай гарантированные просмотры и не выдумывай цифры.
 
 Правила caption:
 - 450–850 символов, 3–4 коротких абзаца, без хэштегов;
@@ -146,7 +146,7 @@ export const generateAiStoryReels = async ({
       extra_body: NO_THINKING,
     } as any);
 
-    const variations = processVariations(response.choices[0]?.message?.content || '', variationCount)
+    const variations = processVariations(response.choices?.[0]?.message?.content || '', variationCount)
       .map((variation) => ({
         hook: compactAiStoryHook(variation.hook),
         caption: variation.caption.trim(),
@@ -327,7 +327,7 @@ ${JSON_FORMAT_INSTRUCTION}
       extra_body: NO_THINKING,
     } as any);
 
-    const text = response.choices[0]?.message?.content || '';
+    const text = response.choices?.[0]?.message?.content || '';
     const variations = processVariations(text, variationCount);
 
     if (variations.length === 0) {
@@ -353,7 +353,7 @@ export const generateViralTopic = async (tone: string = 'Provokacionnyj'): Promi
       extra_body: NO_THINKING,
     } as any);
 
-    return response.choices[0]?.message?.content?.trim() || "5 нейросетей для автоматизации блогинга в 2026 году";
+    return response.choices?.[0]?.message?.content?.trim() || "5 нейросетей для автоматизации блогинга в 2026 году";
   } catch {
     return "5 нейросетей для автоматизации блогинга в 2026 году";
   }

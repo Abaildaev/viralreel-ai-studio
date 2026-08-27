@@ -1,13 +1,9 @@
 /*
-  Runs the token check once, now, instead of waiting for noon.
+  Intentionally empty.
 
-  The job just learned to ask Meta whether the token still works rather than
-  comparing its stored expiry against the calendar, and the account it will
-  ask about was reconnected an hour ago. Better to find out immediately than
-  to discover at midday that the new check itself is broken.
-
-  Invoked exactly the way the scheduler invokes it, so the secret comes from
-  the vault and nothing new gets a way in.
+  Token checks are operational work and must not run while schema migrations
+  are being applied. A fresh project configures Vault only after `db push`, and
+  a migration must never depend on network access or an Edge Function being
+  deployed. The scheduled `check-instagram-tokens` cron job performs the first
+  check after Vault and the functions have been configured.
 */
-
-SELECT invoke_edge_function('check-tokens');

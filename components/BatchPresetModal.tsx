@@ -12,6 +12,7 @@ import {
   BgStyle,
   TextAlign,
 } from '../types';
+import { getErrorMessage } from '../utils/errorMessage';
 import {
   XMarkIcon,
   PlusIcon,
@@ -576,7 +577,7 @@ const BatchPresetModal: React.FC<Props> = ({
     } catch (error) {
       setPreviewState('idle');
       setPreviewError(
-        error instanceof Error ? error.message : 'Не удалось собрать прослушивание',
+        getErrorMessage(error, 'Не удалось собрать прослушивание'),
       );
     } finally {
       if (localReferenceUrl) URL.revokeObjectURL(localReferenceUrl);
@@ -734,11 +735,14 @@ const BatchPresetModal: React.FC<Props> = ({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="batch-preset-modal-title"
         className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">
+          <h3 id="batch-preset-modal-title" className="font-semibold text-gray-900">
             {preset ? 'Редактировать пресет' : 'Новый пресет'}
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">

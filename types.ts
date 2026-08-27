@@ -234,6 +234,10 @@ export interface LeadMagnet extends MessageAttachment {
   media_ids: string[];
   repeat_delay_hours: number;
   reply_delay_seconds: number;
+  /** Percentage of comment leads assigned to the two-step Quick Reply arm. */
+  ab_quick_reply_percent: number;
+  ab_quick_reply_text: string;
+  ab_quick_reply_button: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

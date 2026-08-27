@@ -95,6 +95,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
 
   const handleSelectDay = (year: number, month: number, day: number) => {
     const formatted = formatDateString(year, month, day);
+    if (minDate && formatted < minDate) return;
     onChange(formatted);
     setIsOpen(false);
   };
@@ -272,6 +273,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             <button
               type="button"
               onClick={selectToday}
+              disabled={Boolean(minDate && formatDateString(today.getFullYear(), today.getMonth(), today.getDate()) < minDate)}
               className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700 transition-colors whitespace-nowrap"
             >
               Сегодня
@@ -279,6 +281,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             <button
               type="button"
               onClick={selectTomorrow}
+              disabled={Boolean(minDate && (() => { const d = new Date(today); d.setDate(d.getDate() + 1); return formatDateString(d.getFullYear(), d.getMonth(), d.getDate()) < minDate; })())}
               className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700 transition-colors whitespace-nowrap"
             >
               Завтра
@@ -286,6 +289,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
             <button
               type="button"
               onClick={selectNextMonday}
+              disabled={Boolean(minDate && (() => { const d = new Date(today); const day = d.getDay(); d.setDate(d.getDate() + ((1 + 7 - day) % 7 || 7)); return formatDateString(d.getFullYear(), d.getMonth(), d.getDate()) < minDate; })())}
               className="px-2.5 py-1 text-xs font-medium rounded-lg bg-gray-100 hover:bg-brand-50 hover:text-brand-700 text-gray-700 transition-colors whitespace-nowrap"
             >
               С понедельника
@@ -342,6 +346,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                     key={key}
                     type="button"
                     onClick={() => handleSelectDay(item.year, item.month, item.day)}
+                    disabled={Boolean(minDate && formatDateString(item.year, item.month, item.day) < minDate)}
                     className="h-8 text-xs font-normal text-gray-300 hover:bg-gray-50 rounded-xl transition-colors flex items-center justify-center"
                   >
                     {item.day}
@@ -366,6 +371,7 @@ export const CustomDatePicker: React.FC<CustomDatePickerProps> = ({
                   key={key}
                   type="button"
                   onClick={() => handleSelectDay(item.year, item.month, item.day)}
+                  disabled={item.isPast}
                   className={`h-8 text-xs font-medium rounded-xl flex items-center justify-center transition-all relative ${
                     item.isToday
                       ? 'text-brand-700 bg-brand-50 font-bold border border-brand-200'

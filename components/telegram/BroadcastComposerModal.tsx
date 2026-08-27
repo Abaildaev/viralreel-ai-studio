@@ -177,10 +177,10 @@ const BroadcastComposerModal: React.FC<BroadcastComposerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-gray-900/60 p-4 backdrop-blur-sm">
-      <div className="animate-in fade-in zoom-in-95 my-4 w-full max-w-5xl rounded-3xl border border-gray-200/90 bg-white shadow-2xl duration-150">
+      <div role="dialog" aria-modal="true" aria-labelledby="broadcast-composer-title" className="animate-in fade-in zoom-in-95 my-4 w-full max-w-5xl rounded-3xl border border-gray-200/90 bg-white shadow-2xl duration-150">
         <div className="sticky top-0 z-10 flex items-center justify-between gap-4 rounded-t-3xl border-b border-gray-100 bg-white/95 p-5 backdrop-blur-sm sm:p-6">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-gray-900">
+            <h3 id="broadcast-composer-title" className="text-base font-semibold text-gray-900">
               {form.id ? 'Редактировать рассылку' : 'Новая рассылка'}
             </h3>
             <p className="mt-0.5 text-xs text-gray-500">

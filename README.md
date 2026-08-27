@@ -68,11 +68,23 @@ npm run dev
 
    > Раньше здесь предлагалось `alter database postgres set app.settings.…`. Так делать нельзя: на Supabase роль `postgres` не суперпользователь, команда отклоняется, и все задачи молча падают с `url = null`. Ошибки видны только в `cron.job_run_details`, куда никто не смотрит. Vault работает без повышенных прав, а функция `invoke_edge_function` падает с внятным сообщением, если секретов нет.
 
+   Миграции применяются до этого шага без обращения к Edge Functions. Проверка токенов — operational-задача: после добавления секретов её выполняет обычный cron, а не `db push`.
+
 5. Задайте ключ шифрования пользовательских секретов — им шифруются ключ DeepSeek и токен Telegram-бота. Без него ни ИИ-продавец, ни Telegram-воронки не подключаются:
 
    ```bash
    npx supabase secrets set CREDENTIALS_ENCRYPTION_KEY=$(openssl rand -base64 32)
    ```
+
+6. После первого запуска откройте Supabase Dashboard → Edge Functions и
+   проверьте последние запуски `telegram-drip`, `telegram-broadcast` и
+   `auto-publish`. В очереди Telegram не должно быть растущего числа строк
+   `processing` старше пяти минут или повторяющихся `failed` строк.
+
+   Для frontend в Netlify задайте только публичные переменные
+   `VITE_SUPABASE_URL` и `VITE_SUPABASE_ANON_KEY`. Service role key, Telegram
+   token, `CRON_SECRET` и `CREDENTIALS_ENCRYPTION_KEY` в Netlify и git не
+   добавляются.
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` и `SUPABASE_SERVICE_ROLE_KEY` доступны Edge Functions в среде Supabase. Никогда не добавляйте service role key в `.env.local` или в клиентский код.
 

@@ -19,6 +19,7 @@ import type {
   TelegramSubscriber,
 } from '../types';
 import { Badge, Button, Callout, PageHeader, PageShell, cn } from '../components/ui';
+import { getErrorMessage } from '../utils/errorMessage';
 import BotSetupTab from '../components/telegram/BotSetupTab';
 import FunnelsTab from '../components/telegram/FunnelsTab';
 import FunnelEditorModal, { blankFunnel, defaultSteps } from '../components/telegram/FunnelEditorModal';
@@ -145,7 +146,7 @@ export default function TelegramPage() {
       setStats(statRows);
       setLeadMagnets((magnets.data ?? []) as LeadMagnet[]);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : String(error));
+      setLoadError(getErrorMessage(error, 'Не удалось загрузить данные Telegram'));
     }
   }, [user]);
 
@@ -207,7 +208,7 @@ export default function TelegramPage() {
       }));
     } catch (error) {
       toast({
-        message: error instanceof Error ? error.message : 'Не удалось загрузить шаги воронки',
+        message: getErrorMessage(error, 'Не удалось загрузить шаги воронки'),
         tone: 'error',
       });
       return;
@@ -240,7 +241,7 @@ export default function TelegramPage() {
       toast(draft.id ? 'Воронка сохранена' : 'Воронка создана');
     } catch (error) {
       toast({
-        message: error instanceof Error ? error.message : 'Не удалось сохранить воронку',
+        message: getErrorMessage(error, 'Не удалось сохранить воронку'),
         tone: 'error',
       });
     } finally {
@@ -256,13 +257,21 @@ export default function TelegramPage() {
     });
     if (!confirmed) return;
 
-    await deleteFunnel(funnel.id);
-    await refresh();
-    toast('Воронка удалена');
+    try {
+      await deleteFunnel(funnel.id);
+      await refresh();
+      toast('Воронка удалена');
+    } catch (error) {
+      toast({ message: getErrorMessage(error, 'Не удалось удалить воронку'), tone: 'error' });
+    }
   };
 
   const handleToggleFunnel = async (funnel: TelegramFunnel, active: boolean) => {
-    await supabase.from('telegram_funnels').update({ is_active: active }).eq('id', funnel.id);
+    const { error } = await supabase.from('telegram_funnels').update({ is_active: active }).eq('id', funnel.id);
+    if (error) {
+      toast({ message: getErrorMessage(error, 'Не удалось изменить статус воронки'), tone: 'error' });
+      return;
+    }
     await refresh();
   };
 
@@ -284,7 +293,7 @@ export default function TelegramPage() {
       );
     } catch (error) {
       toast({
-        message: error instanceof Error ? error.message : 'Не удалось сохранить рассылку',
+        message: getErrorMessage(error, 'Не удалось сохранить рассылку'),
         tone: 'error',
       });
     } finally {
@@ -293,13 +302,17 @@ export default function TelegramPage() {
   };
 
   const handleCancelBroadcast = async (broadcast: TelegramBroadcast) => {
-    const stopped = await cancelBroadcast(broadcast.id);
-    await refresh();
-    toast(
-      stopped
-        ? 'Рассылка отменена'
-        : 'Отправка уже началась — часть подписчиков сообщение получила',
-    );
+    try {
+      const stopped = await cancelBroadcast(broadcast.id);
+      await refresh();
+      toast(
+        stopped
+          ? 'Рассылка отменена'
+          : 'Отправка уже началась — часть подписчиков сообщение получила',
+      );
+    } catch (error) {
+      toast({ message: getErrorMessage(error, 'Не удалось отменить рассылку'), tone: 'error' });
+    }
   };
 
   const handleDeleteBroadcast = async (broadcast: TelegramBroadcast) => {
@@ -310,14 +323,22 @@ export default function TelegramPage() {
     });
     if (!confirmed) return;
 
-    await deleteBroadcast(broadcast.id);
-    await refresh();
-    toast('Рассылка удалена');
+    try {
+      await deleteBroadcast(broadcast.id);
+      await refresh();
+      toast('Рассылка удалена');
+    } catch (error) {
+      toast({ message: getErrorMessage(error, 'Не удалось удалить рассылку'), tone: 'error' });
+    }
   };
 
   const handleMarkSignedUp = async (subscriber: TelegramSubscriber) => {
-    await markSignedUp(subscriber.id);
-    await refresh();
+    try {
+      await markSignedUp(subscriber.id);
+      await refresh();
+    } catch (error) {
+      toast({ message: getErrorMessage(error, 'Не удалось обновить статус подписчика'), tone: 'error' });
+    }
   };
 
   const needsBot = !loading && !bot;

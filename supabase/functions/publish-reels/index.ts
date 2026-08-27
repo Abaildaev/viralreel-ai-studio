@@ -61,6 +61,7 @@ Deno.serve(async (req: Request) => {
         .select("*, instagram_accounts!inner(ig_user_id, access_token, user_id, username, is_active)")
         .eq("id", postId)
         .eq("user_id", user.id)
+        .eq("instagram_accounts.user_id", user.id)
         .in("status", ["draft", "pending", "failed"]);
       posts = result.data;
       fetchError = result.error;
@@ -76,7 +77,9 @@ Deno.serve(async (req: Request) => {
         .limit(1);
 
       if (accountId) {
-        query = query.eq("instagram_account_id", accountId);
+        query = query
+          .eq("instagram_account_id", accountId)
+          .eq("instagram_accounts.user_id", user.id);
       }
 
       const result = await query;
@@ -95,6 +98,12 @@ Deno.serve(async (req: Request) => {
 
     const post = posts[0];
     const account = post.instagram_accounts;
+    if (account?.user_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: "Instagram account does not belong to the authenticated user" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     const publishAttempt = post.status === "failed"
       ? 1
       : Number(post.publish_attempts ?? 0) + 1;

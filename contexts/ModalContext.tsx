@@ -89,6 +89,7 @@ const TOAST_TONES: Record<ToastTone, { box: string; icon: ReactNode }> = {
 export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [modalState, setModalState] = useState<ModalState | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const modalRef = useRef<HTMLDivElement>(null);
   const nextToastId = useRef(0);
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
 
@@ -195,6 +196,38 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [modalState]);
 
+  // Keep keyboard focus inside the confirmation/alert dialog and return it to
+  // the invoking control when the modal closes.
+  useEffect(() => {
+    if (!modalState) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = modalRef.current;
+    const selector = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>(selector) ?? []);
+    const initial = focusables().find((element) => element.hasAttribute('autofocus')) ?? focusables()[0];
+    initial?.focus();
+
+    const onTab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const current = focusables();
+      if (current.length === 0) return;
+      const first = current[0];
+      const last = current[current.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onTab);
+    return () => {
+      document.removeEventListener('keydown', onTab);
+      previous?.focus?.();
+    };
+  }, [modalState]);
+
   const renderIcon = () => {
     const iconType = modalState?.icon;
     const variant = modalState?.variant;
@@ -262,6 +295,7 @@ export const ModalProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           role="presentation"
         >
           <div
+            ref={modalRef}
             role="dialog"
             aria-modal="true"
             aria-label={modalState.title}

@@ -54,10 +54,10 @@
 
     --text: #20211F;
     --text-secondary: #646660;
-    --text-muted: #92948E;
+    --text-muted: #646660;
 
-    --accent: #3E73F5;
-    --accent-hover: #1E60FF;
+    --accent: #2D5EDB;
+    --accent-hover: #244EB7;
     --accent-subtle: #EFF4FF;
   }
 

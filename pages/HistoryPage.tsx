@@ -81,14 +81,18 @@ const HistoryPage: React.FC = () => {
 
     setIsClearing(true);
     const toDelete = posts.filter(p => p.status === 'published' || p.status === 'failed');
+    let failed = 0;
     for (const post of toDelete) {
       if (post.status === 'failed' && post.video_path) {
-        await supabase.storage.from('reels').remove([post.video_path]);
+        const { error: storageError } = await supabase.storage.from('reels').remove([post.video_path]);
+        if (storageError) { failed += 1; continue; }
       }
-      await supabase.from('scheduled_posts').delete().eq('id', post.id);
+      const { error } = await supabase.from('scheduled_posts').delete().eq('id', post.id);
+      if (error) failed += 1;
     }
     await fetchPosts();
     setIsClearing(false);
+    if (failed > 0) toast({ message: `Не удалось удалить ${failed} записей.`, tone: 'error' });
   };
 
   const handleRetry = async (post: ScheduledPost) => {
@@ -102,10 +106,11 @@ const HistoryPage: React.FC = () => {
     }
     setRetryingPostId(post.id);
     try {
-      await supabase
+      const { error: resetError } = await supabase
         .from('scheduled_posts')
         .update({ status: 'pending', error_message: null })
         .eq('id', post.id);
+      if (resetError) throw resetError;
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/publish-reels`,
@@ -216,14 +221,19 @@ const HistoryPage: React.FC = () => {
       scheduled_at: scheduledTimes[idx] ?? null,
     }));
 
+    let failedUpdates = 0;
     for (const update of updates) {
-      await supabase
+      const { error } = await supabase
         .from('scheduled_posts')
         .update({ scheduled_at: update.scheduled_at })
         .eq('id', update.id);
+      if (error) failedUpdates += 1;
     }
 
     setIsShuffling(false);
+    if (failedUpdates > 0) {
+      toast({ message: `Не удалось обновить ${failedUpdates} постов.`, tone: 'error' });
+    }
     await fetchPosts();
   };
 
@@ -497,12 +507,15 @@ const HistoryPage: React.FC = () => {
           onClick={() => setPreviewPost(null)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-preview-title"
             className="bg-white rounded-xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div>
-                <h3 className="font-semibold text-gray-900">Предпросмотр</h3>
+                <h3 id="history-preview-title" className="font-semibold text-gray-900">Предпросмотр</h3>
                 {previewPost.hook_text && (
                   <p className="text-xs text-brand-600 mt-0.5 line-clamp-1">{previewPost.hook_text}</p>
                 )}
@@ -550,6 +563,9 @@ const HistoryPage: React.FC = () => {
           onClick={() => setShowMoveModal(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="history-move-title"
             className="bg-white rounded-xl shadow-2xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
@@ -559,7 +575,7 @@ const HistoryPage: React.FC = () => {
                   <ArrowsRightLeftIcon className="w-5 h-5 text-brand-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">Перенести посты на другой аккаунт</h3>
+                  <h3 id="history-move-title" className="font-semibold text-gray-900">Перенести посты на другой аккаунт</h3>
                   <p className="text-xs text-gray-500 mt-0.5">
                     Переносятся только черновики и посты в очереди
                   </p>

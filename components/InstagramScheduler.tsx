@@ -12,6 +12,7 @@ import SchedulerCalendarView from './SchedulerCalendarView';
 import TimezonePicker from './TimezonePicker';
 import {
   dayLabelInTimezone,
+  dateTimeInTimezone,
   formatInTimezone,
   INSTAGRAM_DAILY_LIMIT,
   loadPublishWindow,
@@ -249,15 +250,19 @@ const InstagramScheduler: React.FC = () => {
     });
     if (!ok) return;
 
+    let failed = 0;
     for (const id of selectedPostIds) {
       const post = posts.find(p => p.id === id);
       if (post) {
         if (post.video_path) {
-          await supabase.storage.from('reels').remove([post.video_path]);
+          const { error: storageError } = await supabase.storage.from('reels').remove([post.video_path]);
+          if (storageError) { failed += 1; continue; }
         }
-        await supabase.from('scheduled_posts').delete().eq('id', id);
+        const { error } = await supabase.from('scheduled_posts').delete().eq('id', id);
+        if (error) failed += 1;
       }
     }
+    if (failed > 0) setPublishStatus({ type: 'error', msg: `Не удалось удалить ${failed} постов.` });
     setSelectedPostIds([]);
     await fetchPosts();
   };
@@ -312,11 +317,14 @@ const InstagramScheduler: React.FC = () => {
     if (count === 0) return [];
 
     if (scheduleMode === 'slots') {
-      const from = new Date(Math.max(new Date(`${startDate}T00:00`).getTime(), Date.now()));
+      const from = new Date(Math.max(
+        dateTimeInTimezone(startDate, '00:00', timezone).getTime(),
+        Date.now(),
+      ));
       return nextSlotTimes({ weekdays: slotWeekdays, times: slotTimes, timezone }, count, from, busyTimes);
     }
 
-    const start = new Date(`${startDate}T${startTime}`);
+    const start = dateTimeInTimezone(startDate, startTime, timezone);
     return Array.from({ length: count }, (_, index) =>
       new Date(start.getTime() + index * intervalMinutes * 60000));
   }, [selectedPostIds, scheduleMode, startDate, startTime, slotWeekdays, slotTimes, timezone, intervalMinutes, busyTimes]);
@@ -349,8 +357,15 @@ const InstagramScheduler: React.FC = () => {
       : [...current, value].sort());
 
   const changeTimezone = async (value: string) => {
+    const previousTimezone = timezone;
     setTimezone(value);
-    if (user) await supabase.from('profiles').update({ timezone: value }).eq('id', user.id);
+    if (user) {
+      const { error } = await supabase.from('profiles').update({ timezone: value }).eq('id', user.id);
+      if (error) {
+        setTimezone(previousTimezone);
+        setPublishStatus({ type: 'error', msg: `Не удалось сохранить часовой пояс: ${error.message}` });
+      }
+    }
   };
 
 
@@ -608,10 +623,10 @@ const InstagramScheduler: React.FC = () => {
 
       {previewPost && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => { setPreviewPost(null); setEditingCaption(null); }}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
+          <div role="dialog" aria-modal="true" aria-labelledby="scheduler-preview-title" className="bg-white rounded-xl shadow-2xl max-w-sm w-full max-h-[95vh] overflow-y-auto flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div>
-                <h3 className="font-semibold text-gray-900">Предпросмотр</h3>
+                <h3 id="scheduler-preview-title" className="font-semibold text-gray-900">Предпросмотр</h3>
                 {previewPost.hook_text && <p className="text-xs text-brand-600 mt-0.5 line-clamp-1">{previewPost.hook_text}</p>}
               </div>
               <button onClick={() => { setPreviewPost(null); setEditingCaption(null); }} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
@@ -649,7 +664,11 @@ const InstagramScheduler: React.FC = () => {
                       <button
                         onClick={async () => {
                           if (editingCaption.length > 2200) return;
-                          await supabase.from('scheduled_posts').update({ caption: editingCaption }).eq('id', previewPost.id);
+                          const { error } = await supabase.from('scheduled_posts').update({ caption: editingCaption }).eq('id', previewPost.id);
+                          if (error) {
+                            setPublishStatus({ type: 'error', msg: `Не удалось сохранить подпись: ${error.message}` });
+                            return;
+                          }
                           setPreviewPost({ ...previewPost, caption: editingCaption });
                           setPosts(prev => prev.map(p => p.id === previewPost.id ? { ...p, caption: editingCaption } : p));
                           setEditingCaption(null);

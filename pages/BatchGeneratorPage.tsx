@@ -29,7 +29,7 @@ import { Button, PageHeader, PageShell, SkeletonList } from '../components/ui';
 const BatchGeneratorPage: React.FC = () => {
   const { user } = useAuth();
   const { accounts, selectedAccount } = useAccount();
-  const { confirm } = useConfirm();
+  const { confirm, toast } = useConfirm();
   const { running, progress, startGeneration, stopGeneration } = useBatchGeneration();
   const [presets, setPresets] = useState<BatchPreset[]>([]);
   const [templates, setTemplates] = useState<VideoTemplate[]>([]);
@@ -94,10 +94,14 @@ const BatchGeneratorPage: React.FC = () => {
     if (!ok) return;
     const deletedPreset = presets.find((item) => item.id === id);
     const { error } = await supabase.from('batch_presets').delete().eq('id', id);
-    if (error) return;
+    if (error) {
+      toast({ message: `Не удалось удалить пресет: ${error.message}`, tone: 'error' });
+      return;
+    }
     const backgroundPath = deletedPreset?.text_style?.ctaOutroBackgroundPath;
     if (backgroundPath) {
-      await supabase.storage.from('templates').remove([backgroundPath]);
+      const { error: storageError } = await supabase.storage.from('templates').remove([backgroundPath]);
+      if (storageError) toast({ message: `Пресет удалён, но файл не очищен: ${storageError.message}`, tone: 'warning' });
     }
     await loadAll();
   };
@@ -115,10 +119,14 @@ const BatchGeneratorPage: React.FC = () => {
   };
 
   const togglePresetActive = async (preset: BatchPreset) => {
-    await supabase
+    const { error } = await supabase
       .from('batch_presets')
       .update({ is_active: !preset.is_active })
       .eq('id', preset.id);
+    if (error) {
+      toast({ message: `Не удалось изменить статус: ${error.message}`, tone: 'error' });
+      return;
+    }
     setPresets(prev =>
       prev.map(p => p.id === preset.id ? { ...p, is_active: !p.is_active } : p)
     );

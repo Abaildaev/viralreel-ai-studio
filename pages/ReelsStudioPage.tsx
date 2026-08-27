@@ -55,26 +55,35 @@ const STUDIO_TABS: TabItem[] = [
 ];
 
 export const ReelsStudioPage: React.FC<ReelsStudioPageProps> = ({ initialTab = 'generator' }) => {
-  const [activeTab, setActiveTab] = useState<StudioTab>(() => {
-    // Check URL hash if specific sub-tab requested (e.g. #outro, #budget, #aishowcase, #generator)
-    const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+  const tabFromHash = (hashValue: string): StudioTab | null => {
+    const hash = hashValue.replace(/^#\/?/, '').toLowerCase();
     if (hash === 'outro' || hash === 'aishowcase' || hash === 'budget' || hash === 'generator') {
       return hash as StudioTab;
     }
-    return initialTab;
+    return null;
+  };
+
+  const [activeTab, setActiveTab] = useState<StudioTab>(() => {
+    // The parent uses #/studio for the default tab; treat that as the current
+    // route instead of leaving a previous sub-tab selected after navigation.
+    return tabFromHash(window.location.hash) ?? initialTab;
   });
 
   // Sync with address bar hash changes
   useEffect(() => {
     const onHashChange = () => {
-      const hash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
-      if (hash === 'outro' || hash === 'aishowcase' || hash === 'budget' || hash === 'generator') {
-        setActiveTab(hash as StudioTab);
-      }
+      setActiveTab(tabFromHash(window.location.hash) ?? initialTab);
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
+  }, [initialTab]);
+
+  useEffect(() => {
+    const hashTab = tabFromHash(window.location.hash);
+    if (!hashTab || window.location.hash.replace(/^#\/?/, '').toLowerCase() === 'studio') {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const handleTabChange = (tabId: StudioTab) => {
     setActiveTab(tabId);

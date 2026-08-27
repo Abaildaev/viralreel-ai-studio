@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { CheckIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import { cn } from './cn';
 
@@ -42,11 +42,54 @@ export const AppSelect: React.FC<AppSelectProps> = ({
   'aria-invalid': ariaInvalid,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
+  const generatedId = useId();
+  const selectId = id || `app-select-${generatedId.replace(/:/g, '')}`;
   const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [uncontrolledValue, setUncontrolledValue] = useState(() => String(defaultValue ?? ''));
   const options = useMemo(() => getOptions(children), [children]);
   const selectedValue = value === undefined ? uncontrolledValue : String(value);
   const selectedOption = options.find((option) => option.value === selectedValue) ?? options[0];
+
+  const firstEnabledIndex = () => Math.max(0, options.findIndex((option) => !option.disabled));
+
+  const openMenu = () => {
+    if (options.length === 0) return;
+    setHighlightedIndex(Math.max(0, options.findIndex((option) => option.value === selectedValue && !option.disabled), firstEnabledIndex()));
+    setOpen(true);
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+
+    if (!open) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openMenu();
+      }
+      return;
+    }
+
+    if (options.length === 0) return;
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      let next = highlightedIndex;
+      for (let step = 0; step < options.length; step += 1) {
+        next = (next + direction + options.length) % options.length;
+        if (!options[next]?.disabled) break;
+      }
+      setHighlightedIndex(next);
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      const option = options[highlightedIndex];
+      if (option && !option.disabled) selectOption(option.value);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      setOpen(false);
+    }
+  };
 
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
@@ -74,19 +117,22 @@ export const AppSelect: React.FC<AppSelectProps> = ({
   };
 
   return (
-    <div ref={rootRef} className={cn('relative min-w-0 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20', className)}>
+    <div ref={rootRef} onKeyDown={handleKeyDown} className={cn('relative min-w-0 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20', className)}>
       {name && <input type="hidden" name={name} value={selectedValue} />}
       <button
-        id={id}
+        id={selectId}
         type="button"
         disabled={disabled}
+        role="combobox"
         aria-required={required}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         aria-invalid={ariaInvalid}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
+        aria-controls={open ? `${selectId}-listbox` : undefined}
+        aria-activedescendant={open ? `${selectId}-option-${highlightedIndex}` : undefined}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         className="flex min-h-5 w-full items-center justify-between gap-3 rounded-[inherit] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span className="min-w-0 flex-1 truncate">{selectedOption?.label ?? 'Выберите значение'}</span>
@@ -95,6 +141,7 @@ export const AppSelect: React.FC<AppSelectProps> = ({
 
       {open && (
         <div
+          id={`${selectId}-listbox`}
           role="listbox"
           className={cn(
             'absolute left-0 top-[calc(100%+0.5rem)] z-[70] max-h-64 w-full overflow-y-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.16)] ring-1 ring-black/5',
@@ -108,12 +155,14 @@ export const AppSelect: React.FC<AppSelectProps> = ({
                 key={option.value}
                 type="button"
                 role="option"
+                id={`${selectId}-option-${options.indexOf(option)}`}
                 aria-selected={selected}
+                tabIndex={-1}
                 disabled={option.disabled}
                 onClick={() => selectOption(option.value)}
                 className={cn(
                   'flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
-                  selected ? 'bg-brand-50 text-brand-700' : 'text-gray-700 hover:bg-gray-100',
+                  selected ? 'bg-brand-50 text-brand-700' : highlightedIndex === options.indexOf(option) ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-100',
                   option.disabled && 'cursor-not-allowed opacity-45',
                 )}
               >

@@ -58,6 +58,7 @@ interface DueDelivery {
   subscriber_id: string;
   step_id: string;
   telegram_funnel_steps: AttachmentColumns & {
+    user_id: string;
     position: number;
     body: string;
     button_text: string;
@@ -67,8 +68,10 @@ interface DueDelivery {
   } | null;
   telegram_subscribers: {
     id: string;
+    user_id: string;
     telegram_user_id: string;
     telegram_bot_id: string;
+    funnel_id: string | null;
     is_blocked: boolean;
     unsubscribed_at: string | null;
   } | null;
@@ -76,8 +79,8 @@ interface DueDelivery {
 
 const DUE_COLUMNS = `
   id,attempts,telegram_bot_id,subscriber_id,step_id,
-  telegram_funnel_steps(position,body,button_text,button_url,is_active,funnel_id,${ATTACHMENT_COLUMNS}),
-  telegram_subscribers(id,telegram_user_id,telegram_bot_id,is_blocked,unsubscribed_at)
+  telegram_funnel_steps(user_id,position,body,button_text,button_url,is_active,funnel_id,${ATTACHMENT_COLUMNS}),
+  telegram_subscribers(id,user_id,telegram_user_id,telegram_bot_id,funnel_id,is_blocked,unsubscribed_at)
 `;
 
 /** Bot tokens are decrypted once per tick, not once per message. */
@@ -85,17 +88,19 @@ async function tokenFor(
   supabase: ReturnType<typeof createAdminClient>,
   cache: Map<string, string | null>,
   botId: string,
+  expectedUserId: string,
 ): Promise<string | null> {
-  if (cache.has(botId)) return cache.get(botId) ?? null;
+  const cacheKey = `${botId}:${expectedUserId}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey) ?? null;
 
   const { data } = await supabase
     .from("telegram_bots")
-    .select("bot_token_encrypted,is_active")
+    .select("user_id,bot_token_encrypted,is_active")
     .eq("id", botId)
     .maybeSingle();
 
   let token: string | null = null;
-  if (data?.is_active) {
+  if (data?.is_active && data.user_id === expectedUserId) {
     try {
       token = await decryptCredential(data.bot_token_encrypted as string);
     } catch (error) {
@@ -103,7 +108,7 @@ async function tokenFor(
     }
   }
 
-  cache.set(botId, token);
+  cache.set(cacheKey, token);
   return token;
 }
 
@@ -116,26 +121,59 @@ Deno.serve(async (req: Request) => {
   const deadline = Date.now() + RUN_BUDGET_MS;
   const tokens = new Map<string, string | null>();
 
-  const { data: due, error } = await supabase
-    .from("telegram_step_deliveries")
-    .select(DUE_COLUMNS)
-    .eq("status", "pending")
-    .lte("due_at", new Date().toISOString())
-    .lt("attempts", MAX_ATTEMPTS)
-    .order("due_at", { ascending: true })
-    .limit(BATCH_SIZE);
+  const claimToken = crypto.randomUUID();
+  const { data: claimed, error: claimError } = await supabase.rpc(
+    "claim_telegram_step_deliveries",
+    { p_limit: BATCH_SIZE, p_claim_token: claimToken },
+  );
 
-  if (error) return jsonResponse({ error: error.message }, 500);
+  if (claimError) return jsonResponse({ error: claimError.message }, 500);
+
+  const claimedIds = (claimed ?? []).map((row) => row.id as string);
+  let due: unknown[] = [];
+  if (claimedIds.length > 0) {
+    const { data, error } = await supabase
+      .from("telegram_step_deliveries")
+      .select(DUE_COLUMNS)
+      .in("id", claimedIds)
+      .eq("claim_token", claimToken)
+      .eq("status", "processing");
+    if (error) return jsonResponse({ error: error.message }, 500);
+    due = data ?? [];
+  }
 
   let sent = 0;
   let skipped = 0;
   let failed = 0;
 
-  for (const delivery of (due ?? []) as unknown as DueDelivery[]) {
+  for (const delivery of due as unknown as DueDelivery[]) {
     if (Date.now() >= deadline) break;
 
     const step = delivery.telegram_funnel_steps;
     const subscriber = delivery.telegram_subscribers;
+
+    const ownershipMismatch = Boolean(
+      step && subscriber && (
+        step.user_id !== subscriber.user_id ||
+        subscriber.telegram_bot_id !== delivery.telegram_bot_id ||
+        subscriber.funnel_id !== step.funnel_id
+      )
+    );
+    if (ownershipMismatch) {
+      const { error: ownershipError } = await supabase
+        .from("telegram_step_deliveries")
+        .update({
+          status: "failed",
+          error_message: "Telegram delivery ownership mismatch",
+          claimed_at: null,
+          claim_token: null,
+        })
+        .eq("id", delivery.id)
+        .eq("claim_token", claimToken);
+      if (ownershipError) throw ownershipError;
+      failed++;
+      continue;
+    }
 
     /*
       The step was switched off, deleted, or the reader left after it was
@@ -144,16 +182,22 @@ Deno.serve(async (req: Request) => {
     */
     const unreachable = !subscriber || subscriber.is_blocked || subscriber.unsubscribed_at;
     if (!step || !step.is_active || unreachable) {
-      await supabase
+      const { data: cancelledRows, error: cancelError } = await supabase
         .from("telegram_step_deliveries")
         .update({
           status: "cancelled",
           error_message: unreachable ? "Подписчик недоступен" : "Шаг выключен",
+          claimed_at: null,
+          claim_token: null,
         })
-        .eq("id", delivery.id);
+        .eq("id", delivery.id)
+        .eq("claim_token", claimToken)
+        .select("id");
+      if (cancelError) throw cancelError;
+      if (!cancelledRows?.length) continue;
 
       if (step && subscriber && !unreachable) {
-        const token = await tokenFor(supabase, tokens, delivery.telegram_bot_id);
+        const token = await tokenFor(supabase, tokens, delivery.telegram_bot_id, subscriber.user_id);
         if (token) {
           await advanceSequence(
             supabase,
@@ -169,10 +213,16 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    const botToken = await tokenFor(supabase, tokens, delivery.telegram_bot_id);
+    const botToken = await tokenFor(supabase, tokens, delivery.telegram_bot_id, subscriber.user_id);
     if (!botToken) {
-      // The bot is off or its token is unreadable. Leave the row pending: this
-      // is the owner's to fix, and the lesson should go out when they do.
+      // The bot is off or its token is unreadable. Release the lease and leave
+      // the row pending: this is the owner's to fix, and the lesson should go
+      // out on the next tick after they do.
+      await supabase
+        .from("telegram_step_deliveries")
+        .update({ status: "pending", claimed_at: null, claim_token: null })
+        .eq("id", delivery.id)
+        .eq("claim_token", claimToken);
       skipped++;
       continue;
     }
@@ -186,17 +236,28 @@ Deno.serve(async (req: Request) => {
         step,
       );
 
-      await sendMessage(botToken, {
+      const telegramMessageId = await sendMessage(botToken, {
         chatId: subscriber.telegram_user_id,
         text: step.body.trim() || (attachment ? "" : "…"),
         buttons: [{ text: step.button_text, url: step.button_url }],
         attachment,
       });
 
-      await supabase
+      const { data: sentRows, error: sentError } = await supabase
         .from("telegram_step_deliveries")
-        .update({ status: "sent", sent_at: new Date().toISOString(), error_message: null })
-        .eq("id", delivery.id);
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          telegram_message_id: String(telegramMessageId),
+          error_message: null,
+          claimed_at: null,
+          claim_token: null,
+        })
+        .eq("id", delivery.id)
+        .eq("claim_token", claimToken)
+        .select("id");
+      if (sentError) throw sentError;
+      if (!sentRows?.length) continue;
 
       sent++;
 
@@ -207,8 +268,20 @@ Deno.serve(async (req: Request) => {
       const message = cause instanceof Error ? cause.message : String(cause);
 
       if (cause instanceof TelegramApiError && cause.code === 429) {
+        await supabase
+          .from("telegram_step_deliveries")
+          .update({ status: "pending", claimed_at: null, claim_token: null })
+          .eq("id", delivery.id)
+          .eq("claim_token", claimToken);
         const wait = Math.min((cause.retryAfter ?? 5) * 1000, 30_000);
-        if (Date.now() + wait >= deadline) break;
+        if (Date.now() + wait >= deadline) {
+          await supabase
+            .from("telegram_step_deliveries")
+            .update({ status: "pending", claimed_at: null, claim_token: null })
+            .eq("claim_token", claimToken)
+            .eq("status", "processing");
+          break;
+        }
         await sleep(wait);
         continue;
       }
@@ -216,14 +289,20 @@ Deno.serve(async (req: Request) => {
       const permanent = isPermanentDeliveryFailure(cause);
       const attempts = Number(delivery.attempts ?? 0) + 1;
 
-      await supabase
+      const { data: updatedRows, error: updateError } = await supabase
         .from("telegram_step_deliveries")
         .update({
           status: permanent || attempts >= MAX_ATTEMPTS ? "failed" : "pending",
           attempts,
           error_message: message,
+          claimed_at: null,
+          claim_token: null,
         })
-        .eq("id", delivery.id);
+        .eq("id", delivery.id)
+        .eq("claim_token", claimToken)
+        .select("id");
+      if (updateError) throw updateError;
+      if (!updatedRows?.length) continue;
 
       if (permanent) {
         await supabase
@@ -238,5 +317,15 @@ Deno.serve(async (req: Request) => {
     await sleep(SEND_INTERVAL_MS);
   }
 
-  return jsonResponse({ due: (due ?? []).length, sent, skipped, failed });
+  /* Rows left in the claimed batch when the wall-clock budget is reached are
+     immediately available to the next tick instead of waiting for lease TTL. */
+  if (Date.now() >= deadline) {
+    await supabase
+      .from("telegram_step_deliveries")
+      .update({ status: "pending", claimed_at: null, claim_token: null })
+      .eq("claim_token", claimToken)
+      .eq("status", "processing");
+  }
+
+  return jsonResponse({ due: due.length, sent, skipped, failed });
 });

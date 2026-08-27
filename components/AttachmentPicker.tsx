@@ -18,8 +18,10 @@ import {
   validateAttachment,
 } from '../services/attachmentService';
 import { Button, cn } from './ui';
+import { getErrorMessage } from '../utils/errorMessage';
 
-const ICONS: Record<Exclude<AttachmentType, 'none'>, React.ReactNode> = {
+const ICONS: Record<AttachmentType, React.ReactNode> = {
+  none: null,
   photo: <PhotoIcon className="h-4 w-4" />,
   video: <VideoCameraIcon className="h-4 w-4" />,
   document: <DocumentIcon className="h-4 w-4" />,
@@ -103,7 +105,7 @@ const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
     try {
       onChange(await uploadAttachment(file, user.id));
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Не удалось загрузить файл');
+      setError(getErrorMessage(uploadError, 'Не удалось загрузить файл'));
     } finally {
       setUploading(false);
     }
@@ -180,7 +182,7 @@ const AttachmentPicker: React.FC<AttachmentPickerProps> = ({
             </p>
             <p className="mt-0.5 flex items-center gap-1 text-2xs text-gray-500">
               {ICONS[value.attachment_type]}
-              {ATTACHMENT_LABELS[value.attachment_type]}
+              {value.attachment_type === 'none' ? '' : ATTACHMENT_LABELS[value.attachment_type]}
             </p>
           </div>
 

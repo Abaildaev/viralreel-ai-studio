@@ -161,8 +161,10 @@ const TemplatesPage: React.FC = () => {
     if (!ok) return;
 
     try {
-      await supabase.storage.from('templates').remove([template.file_path]);
-      await supabase.from('video_templates').delete().eq('id', template.id);
+      const { error: storageError } = await supabase.storage.from('templates').remove([template.file_path]);
+      if (storageError) throw storageError;
+      const { error: rowError } = await supabase.from('video_templates').delete().eq('id', template.id);
+      if (rowError) throw rowError;
       await loadTemplates();
     } catch (error: any) {
       toast({ message: `Не удалось удалить подложку: ${error.message}`, tone: 'error' });
@@ -170,20 +172,28 @@ const TemplatesPage: React.FC = () => {
   };
 
   const toggleHasAudio = async (template: VideoTemplate) => {
-    await supabase
+    const { error } = await supabase
       .from('video_templates')
       .update({ has_audio: !template.has_audio })
       .eq('id', template.id);
+    if (error) {
+      toast({ message: `Не удалось изменить шаблон: ${error.message}`, tone: 'error' });
+      return;
+    }
     setTemplates(prev =>
       prev.map(t => t.id === template.id ? { ...t, has_audio: !t.has_audio } : t)
     );
   };
 
   const toggleActive = async (template: VideoTemplate) => {
-    await supabase
+    const { error } = await supabase
       .from('video_templates')
       .update({ is_active: !template.is_active })
       .eq('id', template.id);
+    if (error) {
+      toast({ message: `Не удалось изменить статус: ${error.message}`, tone: 'error' });
+      return;
+    }
     setTemplates(prev =>
       prev.map(t => t.id === template.id ? { ...t, is_active: !t.is_active } : t)
     );

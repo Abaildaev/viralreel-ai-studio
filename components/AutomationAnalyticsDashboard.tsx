@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { LeadMagnet, LeadMagnetStats } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { LeadMagnet } from '../types';
 import { LiveAutomationEvent } from './AutomationLiveFeed';
 import LeadDetailModal from './LeadDetailModal';
 import LeadAvatar from './LeadAvatar';
+import { supabase } from '../lib/supabase';
+import { getErrorMessage } from '../utils/errorMessage';
 import {
   ChatBubbleBottomCenterTextIcon,
   EnvelopeIcon,
@@ -15,9 +17,7 @@ import {
 
 interface AutomationAnalyticsDashboardProps {
   view?: 'analytics' | 'leads';
-  events: LiveAutomationEvent[];
   rules: LeadMagnet[];
-  stats: LeadMagnetStats[];
 }
 
 type CrmContact = LiveAutomationEvent & {
@@ -27,16 +27,171 @@ type CrmContact = LiveAutomationEvent & {
   search_text: string;
 };
 
+interface AutomationAnalyticsData {
+  total_triggers: number;
+  total_comments: number;
+  total_dms: number;
+  sent_dms: number;
+  failed_dms: number;
+  daily: Array<{ date: string; comments: number; sent: number; total: number }>;
+  codewords: Array<{
+    codeword: string;
+    title: string;
+    triggers_count: number;
+    sent_count: number;
+  }>;
+  media: Array<{ media_id: string; leads_count: number; last_trigger: string }>;
+  ab_test: {
+    started_at: string | null;
+    control_exposures: number;
+    control_telegram_starts: number;
+    quick_reply_exposures: number;
+    quick_reply_clicks: number;
+    quick_reply_link_deliveries: number;
+    quick_reply_telegram_starts: number;
+  };
+}
+
+interface AutomationLeadRpcRow {
+  id: string;
+  trigger_type: 'dm' | 'comment';
+  incoming_text: string;
+  commenter_username: string | null;
+  sender_igsid: string | null;
+  status: LiveAutomationEvent['status'];
+  public_reply_status: LiveAutomationEvent['public_reply_status'];
+  dm_status: LiveAutomationEvent['dm_status'];
+  error_message: string | null;
+  created_at: string;
+  media_id: string | null;
+  lead_magnet_title: string | null;
+  lead_magnet_codeword: string | null;
+  lead_magnet_response_url: string | null;
+  instagram_username: string | null;
+  interaction_count: number;
+  sent_count: number;
+  failed_count: number;
+  total_count: number;
+}
+
+const LEADS_PAGE_SIZE = 50;
+
+const EMPTY_ANALYTICS: AutomationAnalyticsData = {
+  total_triggers: 0,
+  total_comments: 0,
+  total_dms: 0,
+  sent_dms: 0,
+  failed_dms: 0,
+  daily: [],
+  codewords: [],
+  media: [],
+  ab_test: {
+    started_at: null,
+    control_exposures: 0,
+    control_telegram_starts: 0,
+    quick_reply_exposures: 0,
+    quick_reply_clicks: 0,
+    quick_reply_link_deliveries: 0,
+    quick_reply_telegram_starts: 0,
+  },
+};
+
 export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboardProps> = ({
   view = 'analytics',
-  events,
   rules,
-  stats,
 }) => {
   const [timeRange, setTimeRange] = useState<'7d' | '14d' | '30d'>('7d');
   const [crmSearch, setCrmSearch] = useState('');
   const [crmStatusFilter, setCrmStatusFilter] = useState<'all' | 'sent' | 'failed'>('all');
   const [selectedLeadModal, setSelectedLeadModal] = useState<LiveAutomationEvent | null>(null);
+  const [analytics, setAnalytics] = useState<AutomationAnalyticsData>(EMPTY_ANALYTICS);
+  const [crmLeads, setCrmLeads] = useState<CrmContact[]>([]);
+  const [crmPage, setCrmPage] = useState(0);
+  const [crmTotal, setCrmTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (view !== 'analytics') return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError('');
+
+    void (async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_automation_analytics', {
+          p_days: 30,
+          p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+        });
+        if (error) throw error;
+        if (!cancelled) {
+          setAnalytics((data as unknown as AutomationAnalyticsData) ?? EMPTY_ANALYTICS);
+        }
+      } catch (error) {
+        if (!cancelled) setLoadError(getErrorMessage(error, 'Не удалось загрузить аналитику'));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [view]);
+
+  useEffect(() => {
+    if (view !== 'leads') return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setLoadError('');
+      try {
+        const { data, error } = await supabase.rpc('get_automation_leads', {
+          p_limit: LEADS_PAGE_SIZE,
+          p_offset: crmPage * LEADS_PAGE_SIZE,
+          p_search: crmSearch.trim(),
+          p_status: crmStatusFilter,
+        });
+        if (error) throw error;
+        if (cancelled) return;
+
+        const rows = (data ?? []) as unknown as AutomationLeadRpcRow[];
+        setCrmTotal(Number(rows[0]?.total_count ?? 0));
+        setCrmLeads(rows.map((row) => ({
+          id: row.id,
+          trigger_type: row.trigger_type,
+          incoming_text: row.incoming_text,
+          commenter_username: row.commenter_username,
+          sender_igsid: row.sender_igsid,
+          status: row.status,
+          public_reply_status: row.public_reply_status,
+          dm_status: row.dm_status,
+          error_message: row.error_message,
+          created_at: row.created_at,
+          media_id: row.media_id,
+          lead_magnets: row.lead_magnet_title || row.lead_magnet_codeword
+            ? {
+                title: row.lead_magnet_title ?? 'Лид-магнит',
+                codeword: row.lead_magnet_codeword ?? '',
+                response_url: row.lead_magnet_response_url ?? undefined,
+              }
+            : null,
+          instagram_accounts: row.instagram_username ? { username: row.instagram_username } : null,
+          interaction_count: Number(row.interaction_count),
+          sent_count: Number(row.sent_count),
+          failed_count: Number(row.failed_count),
+          search_text: '',
+        })));
+      } catch (error) {
+        if (!cancelled) setLoadError(getErrorMessage(error, 'Не удалось загрузить лиды'));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [view, crmPage, crmSearch, crmStatusFilter]);
 
   const contactLabel = (lead: LiveAutomationEvent) => {
     if (lead.commenter_username) return `@${lead.commenter_username}`;
@@ -45,39 +200,40 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       : 'Пользователь Instagram';
   };
 
-  // Key KPI Aggregations
-  const totalComments = events.filter((e) => e.trigger_type === 'comment').length;
-  const totalDMs = events.filter((e) => e.trigger_type === 'dm').length;
-  const totalTriggers = events.length;
-  const sentDMs = events.filter((e) => e.status === 'sent' || e.dm_status === 'sent').length;
-  const failedDMs = events.filter((e) => e.status === 'failed' || e.dm_status === 'failed').length;
+  const totalComments = Number(analytics.total_comments ?? 0);
+  const totalDMs = Number(analytics.total_dms ?? 0);
+  const totalTriggers = Number(analytics.total_triggers ?? 0);
+  const sentDMs = Number(analytics.sent_dms ?? 0);
+  const failedDMs = Number(analytics.failed_dms ?? 0);
   const deliveryRate = totalTriggers > 0 ? Math.round((sentDMs / totalTriggers) * 100) : 100;
+  const abTest = analytics.ab_test ?? EMPTY_ANALYTICS.ab_test;
+  const controlTelegramRate = Number(abTest.control_exposures) > 0
+    ? Math.round((Number(abTest.control_telegram_starts) / Number(abTest.control_exposures)) * 100)
+    : 0;
+  const quickReplyClickRate = Number(abTest.quick_reply_exposures) > 0
+    ? Math.round((Number(abTest.quick_reply_clicks) / Number(abTest.quick_reply_exposures)) * 100)
+    : 0;
+  const quickReplyTelegramRate = Number(abTest.quick_reply_exposures) > 0
+    ? Math.round((Number(abTest.quick_reply_telegram_starts) / Number(abTest.quick_reply_exposures)) * 100)
+    : 0;
+  const hasAbTestData = Number(abTest.control_exposures) + Number(abTest.quick_reply_exposures) > 0;
 
-  // Chart Data: Group events by day for the selected period
+  // Postgres groups the retained history; the browser only selects the visible
+  // 7/14/30-day tail and formats its labels.
   const chartDaysCount = timeRange === '7d' ? 7 : timeRange === '14d' ? 14 : 30;
   const chartData = useMemo(() => {
-    const days: { dateLabel: string; comments: number; dms: number; total: number }[] = [];
-    const now = new Date();
-
-    for (let i = chartDaysCount - 1; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const dayLabel = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-
-      const dayEvents = events.filter((e) => e.created_at.startsWith(dateStr));
-      const comments = dayEvents.filter((e) => e.trigger_type === 'comment').length;
-      const dms = dayEvents.filter((e) => e.status === 'sent' || e.dm_status === 'sent').length;
-
-      days.push({
-        dateLabel: dayLabel,
-        comments,
-        dms,
-        total: dayEvents.length,
-      });
-    }
-    return days;
-  }, [events, chartDaysCount]);
+    const labelFormatter = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: 'UTC',
+      day: 'numeric',
+      month: 'short',
+    });
+    return analytics.daily.slice(-chartDaysCount).map((day) => ({
+      dateLabel: labelFormatter.format(new Date(`${day.date}T00:00:00Z`)),
+      comments: Number(day.comments),
+      dms: Number(day.sent),
+      total: Number(day.total),
+    }));
+  }, [analytics.daily, chartDaysCount]);
 
   const maxChartVal = Math.max(...chartData.map((d) => Math.max(d.comments, d.dms)), 5);
 
@@ -105,111 +261,52 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       });
     });
 
-    events.forEach((evt) => {
-      const code = (evt.lead_magnets?.codeword || 'ДРУГИЕ').toUpperCase();
+    analytics.codewords.forEach((item) => {
+      const code = (item.codeword || 'ДРУГИЕ').toUpperCase();
       const curr = map.get(code) || {
         codeword: code,
-        title: evt.lead_magnets?.title || 'Лид-магнит',
+        title: item.title || 'Лид-магнит',
         triggersCount: 0,
         sentCount: 0,
         conversionRate: 0,
       };
-      curr.triggersCount += 1;
-      if (evt.status === 'sent' || evt.dm_status === 'sent') {
-        curr.sentCount += 1;
-      }
+      curr.triggersCount = Number(item.triggers_count);
+      curr.sentCount = Number(item.sent_count);
       curr.conversionRate =
         curr.triggersCount > 0 ? Math.round((curr.sentCount / curr.triggersCount) * 100) : 0;
       map.set(code, curr);
     });
 
     return Array.from(map.values()).sort((a, b) => b.triggersCount - a.triggersCount);
-  }, [rules, events]);
+  }, [rules, analytics.codewords]);
 
-  // Top Performing Media / Reels
-  const mediaStats = useMemo(() => {
-    const map = new Map<string, { mediaId: string; leadsCount: number; lastTrigger: string }>();
+  const mediaStats = useMemo(() => analytics.media.map((item) => ({
+    mediaId: item.media_id,
+    leadsCount: Number(item.leads_count),
+    lastTrigger: item.last_trigger,
+  })), [analytics.media]);
 
-    events.forEach((evt) => {
-      const mediaId = evt.media_id || 'general';
-      const curr = map.get(mediaId) || {
-        mediaId,
-        leadsCount: 0,
-        lastTrigger: evt.created_at,
-      };
-      curr.leadsCount += 1;
-      map.set(mediaId, curr);
-    });
-
-    return Array.from(map.values())
-      .filter((m) => m.mediaId !== 'general')
-      .sort((a, b) => b.leadsCount - a.leadsCount)
-      .slice(0, 5);
-  }, [events]);
-
-  // One CRM row per Instagram person. The event feed remains ungrouped because
-  // it is an audit log; CRM is a contact list and should not repeat a person.
-  const crmLeads = useMemo(() => {
-    const grouped = new Map<string, CrmContact>();
-
-    for (const event of events) {
-      const contactKey = event.sender_igsid
-        ? `id:${event.sender_igsid}`
-        : event.commenter_username
-          ? `username:${event.commenter_username.toLowerCase()}`
-          : `event:${event.id}`;
-      const isSent = event.status === 'sent' || event.dm_status === 'sent';
-      const isFailed = event.status === 'failed' || event.dm_status === 'failed';
-      const searchable = `${event.commenter_username || ''} ${event.sender_igsid || ''} ${event.incoming_text || ''} ${event.lead_magnets?.codeword || ''}`.toLowerCase();
-      const previous = grouped.get(contactKey);
-
-      if (!previous) {
-        grouped.set(contactKey, {
-          ...event,
-          interaction_count: 1,
-          sent_count: isSent ? 1 : 0,
-          failed_count: isFailed ? 1 : 0,
-          search_text: searchable,
-        });
-        continue;
-      }
-
-      const latest = new Date(event.created_at) > new Date(previous.created_at) ? event : previous;
-      grouped.set(contactKey, {
-        ...latest,
-        interaction_count: previous.interaction_count + 1,
-        sent_count: previous.sent_count + (isSent ? 1 : 0),
-        failed_count: previous.failed_count + (isFailed ? 1 : 0),
-        search_text: `${previous.search_text} ${searchable}`,
-      });
-    }
-
-    return [...grouped.values()].filter((e) => {
-      if (crmStatusFilter === 'sent' && e.sent_count === 0) return false;
-      if (crmStatusFilter === 'failed' && e.failed_count === 0) return false;
-      if (crmSearch.trim()) {
-        const q = crmSearch.toLowerCase();
-        return e.search_text.includes(q);
-      }
-      return true;
-    }).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-  }, [events, crmStatusFilter, crmSearch]);
+  const crmPageCount = Math.max(1, Math.ceil(crmTotal / LEADS_PAGE_SIZE));
 
   // Export CSV
   const handleExportCSV = () => {
     const headers = ['Instagram Username / ID', 'Тип', 'Обращений', 'Кодовое слово', 'Последний текст', 'Доставлено', 'Ошибок', 'Последняя активность'];
+    const csvCell = (value: unknown) => {
+      const text = String(value ?? '');
+      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
     const rows = crmLeads.map((lead) => [
       lead.commenter_username ? `@${lead.commenter_username}` : lead.sender_igsid || 'Неизвестно',
       lead.trigger_type === 'comment' ? 'Комментарий' : 'Direct',
       lead.interaction_count,
       lead.lead_magnets?.codeword || '',
-      `"${(lead.incoming_text || '').replace(/"/g, '""')}"`,
+      lead.incoming_text || '',
       lead.sent_count,
       lead.failed_count,
       new Date(lead.created_at).toLocaleString('ru-RU'),
     ]);
 
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const csvContent = [headers, ...rows].map((row) => row.map(csvCell).join(',')).join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -219,6 +316,22 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
     URL.revokeObjectURL(url);
   };
 
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+        {view === 'analytics' ? 'Считаю аналитику…' : 'Загружаю контакты…'}
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+        {loadError}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {view !== 'leads' && (
@@ -227,7 +340,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-200/70 shadow-xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-500">Всего комментариев</span>
+            <span className="text-xs font-medium text-gray-500">Всего обращений</span>
             <ChatBubbleBottomCenterTextIcon className="w-4 h-4 text-gray-400" />
           </div>
           <p className="text-2xl font-semibold text-gray-900 mt-2">{totalTriggers}</p>
@@ -263,6 +376,67 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
           <p className="text-xs text-gray-400 mt-1">Comment-to-DM</p>
         </div>
       </div>
+
+      {hasAbTestData && (
+        <div className="rounded-2xl border border-violet-200 bg-violet-50/40 p-5 shadow-xs">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-violet-950">A/B-тест выдачи материала</h3>
+              <p className="mt-0.5 text-xs text-violet-700">
+                Главная метрика — запуск Telegram после сообщения в Instagram.
+              </p>
+            </div>
+            {abTest.started_at && (
+              <span className="text-[11px] text-violet-600">
+                Старт: {new Date(abTest.started_at).toLocaleDateString('ru-RU')}
+              </span>
+            )}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <p className="text-xs font-semibold text-gray-900">Контроль · ссылка сразу</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xl font-semibold text-gray-900">{abTest.control_exposures}</p>
+                  <p className="text-[11px] text-gray-500">доставок</p>
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-gray-900">{controlTelegramRate}%</p>
+                  <p className="text-[11px] text-gray-500">
+                    {abTest.control_telegram_starts} стартов Telegram
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-violet-200 bg-white p-4">
+              <p className="text-xs font-semibold text-violet-900">Эксперимент · Quick Reply</p>
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xl font-semibold text-gray-900">{abTest.quick_reply_exposures}</p>
+                  <p className="text-[11px] text-gray-500">доставок</p>
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-gray-900">{quickReplyClickRate}%</p>
+                  <p className="text-[11px] text-gray-500">
+                    {abTest.quick_reply_clicks} нажатий
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xl font-semibold text-gray-900">{quickReplyTelegramRate}%</p>
+                  <p className="text-[11px] text-gray-500">
+                    {abTest.quick_reply_telegram_starts} стартов Telegram
+                  </p>
+                </div>
+              </div>
+              <p className="mt-3 text-[11px] text-violet-600">
+                Ссылка доставлена после нажатия: {abTest.quick_reply_link_deliveries}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Chart Section */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200/70 shadow-xs">
@@ -364,7 +538,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
 
                   <div className="text-right flex-shrink-0">
                     <span className="text-xs font-medium text-gray-700 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
-                      {item.sentCount} лидов ({item.conversionRate}%)
+                      {item.sentCount} доставок ({item.conversionRate}%)
                     </span>
                   </div>
                 </div>
@@ -402,7 +576,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
 
                   <div className="text-right flex-shrink-0">
                     <span className="text-xs font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
-                      {item.leadsCount} лидов
+                      {item.leadsCount} срабатываний
                     </span>
                   </div>
                 </div>
@@ -425,7 +599,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
               База контактов (CRM)
             </h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Один пользователь — одна карточка со всей активностью
+              Один пользователь — одна карточка со всей активностью · {crmTotal} контактов
             </p>
           </div>
 
@@ -437,7 +611,10 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                 type="text"
                 placeholder="Поиск по @username..."
                 value={crmSearch}
-                onChange={(e) => setCrmSearch(e.target.value)}
+                onChange={(e) => {
+                  setCrmSearch(e.target.value);
+                  setCrmPage(0);
+                }}
                 className="pl-8 pr-3 py-1.5 text-xs border border-gray-200 rounded-xl focus:outline-none focus:border-gray-400 bg-white"
               />
             </div>
@@ -446,7 +623,10 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
               {(['all', 'sent', 'failed'] as const).map((s) => (
                 <button
                   key={s}
-                  onClick={() => setCrmStatusFilter(s)}
+                  onClick={() => {
+                    setCrmStatusFilter(s);
+                    setCrmPage(0);
+                  }}
                   className={`px-2.5 py-1 rounded-lg transition-all ${
                     crmStatusFilter === s ? 'bg-white text-gray-900 shadow-xs font-semibold' : 'text-gray-500 hover:text-gray-800'
                   }`}
@@ -461,7 +641,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
               className="px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs"
             >
               <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-              Экспорт CSV
+              Экспорт страницы
             </button>
           </div>
         </div>
@@ -584,6 +764,32 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
             </tbody>
           </table>
         </div>
+
+        {crmPageCount > 1 && (
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-3 text-xs text-gray-500">
+            <span>
+              Страница {crmPage + 1} из {crmPageCount}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={crmPage === 0}
+                onClick={() => setCrmPage((page) => Math.max(0, page - 1))}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Назад
+              </button>
+              <button
+                type="button"
+                disabled={crmPage + 1 >= crmPageCount}
+                onClick={() => setCrmPage((page) => Math.min(crmPageCount - 1, page + 1))}
+                className="rounded-lg border border-gray-200 px-3 py-1.5 font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Далее
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
         </>

@@ -98,7 +98,7 @@ async function subscribeToInstagramWebhooks(account: AccountInfo): Promise<strin
         Authorization: `Bearer ${account.token_to_store}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ subscribed_fields: "comments,messages" }),
+      body: JSON.stringify({ subscribed_fields: "comments,messages,messaging_postbacks" }),
     },
   );
   const subscription = await subscriptionResponse.json();

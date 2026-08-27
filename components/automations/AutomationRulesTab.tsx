@@ -170,6 +170,11 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                         >
                           {rule.is_active ? 'Активен' : 'Пауза'}
                         </span>
+                        {rule.ab_quick_reply_percent > 0 && (
+                          <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                            A/B Quick Reply · {rule.ab_quick_reply_percent}%
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5 truncate">
                         {account ? `@${account.username}` : 'Все аккаунты'}

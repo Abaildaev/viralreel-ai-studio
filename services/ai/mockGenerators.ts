@@ -7,11 +7,11 @@ import {
 export function getMockViralContent(topic: string, count: number, ctaType: CtaType = 'instagram', leadMagnet?: LeadMagnetInfo): GeneratedContentResponse {
   const variations = [];
   const hooks = [
-    `Психологи доказали: ${topic} работает не так, как нас учили в школе:`,
-    `90% людей допускают эту ошибку в ${topic} и теряют деньги:`,
-    `Единственный секрет ${topic}, о котором молчат эксперты:`,
-    `Как освоить ${topic} за 7 дней без бюджета и сторонней помощи:`,
-    `Формула ${topic}: 3 простых шага к результату на автомате:`,
+    `Что в ${topic} обычно усложняют зря:`,
+    `Три ошибки в ${topic}, которые стоит проверить:`,
+    `Как разобрать ${topic} на понятные шаги:`,
+    `Что проверить в ${topic} до первой публикации:`,
+    `Практичная схема для работы с ${topic}:`,
   ];
 
   for (let i = 0; i < count; i++) {
@@ -22,7 +22,7 @@ export function getMockViralContent(topic: string, count: number, ctaType: CtaTy
 2. Автоматизируйте рутину с помощью современных ИИ-инструментов.
 3. Оптимизируйте подачу и отслеживайте цифры ежедневно.
 
-Когда вы начнете регулярно внедрять эти шаги, ваш результат вырастет в 3-5 раз.`;
+Регулярная практика и проверка цифр помогут понять, какие шаги работают именно для вашей аудитории.`;
 
     if (ctaType === 'codeword' && leadMagnet) {
       caption += `\n\nНапиши «${leadMagnet.codeword}» в директ, чтобы получить гайд "${leadMagnet.title}".`;

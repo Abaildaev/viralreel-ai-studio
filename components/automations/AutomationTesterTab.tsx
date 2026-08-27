@@ -14,6 +14,9 @@ interface TestResult {
     button_text: string | null;
     button_url: string | null;
     public_reply: string | null;
+    ab_quick_reply_percent: number;
+    ab_quick_reply_text: string;
+    ab_quick_reply_button: string;
   } | null;
 }
 
@@ -101,6 +104,9 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
           button_text: match.rule.button_text || 'Получить материал',
           button_url: match.rule.response_url || null,
           public_reply: publicReply,
+          ab_quick_reply_percent: match.rule.ab_quick_reply_percent ?? 0,
+          ab_quick_reply_text: match.rule.ab_quick_reply_text ?? '',
+          ab_quick_reply_button: match.rule.ab_quick_reply_button ?? 'Забрать базу',
         },
       });
     } else {
@@ -247,11 +253,30 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
 
               <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
                 <span className="text-[11px] text-gray-400 block font-medium">
-                  Сообщение в Instagram Direct:
+                  {testTrigger === 'comment' && testResult.matched.ab_quick_reply_percent > 0
+                    ? `Контроль · ${100 - testResult.matched.ab_quick_reply_percent}%`
+                    : 'Сообщение в Instagram Direct:'}
                 </span>
                 <p className="text-xs text-gray-700 whitespace-pre-line bg-gray-50 p-2.5 rounded-lg border border-gray-100">
                   {testResult.matched.direct_text}
                 </p>
+
+                {testTrigger === 'comment' && testResult.matched.ab_quick_reply_percent > 0 && (
+                  <div className="rounded-lg border border-violet-200 bg-violet-50 p-2.5">
+                    <p className="text-[11px] font-semibold text-violet-800">
+                      Эксперимент · {testResult.matched.ab_quick_reply_percent}%
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-xs text-violet-950">
+                      {testResult.matched.ab_quick_reply_text}
+                    </p>
+                    <span className="mt-2 inline-flex rounded-md bg-violet-600 px-2 py-1 text-[11px] font-semibold text-white">
+                      {testResult.matched.ab_quick_reply_button}
+                    </span>
+                    <p className="mt-1.5 text-[10px] text-violet-600">
+                      После нажатия пользователь отправит ответ, и бот пришлёт ссылку.
+                    </p>
+                  </div>
+                )}
 
                 {testResult.matched.public_reply && testTrigger === 'comment' && (
                   <div className="pt-2 border-t border-gray-100 text-xs text-gray-600 flex items-center gap-1.5">

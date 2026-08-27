@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
             Authorization: `Bearer ${account.access_token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ subscribed_fields: "comments,messages" }),
+          body: JSON.stringify({ subscribed_fields: "comments,messages,messaging_postbacks" }),
         },
       );
       const data = await apiResponse.json();

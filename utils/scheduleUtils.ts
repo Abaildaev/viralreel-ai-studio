@@ -44,7 +44,7 @@ function getDatePartsInTimezone(date: Date, timezone: string) {
   };
 }
 
-function createDateInTimezone(
+export function createDateInTimezone(
   year: number,
   month: number,
   day: number,
@@ -52,14 +52,40 @@ function createDateInTimezone(
   minute: number,
   timezone: string,
 ): Date {
-  const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`;
+  /* Treat the requested wall-clock value as a calendar tuple, then converge
+     on the instant whose Intl-rendered tuple matches it. This deliberately
+     avoids `new Date(localizedString)`, which silently applies the machine's
+     timezone and made scheduling differ between browsers and CI. */
+  const desiredMs = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  let instantMs = desiredMs;
 
-  const utcGuess = new Date(iso + 'Z');
-  const offsetMs = utcGuess.getTime() - new Date(
-    utcGuess.toLocaleString('en-US', { timeZone: timezone })
-  ).getTime();
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const actual = getDatePartsInTimezone(new Date(instantMs), timezone);
+    const actualMs = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+      0,
+      0,
+    );
+    const correction = desiredMs - actualMs;
+    instantMs += correction;
+    if (correction === 0) break;
+  }
 
-  return new Date(utcGuess.getTime() + offsetMs);
+  return new Date(instantMs);
+}
+
+/** Parses a date and time input as wall-clock values in the selected timezone. */
+export function dateTimeInTimezone(dateInput: string, timeInput: string, timezone: string): Date {
+  const [year, month, day] = dateInput.split('-').map(Number);
+  const [hour, minute] = timeInput.split(':').map(Number);
+  if (![year, month, day, hour, minute].every(Number.isFinite)) {
+    throw new Error('Некорректная дата или время');
+  }
+  return createDateInTimezone(year, month, day, hour, minute, timezone);
 }
 
 export function adjustToPublishWindow(

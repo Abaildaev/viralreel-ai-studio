@@ -53,6 +53,12 @@ export function useGenerator() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (videoUrl?.startsWith('blob:')) URL.revokeObjectURL(videoUrl);
+    };
+  }, [videoUrl]);
+
+  useEffect(() => {
     resolveLeadMagnet(allLeadMagnets, selectedAccount?.id ?? null);
   }, [allLeadMagnets, selectedAccount]);
 
@@ -124,23 +130,31 @@ export function useGenerator() {
     if (!templateId) return;
     const tmpl = templates.find(t => t.id === templateId);
     if (!tmpl) return;
-    setSelectedTemplateId(templateId);
 
-    // Get signed URL from storage
-    const url = await getSignedUrl('templates', tmpl.file_path);
-    setVideoUrl(url);
-
-    // Fetch blob and create File object for rendering
+    const previousUrl = videoUrl;
     try {
+      // Keep the current source visible until both the signed URL and the
+      // renderable blob are ready. A failed fetch must not leave a stale
+      // template selected with an unrelated video underneath it.
+      const url = await getSignedUrl('templates', tmpl.file_path);
       const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`Не удалось загрузить шаблон (${resp.status})`);
       const blob = await resp.blob();
+      if (blob.size === 0) throw new Error('Шаблон загружен пустым файлом');
       const file = new File([blob], tmpl.name + '.mp4', { type: 'video/mp4' });
+      if (previousUrl?.startsWith('blob:')) URL.revokeObjectURL(previousUrl);
+      setSelectedTemplateId(templateId);
+      setVideoUrl(url);
       setVideoFile(file);
-    } catch {
-      // fallback — URL still works for preview
+      setAppState(AppState.CONFIG);
+    } catch (error) {
+      console.error('Template load error:', error);
+      await alert({
+        title: 'Не удалось загрузить подложку',
+        message: error instanceof Error ? error.message : 'Проверьте файл и попробуйте ещё раз.',
+        variant: 'error',
+      });
     }
-
-    setAppState(AppState.CONFIG);
   };
 
   const handleGenerate = async () => {

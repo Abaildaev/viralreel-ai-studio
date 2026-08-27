@@ -15,6 +15,7 @@ import AppSelect from '../ui/AppSelect';
 import AttachmentPicker from '../AttachmentPicker';
 import type { MessageAttachment } from '../../types';
 import { generateLeadMagnetDirectVariants } from '../../services/ai/leadMagnetDirectGenerator';
+import { getErrorMessage } from '../../utils/errorMessage';
 import {
   funnelDeepLink,
   funnelSlugFromLink,
@@ -42,6 +43,9 @@ export interface AutomationForm extends MessageAttachment {
   button_text: string;
   repeat_delay_hours: number;
   reply_delay_seconds: number;
+  ab_quick_reply_percent: number;
+  ab_quick_reply_text: string;
+  ab_quick_reply_button: string;
   is_active: boolean;
 }
 
@@ -264,7 +268,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
         reply_text: variants[0],
       }));
     } catch (error) {
-      setDirectReplyError(error instanceof Error ? error.message : 'Не удалось подготовить варианты');
+      setDirectReplyError(getErrorMessage(error, 'Не удалось подготовить варианты'));
     } finally {
       setGeneratingDirectReplies(false);
     }
@@ -299,12 +303,12 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
 
   return (
     <div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl border border-gray-200/90 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+      <div role="dialog" aria-modal="true" aria-labelledby="automation-rule-editor-title" className="bg-white rounded-3xl border border-gray-200/90 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Modal Header */}
         <div className="p-6 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white/95 backdrop-blur-sm z-10">
           <div>
             <h3 className="font-bold text-base text-gray-900">
-              {form.id ? 'Редактировать сценарий' : 'Создать сценарий Comment-to-DM'}
+              <span id="automation-rule-editor-title">{form.id ? 'Редактировать сценарий' : 'Создать сценарий Comment-to-DM'}</span>
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
               Настройка триггеров кодовых слов, публичных ответов и Direct-сообщения
@@ -751,6 +755,62 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
               </div>
             )}
           </div>
+
+          {form.trigger_comments && (
+            <div className="space-y-3 rounded-2xl border border-violet-200 bg-violet-50/60 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-violet-950">A/B-тест Quick Reply</p>
+                  <p className="mt-1 max-w-lg text-[11px] leading-relaxed text-violet-700">
+                    У этой доли комментариев первое сообщение попросит нажать кнопку.
+                    Ссылка уйдёт только после ответа пользователя; остальные получат текущую кнопку сразу.
+                  </p>
+                </div>
+                <label className="flex items-center gap-2 text-xs font-semibold text-violet-900">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={form.ab_quick_reply_percent}
+                    onChange={(event) => {
+                      const parsed = Number.parseInt(event.target.value, 10);
+                      setForm((current) => ({
+                        ...current,
+                        ab_quick_reply_percent: Number.isNaN(parsed)
+                          ? 0
+                          : Math.max(0, Math.min(100, parsed)),
+                      }));
+                    }}
+                    className="w-20 rounded-lg border border-violet-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-violet-500"
+                  />
+                  % лидов
+                </label>
+              </div>
+
+              {form.ab_quick_reply_percent > 0 && (
+                <div className="grid gap-2 sm:grid-cols-[1fr_12rem]">
+                  <textarea
+                    rows={2}
+                    value={form.ab_quick_reply_text}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, ab_quick_reply_text: event.target.value }))
+                    }
+                    placeholder="Материал готов. Нажмите кнопку — и я сразу пришлю доступ."
+                    className="resize-none rounded-xl border border-violet-200 bg-white p-3 text-xs leading-relaxed outline-none focus:border-violet-500"
+                  />
+                  <input
+                    value={form.ab_quick_reply_button}
+                    maxLength={20}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, ab_quick_reply_button: event.target.value }))
+                    }
+                    placeholder="Забрать базу"
+                    className="rounded-xl border border-violet-200 bg-white px-3 py-2 text-xs outline-none focus:border-violet-500"
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Delays & Protection */}
           <div className="grid sm:grid-cols-2 gap-4 pt-3 border-t border-gray-100">

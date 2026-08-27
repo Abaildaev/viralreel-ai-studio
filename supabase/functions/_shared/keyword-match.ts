@@ -30,6 +30,9 @@ export interface LeadMagnetRow {
   media_ids: string[];
   repeat_delay_hours: number;
   reply_delay_seconds: number;
+  ab_quick_reply_percent: number;
+  ab_quick_reply_text: string;
+  ab_quick_reply_button: string;
   /* The file sent after the Direct message. Declared inline rather than
      imported so this module stays dependency-free; the shape is the one in
      _shared/attachment.ts and `readAttachment` accepts it structurally. */
@@ -43,7 +46,70 @@ export const LEAD_MAGNET_COLUMNS =
   "direct_reply_buttons,response_url," +
   "button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled," +
   "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds," +
+  "ab_quick_reply_percent,ab_quick_reply_text,ab_quick_reply_button," +
   "attachment_type,attachment_path,attachment_name";
+
+export type CommentExperimentVariant = "control" | "quick_reply";
+
+const QUICK_REPLY_PAYLOAD_PREFIX = "lead_ab:";
+
+/**
+ * A stable, non-cryptographic bucket. The sender id is preferred by callers,
+ * so one person stays in the same arm even when they comment on several Reels.
+ */
+export function experimentBucket(subject: string): number {
+  let hash = 2166136261;
+  for (const character of subject) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 100;
+}
+
+export function selectCommentExperimentVariant(
+  leadMagnet: LeadMagnetRow,
+  subject: string,
+): CommentExperimentVariant {
+  const percent = Math.max(0, Math.min(100, leadMagnet.ab_quick_reply_percent ?? 0));
+  if (!leadMagnet.response_url.trim() || percent === 0) return "control";
+  return experimentBucket(subject) < percent ? "quick_reply" : "control";
+}
+
+export function buildQuickReplyMessage(
+  leadMagnet: LeadMagnetRow,
+  automationEventId: string,
+): Record<string, unknown> {
+  const text = leadMagnet.ab_quick_reply_text.trim() ||
+    "Материал готов 🙌 Нажмите кнопку ниже — и я сразу пришлю доступ.";
+  const title = truncateChars(
+    leadMagnet.ab_quick_reply_button.trim() || "Забрать базу",
+    BUTTON_TITLE_CHARS,
+  );
+
+  return {
+    text: truncateUtf8(text, 640),
+    quick_replies: [{
+      content_type: "text",
+      title,
+      payload: `${QUICK_REPLY_PAYLOAD_PREFIX}${automationEventId}`,
+    }],
+  };
+}
+
+export function quickReplyParentEventId(rawEvent: Record<string, unknown>): string | null {
+  const message = rawEvent?.message;
+  if (!message || typeof message !== "object") return null;
+  const quickReply = (message as Record<string, unknown>).quick_reply;
+  if (!quickReply || typeof quickReply !== "object") return null;
+  const payload = (quickReply as Record<string, unknown>).payload;
+  if (typeof payload !== "string" || !payload.startsWith(QUICK_REPLY_PAYLOAD_PREFIX)) return null;
+
+  const eventId = payload.slice(QUICK_REPLY_PAYLOAD_PREFIX.length);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    .test(eventId)
+    ? eventId
+    : null;
+}
 
 export function normalizeText(value: string): string {
   return value.normalize("NFKC").trim().replace(/\s+/g, " ").toLocaleUpperCase("ru-RU");

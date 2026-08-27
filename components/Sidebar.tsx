@@ -85,6 +85,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMobileClose,
 }) => {
   const { running: batchRunning } = useBatchGeneration();
+  const [isDesktop, setIsDesktop] = useState(() => (
+    typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1024px)').matches
+  ));
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(media.matches);
+    update();
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   // Collapsing applies only to the desktop rail; the drawer is either open or
   // shut, so the two states never interact.
@@ -133,6 +144,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onMobileClose();
   };
 
+  const drawerInteractive = isDesktop || mobileOpen;
+
   return (
     <>
       {mobileOpen && (
@@ -153,6 +166,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           collapsed ? 'lg:w-[70px]' : 'lg:w-64',
         )}
         aria-label="Основная навигация"
+        aria-hidden={!drawerInteractive}
+        inert={!drawerInteractive ? true : undefined}
       >
         <div className="flex items-center justify-between gap-2 border-b border-gray-100 p-3.5">
           <div className="flex min-w-0 items-center gap-3">

@@ -12,6 +12,22 @@ export default defineConfig(() => {
         host: '0.0.0.0',
       },
       plugins: [react()],
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id: string) {
+              if (!id.includes('node_modules')) return undefined;
+              if (id.includes('react')) return 'vendor-react';
+              if (id.includes('@supabase')) return 'vendor-supabase';
+              if (id.includes('@heroicons')) return 'vendor-icons';
+              if (id.includes('mp4-muxer') || id.includes('html-to-image') || id.includes('lucide-react')) {
+                return 'vendor-media';
+              }
+              return 'vendor';
+            },
+          },
+        },
+      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

@@ -117,6 +117,13 @@ Deno.serve(async (req: Request) => {
         public_reply: triggerType === "comment" && match.leadMagnet.public_reply_enabled
           ? pickPublicReply(match.leadMagnet)
           : null,
+        ab_test: triggerType === "comment" && match.leadMagnet.ab_quick_reply_percent > 0
+          ? {
+            quick_reply_percent: match.leadMagnet.ab_quick_reply_percent,
+            quick_reply_text: match.leadMagnet.ab_quick_reply_text,
+            quick_reply_button: match.leadMagnet.ab_quick_reply_button,
+          }
+          : null,
       }
       : null,
     considered: leadMagnets

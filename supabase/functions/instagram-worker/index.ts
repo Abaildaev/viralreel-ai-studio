@@ -20,12 +20,15 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, hasValidCronSecret } from "../_shared/auth.ts";
 import { describeInstagramError, InstagramApiError } from "../_shared/instagram.ts";
 import {
+  buildQuickReplyMessage,
   buildDirectMessage,
   pickDirectReply,
   LEAD_MAGNET_COLUMNS,
   LeadMagnetRow,
   pickPublicReply,
+  quickReplyParentEventId,
   selectLeadMagnet,
+  selectCommentExperimentVariant,
   TriggerType,
   truncateUtf8,
 } from "../_shared/keyword-match.ts";
@@ -478,6 +481,187 @@ async function runSalesAgent(
   return true;
 }
 
+/**
+ * Completes the experimental two-step path.
+ *
+ * The first private reply to a comment contains no link: it contains a Quick
+ * Reply. Tapping it creates this user-authored DM and opens the normal 24-hour
+ * window. Only then do we send the same attributed Telegram button the control
+ * arm receives immediately.
+ */
+async function handleQuickReplyFollowup(
+  supabase: ReturnType<typeof createAdminClient>,
+  account: AccountRow,
+  event: QueuedEvent,
+  finish: (patch: Record<string, unknown>) => Promise<unknown>,
+): Promise<boolean> {
+  if (event.trigger_type !== "dm" || !event.sender_igsid) return false;
+  const parentId = quickReplyParentEventId(event.raw_event);
+  if (!parentId) return false;
+
+  const clickedAt = new Date().toISOString();
+  const parentColumns =
+    "id,instagram_account_id,lead_magnet_id,sender_igsid,experiment_variant," +
+    "experiment_conversion_event_id,experiment_clicked_at,experiment_converted_at";
+
+  /*
+    Claim the click before sending. Two taps can create two different webhook
+    messages; only one of them may own the follow-up. A retry of the winning
+    event keeps ownership and is allowed to try the Graph call again.
+  */
+  const { data: claimed } = await supabase
+    .from("instagram_automation_events")
+    .update({
+      experiment_conversion_event_id: event.id,
+      experiment_clicked_at: clickedAt,
+    })
+    .eq("id", parentId)
+    .eq("instagram_account_id", account.id)
+    .eq("sender_igsid", event.sender_igsid)
+    .eq("experiment_variant", "quick_reply")
+    .is("experiment_conversion_event_id", null)
+    .select(parentColumns)
+    .maybeSingle();
+
+  let parent = claimed;
+  if (!parent) {
+    const { data: existing } = await supabase
+      .from("instagram_automation_events")
+      .select(parentColumns)
+      .eq("id", parentId)
+      .eq("instagram_account_id", account.id)
+      .eq("sender_igsid", event.sender_igsid)
+      .eq("experiment_variant", "quick_reply")
+      .maybeSingle();
+
+    if (!existing) {
+      await finish({
+        status: "ignored",
+        public_reply_status: "skipped",
+        dm_status: "skipped",
+        error_message: "Quick Reply не относится к активному A/B-событию",
+      });
+      return true;
+    }
+
+    if (existing.experiment_conversion_event_id !== event.id) {
+      await finish({
+        lead_magnet_id: existing.lead_magnet_id,
+        experiment_variant: "quick_reply",
+        experiment_parent_event_id: existing.id,
+        status: "ignored",
+        public_reply_status: "skipped",
+        dm_status: "skipped",
+        error_message: "Quick Reply уже обработан",
+      });
+      return true;
+    }
+    parent = existing;
+  }
+
+  if (!parent.lead_magnet_id) {
+    await finish({
+      experiment_variant: "quick_reply",
+      experiment_parent_event_id: parent.id,
+      status: "failed",
+      public_reply_status: "skipped",
+      dm_status: "failed",
+      error_message: "У A/B-события больше нет связанной воронки",
+    });
+    return true;
+  }
+
+  const { data: rule, error: ruleError } = await supabase
+    .from("lead_magnets")
+    .select(LEAD_MAGNET_COLUMNS)
+    .eq("id", parent.lead_magnet_id)
+    .eq("user_id", account.user_id)
+    .maybeSingle();
+
+  if (ruleError || !rule) {
+    await finish({
+      lead_magnet_id: parent.lead_magnet_id,
+      experiment_variant: "quick_reply",
+      experiment_parent_event_id: parent.id,
+      status: "failed",
+      public_reply_status: "skipped",
+      dm_status: "failed",
+      error_message: ruleError?.message ?? "Воронка A/B-теста не найдена",
+    });
+    return true;
+  }
+
+  const leadMagnet = rule as LeadMagnetRow;
+  const directReply = pickDirectReply(leadMagnet);
+  let messageId: string;
+
+  try {
+    messageId = await sendInstagramReply(
+      account,
+      event,
+      buildDirectMessage(leadMagnet, directReply, parent.id),
+    );
+  } catch (error) {
+    if (isRetryable(error) && event.attempts < MAX_ATTEMPTS) throw error;
+    await finish({
+      lead_magnet_id: leadMagnet.id,
+      experiment_variant: "quick_reply",
+      experiment_parent_event_id: parent.id,
+      status: "failed",
+      public_reply_status: "skipped",
+      dm_status: "failed",
+      error_message: describeInstagramError(error),
+    });
+    return true;
+  }
+
+  await supabase.from("ai_sales_messages").insert([
+    {
+      instagram_account_id: account.id,
+      sender_igsid: event.sender_igsid,
+      role: "user",
+      content: event.incoming_text,
+      detected_intent: "lead_magnet",
+    },
+    {
+      instagram_account_id: account.id,
+      sender_igsid: event.sender_igsid,
+      role: "agent",
+      content: directReply.text,
+      detected_intent: "lead_magnet",
+    },
+  ]);
+
+  let attachmentError = "";
+  const attachment = readAttachment(leadMagnet);
+  if (attachment) {
+    try {
+      await deliverAttachment(supabase, account, event.sender_igsid, attachment);
+    } catch (error) {
+      attachmentError = describeInstagramError(error);
+    }
+  }
+
+  const convertedAt = new Date().toISOString();
+  await supabase
+    .from("instagram_automation_events")
+    .update({ experiment_converted_at: convertedAt })
+    .eq("id", parent.id)
+    .eq("experiment_conversion_event_id", event.id);
+
+  await finish({
+    lead_magnet_id: leadMagnet.id,
+    experiment_variant: "quick_reply",
+    experiment_parent_event_id: parent.id,
+    status: "sent",
+    public_reply_status: "skipped",
+    dm_status: "sent",
+    response_message_id: messageId,
+    error_message: attachmentError ? `Direct доставлен, но файл не отправлен: ${attachmentError}` : null,
+  });
+  return true;
+}
+
 /** Processes one claimed event. Throws only for retryable failures. */
 async function processEvent(
   supabase: ReturnType<typeof createAdminClient>,
@@ -495,6 +679,8 @@ async function processEvent(
     const username = await cacheContactProfile(supabase, account, event.sender_igsid);
     if (username) event.commenter_username = username;
   }
+
+  if (await handleQuickReplyFollowup(supabase, account, event, finish)) return;
 
   const match = selectLeadMagnet(leadMagnets, {
     triggerType: event.trigger_type,
@@ -566,6 +752,10 @@ async function processEvent(
     return;
   }
 
+  const experimentVariant = event.trigger_type === "comment" && event.sender_igsid
+    ? selectCommentExperimentVariant(matched, event.sender_igsid)
+    : null;
+
   /*
     The Direct message is the promise; the public comment merely announces it.
     Sending the announcement first would publicly claim a delivery that may
@@ -578,7 +768,9 @@ async function processEvent(
     messageId = await sendInstagramReply(
       account,
       event,
-      buildDirectMessage(matched, directReply, event.id),
+      experimentVariant === "quick_reply"
+        ? buildQuickReplyMessage(matched, event.id)
+        : buildDirectMessage(matched, directReply, event.id),
     );
   } catch (error) {
     if (isRetryable(error) && event.attempts < MAX_ATTEMPTS) throw error;
@@ -588,6 +780,7 @@ async function processEvent(
       status: "failed",
       public_reply_status: "skipped",
       dm_status: "failed",
+      experiment_variant: experimentVariant,
       error_message: describeInstagramError(error),
     });
     return;
@@ -610,13 +803,13 @@ async function processEvent(
   let attachmentError = "";
   const attachment = readAttachment(matched);
 
-  if (attachment && event.sender_igsid) {
+  if (attachment && event.sender_igsid && experimentVariant !== "quick_reply") {
     try {
       await deliverAttachment(supabase, account, event.sender_igsid, attachment);
     } catch (error) {
       attachmentError = describeInstagramError(error);
     }
-  } else if (attachment) {
+  } else if (attachment && !event.sender_igsid) {
     attachmentError = "Instagram не сообщил отправителя, файл отправить некому";
   }
 
@@ -629,7 +822,9 @@ async function processEvent(
       publicReplyId = await sendPublicCommentReply(
         event.meta_event_id,
         account.access_token,
-        pickPublicReply(matched),
+        experimentVariant === "quick_reply"
+          ? "Отправил в Direct 🙌 Нажмите кнопку в сообщении, чтобы получить материал."
+          : pickPublicReply(matched),
       );
       publicReplyStatus = "sent";
     } catch (error) {
@@ -650,6 +845,7 @@ async function processEvent(
 
   await finish({
     lead_magnet_id: matched.id,
+    experiment_variant: experimentVariant,
     status: "sent",
     public_reply_status: publicReplyStatus,
     public_reply_id: publicReplyId || null,
