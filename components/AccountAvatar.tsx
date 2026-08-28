@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InstagramAccount } from '../types';
+import { refreshAccountAvatar } from '../services/instagramAccountService';
 
 const sizes = {
   sm: 'w-8 h-8 rounded-lg text-xs',
@@ -9,7 +10,7 @@ const sizes = {
 };
 
 interface AccountAvatarProps {
-  account?: Pick<InstagramAccount, 'username' | 'profile_picture_url'> | null;
+  account?: Pick<InstagramAccount, 'id' | 'username' | 'profile_picture_url'> | null;
   size?: keyof typeof sizes;
   className?: string;
 }
@@ -17,23 +18,57 @@ interface AccountAvatarProps {
 /**
  * Instagram serves profile pictures from a signed CDN URL that eventually
  * expires, so the image is always paired with an initial-letter fallback rather
- * than assumed to load. Verifying an account refreshes the stored URL.
+ * than assumed to load.
+ *
+ * A stale URL is repaired instead of merely absorbed: the first failure asks
+ * Instagram for the current one and stores it, which is what makes the avatar
+ * appear on a browser that has never cached it. Only a second failure — a
+ * refreshed URL that is broken too, or an account whose token can no longer
+ * read the profile — falls through to the letter.
  */
 const AccountAvatar: React.FC<AccountAvatarProps> = ({ account, size = 'md', className = '' }) => {
-  const [failed, setFailed] = useState(false);
-  const url = account?.profile_picture_url || '';
+  const stored = account?.profile_picture_url || '';
+  const accountId = account?.id;
 
-  useEffect(() => { setFailed(false); }, [url]);
+  const [src, setSrc] = useState(stored);
+  const [failed, setFailed] = useState(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    setSrc(stored);
+    setFailed(false);
+  }, [stored]);
+
+  // Assigned on the way in as well: StrictMode runs the cleanup once before
+  // the real mount, and a ref left at false would swallow every refresh.
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const handleError = async () => {
+    if (!accountId) {
+      setFailed(true);
+      return;
+    }
+
+    const fresh = await refreshAccountAvatar(accountId);
+    if (!mounted.current) return;
+
+    // An unchanged URL is the same dead link, so retrying it would only loop.
+    if (fresh && fresh !== src) setSrc(fresh);
+    else setFailed(true);
+  };
 
   const base = `${sizes[size]} flex-shrink-0 overflow-hidden ${className}`;
 
-  if (url && !failed) {
+  if (src && !failed) {
     return (
       <img
-        src={url}
+        src={src}
         alt={account?.username ? `@${account.username}` : ''}
         className={`${base} object-cover bg-gray-100`}
-        onError={() => setFailed(true)}
+        onError={handleError}
       />
     );
   }
