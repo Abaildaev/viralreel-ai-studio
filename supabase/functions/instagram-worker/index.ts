@@ -506,6 +506,35 @@ async function handleQuickReplyFollowup(
   const parentId = quickReplyParentEventId(event.raw_event);
   if (!parentId) return false;
 
+  const complete = async (patch: Record<string, unknown>) => {
+    const result = await finish(patch) as { error?: { message?: string } | null };
+    if (result?.error) {
+      throw new Error(`Не удалось завершить Quick Reply: ${result.error.message ?? "ошибка базы данных"}`);
+    }
+  };
+
+  /*
+    A Graph API send cannot be rolled back. If recording status='sent' is
+    temporarily blocked (for example, by an older uniqueness constraint),
+    mark the webhook handled instead of retrying and sending the same DM again.
+  */
+  const completeDelivered = async (patch: Record<string, unknown>) => {
+    const sent = await finish({ ...patch, status: "sent" }) as {
+      error?: { message?: string } | null;
+    };
+    if (!sent?.error) return;
+
+    const fallback = await finish({
+      ...patch,
+      status: "ignored",
+      dm_status: "sent",
+      error_message: `Direct доставлен; повтор заблокирован: ${sent.error.message ?? "ошибка фиксации статуса"}`,
+    }) as { error?: { message?: string } | null };
+    if (fallback?.error) {
+      throw new Error(`Не удалось зафиксировать доставленный Quick Reply: ${fallback.error.message ?? "ошибка базы данных"}`);
+    }
+  };
+
   const clickedAt = new Date().toISOString();
   const parentColumns =
     "id,instagram_account_id,lead_magnet_id,sender_igsid,experiment_variant," +
@@ -542,7 +571,7 @@ async function handleQuickReplyFollowup(
       .maybeSingle();
 
     if (!existing) {
-      await finish({
+      await complete({
         status: "ignored",
         public_reply_status: "skipped",
         dm_status: "skipped",
@@ -552,7 +581,7 @@ async function handleQuickReplyFollowup(
     }
 
     if (existing.experiment_conversion_event_id !== event.id) {
-      await finish({
+      await complete({
         lead_magnet_id: existing.lead_magnet_id,
         experiment_variant: "quick_reply",
         experiment_parent_event_id: existing.id,
@@ -563,11 +592,25 @@ async function handleQuickReplyFollowup(
       });
       return true;
     }
+
+    // The message was already accepted by Instagram. A previous attempt may
+    // have failed only while saving the child event, so never call Graph again.
+    if (existing.experiment_converted_at) {
+      await completeDelivered({
+        lead_magnet_id: existing.lead_magnet_id,
+        experiment_variant: "quick_reply",
+        experiment_parent_event_id: existing.id,
+        public_reply_status: "skipped",
+        dm_status: "sent",
+        error_message: null,
+      });
+      return true;
+    }
     parent = existing;
   }
 
   if (!parent.lead_magnet_id) {
-    await finish({
+    await complete({
       experiment_variant: "quick_reply",
       experiment_parent_event_id: parent.id,
       status: "failed",
@@ -586,7 +629,7 @@ async function handleQuickReplyFollowup(
     .maybeSingle();
 
   if (ruleError || !rule) {
-    await finish({
+    await complete({
       lead_magnet_id: parent.lead_magnet_id,
       experiment_variant: "quick_reply",
       experiment_parent_event_id: parent.id,
@@ -610,7 +653,7 @@ async function handleQuickReplyFollowup(
     );
   } catch (error) {
     if (isRetryable(error) && event.attempts < MAX_ATTEMPTS) throw error;
-    await finish({
+    await complete({
       lead_magnet_id: leadMagnet.id,
       experiment_variant: "quick_reply",
       experiment_parent_event_id: parent.id,
@@ -650,21 +693,24 @@ async function handleQuickReplyFollowup(
   }
 
   const convertedAt = new Date().toISOString();
-  await supabase
+  const { error: conversionError } = await supabase
     .from("instagram_automation_events")
     .update({ experiment_converted_at: convertedAt })
     .eq("id", parent.id)
     .eq("experiment_conversion_event_id", event.id);
 
-  await finish({
+  await completeDelivered({
     lead_magnet_id: leadMagnet.id,
     experiment_variant: "quick_reply",
     experiment_parent_event_id: parent.id,
-    status: "sent",
     public_reply_status: "skipped",
     dm_status: "sent",
     response_message_id: messageId,
-    error_message: attachmentError ? `Direct доставлен, но файл не отправлен: ${attachmentError}` : null,
+    error_message: conversionError
+      ? `Direct доставлен; конверсия не записана: ${conversionError.message}`
+      : attachmentError
+        ? `Direct доставлен, но файл не отправлен: ${attachmentError}`
+        : null,
   });
   return true;
 }
