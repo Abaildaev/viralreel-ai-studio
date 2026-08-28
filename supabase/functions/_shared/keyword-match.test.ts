@@ -5,6 +5,7 @@ import {
   experimentBucket,
   type LeadMagnetRow,
   quickReplyParentEventId,
+  quickReplyFollowup,
   selectCommentExperimentVariant,
 } from './keyword-match';
 
@@ -81,6 +82,14 @@ describe('comment delivery experiment', () => {
       .toBe(EVENT_ID);
     expect(quickReplyParentEventId({ message: { quick_reply: { payload: 'lead_ab:not-a-uuid' } } }))
       .toBeNull();
+  });
+
+  it('uses one clear, button-ready message after a Quick Reply click', () => {
+    expect(quickReplyFollowup(rule())).toEqual({
+      text:
+        'Готово 🙌\n\nВот обещанный материал «База промптов».\n\nНажми кнопку «Открыть базу» ниже — доступ откроется сразу.',
+      buttonText: 'Открыть базу',
+    });
   });
 
   it('builds the profile-link arm as plain text without buttons', () => {

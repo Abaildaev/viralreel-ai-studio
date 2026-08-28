@@ -236,6 +236,27 @@ function defaultButtonText(leadMagnet: LeadMagnetRow): string {
 }
 
 /**
+ * The second message in the Quick Reply path must be unambiguous. Reusing a
+ * random control-arm ad made a single click look like another broadcast and
+ * hid the fact that the link was now available underneath it.
+ */
+export function quickReplyFollowup(leadMagnet: LeadMagnetRow): DirectReply {
+  const materialTitle = truncateUtf8(
+    leadMagnet.title.trim() || "Обещанный материал",
+    120,
+  );
+  const buttonText = defaultButtonText(leadMagnet);
+
+  return {
+    text: truncateUtf8(
+      `Готово 🙌\n\nВот обещанный материал «${materialTitle}».\n\nНажми кнопку «${buttonText}» ниже — доступ откроется сразу.`,
+      640,
+    ),
+    buttonText,
+  };
+}
+
+/**
  * Picks one Direct variant together with the button that belongs to it.
  *
  * The words and the button are chosen in one call rather than read separately,

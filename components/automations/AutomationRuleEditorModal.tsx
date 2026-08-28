@@ -855,6 +855,18 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
                       {form.response_url.trim() || 'не указана — заполните ссылку в варианте 1'}
                     </span>
                   </div>
+                  <div className="space-y-2 rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] text-violet-950">
+                    <p className="font-semibold">Что придёт после нажатия Quick Reply</p>
+                    <p className="whitespace-pre-line leading-relaxed">
+                      {`Готово 🙌\n\nВот обещанный материал «${form.title.trim() || 'Обещанный материал'}».\n\nНажми кнопку «${form.button_text.trim() || 'Получить материал'}» ниже — доступ откроется сразу.`}
+                    </p>
+                    <span className="inline-flex rounded-md bg-violet-600 px-2.5 py-1 font-semibold text-white">
+                      {form.button_text.trim() || 'Получить материал'}
+                    </span>
+                    <p className="break-all text-violet-700">
+                      Кнопка откроет: {form.response_url.trim() || 'ссылка пока не указана'}
+                    </p>
+                  </div>
                 </div>
               </div>
 

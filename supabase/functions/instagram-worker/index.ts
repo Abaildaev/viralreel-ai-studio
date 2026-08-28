@@ -24,6 +24,7 @@ import {
   buildQuickReplyMessage,
   buildDirectMessage,
   pickDirectReply,
+  quickReplyFollowup,
   LEAD_MAGNET_COLUMNS,
   LeadMagnetRow,
   pickPublicReply,
@@ -642,7 +643,7 @@ async function handleQuickReplyFollowup(
   }
 
   const leadMagnet = rule as LeadMagnetRow;
-  const directReply = pickDirectReply(leadMagnet);
+  const directReply = quickReplyFollowup(leadMagnet);
   let messageId: string;
 
   try {
