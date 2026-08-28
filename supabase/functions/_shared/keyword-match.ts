@@ -33,6 +33,8 @@ export interface LeadMagnetRow {
   ab_quick_reply_percent: number;
   ab_quick_reply_text: string;
   ab_quick_reply_button: string;
+  ab_profile_reply_percent: number;
+  ab_profile_reply_text: string;
   /* The file sent after the Direct message. Declared inline rather than
      imported so this module stays dependency-free; the shape is the one in
      _shared/attachment.ts and `readAttachment` accepts it structurally. */
@@ -47,9 +49,10 @@ export const LEAD_MAGNET_COLUMNS =
   "button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled," +
   "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds," +
   "ab_quick_reply_percent,ab_quick_reply_text,ab_quick_reply_button," +
+  "ab_profile_reply_percent,ab_profile_reply_text," +
   "attachment_type,attachment_path,attachment_name";
 
-export type CommentExperimentVariant = "control" | "quick_reply";
+export type CommentExperimentVariant = "control" | "quick_reply" | "profile_link";
 
 const QUICK_REPLY_PAYLOAD_PREFIX = "lead_ab:";
 
@@ -70,9 +73,17 @@ export function selectCommentExperimentVariant(
   leadMagnet: LeadMagnetRow,
   subject: string,
 ): CommentExperimentVariant {
-  const percent = Math.max(0, Math.min(100, leadMagnet.ab_quick_reply_percent ?? 0));
-  if (!leadMagnet.response_url.trim() || percent === 0) return "control";
-  return experimentBucket(subject) < percent ? "quick_reply" : "control";
+  const quickReplyPercent = leadMagnet.response_url.trim()
+    ? Math.max(0, Math.min(100, leadMagnet.ab_quick_reply_percent ?? 0))
+    : 0;
+  const profilePercent = Math.max(
+    0,
+    Math.min(100 - quickReplyPercent, leadMagnet.ab_profile_reply_percent ?? 0),
+  );
+  const bucket = experimentBucket(subject);
+  if (bucket < quickReplyPercent) return "quick_reply";
+  if (bucket < quickReplyPercent + profilePercent) return "profile_link";
+  return "control";
 }
 
 export function buildQuickReplyMessage(
@@ -94,6 +105,12 @@ export function buildQuickReplyMessage(
       payload: `${QUICK_REPLY_PAYLOAD_PREFIX}${automationEventId}`,
     }],
   };
+}
+
+export function buildProfileLinkMessage(leadMagnet: LeadMagnetRow): Record<string, unknown> {
+  const text = leadMagnet.ab_profile_reply_text.trim() ||
+    "Вижу твой комментарий 👊\n\nСсылка на базу промптов — в шапке моего профиля.";
+  return { text: truncateUtf8(text, 640) };
 }
 
 export function quickReplyParentEventId(rawEvent: Record<string, unknown>): string | null {

@@ -1,4 +1,5 @@
 import path from 'path';
+import { sites } from '@openai/sites-vite-plugin';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -11,7 +12,7 @@ export default defineConfig(() => {
         port: Number(process.env.PORT) || 3000,
         host: '0.0.0.0',
       },
-      plugins: [react()],
+      plugins: [react(), sites()],
       build: {
         rollupOptions: {
           output: {
@@ -30,7 +31,7 @@ export default defineConfig(() => {
       },
       resolve: {
         alias: {
-          '@': path.resolve(__dirname, '.'),
+          '@': path.resolve(import.meta.dirname, '.'),
         }
       }
     };

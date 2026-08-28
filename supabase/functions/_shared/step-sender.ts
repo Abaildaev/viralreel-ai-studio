@@ -95,6 +95,43 @@ async function claimStep(
 const WALKED_PAST = ["sent", "cancelled", "failed"];
 
 /**
+ * Reclaims an immediate hand-off step during a deliberate second walk.
+ *
+ * A scheduled instruction can be re-armed days after its original delivery.
+ * Its zero-delay prompt already has a `sent` row, so the normal unique claim
+ * correctly refuses it — but that would leave the fresh instruction's promise
+ * unfulfilled. Move only a completed row to `processing`; a pending or already
+ * processing row stays owned by the path that got there first.
+ */
+async function reclaimImmediateStep(
+  supabase: SupabaseClient,
+  subscriber: SequenceSubscriber,
+  stepId: string,
+  dueAt: Date,
+): Promise<string | null> {
+  const claimToken = `inline:${crypto.randomUUID()}`;
+  const { data, error } = await supabase
+    .from("telegram_step_deliveries")
+    .update({
+      status: "processing",
+      due_at: dueAt.toISOString(),
+      attempts: 0,
+      error_message: null,
+      sent_at: null,
+      telegram_message_id: null,
+      claimed_at: dueAt.toISOString(),
+      claim_token: claimToken,
+    })
+    .eq("subscriber_id", subscriber.id)
+    .eq("step_id", stepId)
+    .in("status", WALKED_PAST)
+    .select("id");
+
+  if (error) throw error;
+  return data?.[0]?.id as string | undefined ?? null;
+}
+
+/**
  * Puts the next step on the clock, whether or not this reader has seen it.
  *
  * The claim used to be made and its answer thrown away, so a reader with an
@@ -170,8 +207,11 @@ export async function advanceSequence(
   let leadingAttachmentConsumed = false;
 
   for (const step of plan.sendNow) {
-    const deliveryId = await claimStep(supabase, subscriber, step.id, now);
-    if (!deliveryId && !options.replayImmediate) continue;
+    let deliveryId = await claimStep(supabase, subscriber, step.id, now);
+    if (!deliveryId && options.replayImmediate) {
+      deliveryId = await reclaimImmediateStep(supabase, subscriber, step.id, now);
+    }
+    if (!deliveryId) continue;
 
     const attachment = readAttachment(step);
 
@@ -217,6 +257,8 @@ export async function advanceSequence(
           sent_at: new Date().toISOString(),
           telegram_message_id: String(telegramMessageId),
           error_message: null,
+          claimed_at: null,
+          claim_token: null,
         })
         .eq("id", deliveryId);
     }

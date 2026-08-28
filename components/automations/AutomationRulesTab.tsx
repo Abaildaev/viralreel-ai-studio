@@ -170,9 +170,9 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                         >
                           {rule.is_active ? 'Активен' : 'Пауза'}
                         </span>
-                        {rule.ab_quick_reply_percent > 0 && (
+                        {(rule.ab_quick_reply_percent > 0 || rule.ab_profile_reply_percent > 0) && (
                           <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
-                            A/B Quick Reply · {rule.ab_quick_reply_percent}%
+                            A/B · {Math.max(0, 100 - rule.ab_quick_reply_percent - rule.ab_profile_reply_percent)}% / {rule.ab_quick_reply_percent}% / {rule.ab_profile_reply_percent}%
                           </span>
                         )}
                       </div>

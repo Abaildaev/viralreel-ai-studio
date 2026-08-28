@@ -17,6 +17,8 @@ interface TestResult {
     ab_quick_reply_percent: number;
     ab_quick_reply_text: string;
     ab_quick_reply_button: string;
+    ab_profile_reply_percent: number;
+    ab_profile_reply_text: string;
   } | null;
 }
 
@@ -107,6 +109,8 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
           ab_quick_reply_percent: match.rule.ab_quick_reply_percent ?? 0,
           ab_quick_reply_text: match.rule.ab_quick_reply_text ?? '',
           ab_quick_reply_button: match.rule.ab_quick_reply_button ?? 'Забрать базу',
+          ab_profile_reply_percent: match.rule.ab_profile_reply_percent ?? 0,
+          ab_profile_reply_text: match.rule.ab_profile_reply_text ?? '',
         },
       });
     } else {
@@ -253,8 +257,9 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
 
               <div className="p-3 bg-white rounded-xl border border-gray-200 space-y-2">
                 <span className="text-[11px] text-gray-400 block font-medium">
-                  {testTrigger === 'comment' && testResult.matched.ab_quick_reply_percent > 0
-                    ? `Контроль · ${100 - testResult.matched.ab_quick_reply_percent}%`
+                  {testTrigger === 'comment' &&
+                  (testResult.matched.ab_quick_reply_percent > 0 || testResult.matched.ab_profile_reply_percent > 0)
+                    ? `Вариант 1 · Direct с кнопкой · ${Math.max(0, 100 - testResult.matched.ab_quick_reply_percent - testResult.matched.ab_profile_reply_percent)}%`
                     : 'Сообщение в Instagram Direct:'}
                 </span>
                 <p className="text-xs text-gray-700 whitespace-pre-line bg-gray-50 p-2.5 rounded-lg border border-gray-100">
@@ -264,7 +269,7 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
                 {testTrigger === 'comment' && testResult.matched.ab_quick_reply_percent > 0 && (
                   <div className="rounded-lg border border-violet-200 bg-violet-50 p-2.5">
                     <p className="text-[11px] font-semibold text-violet-800">
-                      Эксперимент · {testResult.matched.ab_quick_reply_percent}%
+                      Вариант 2 · Quick Reply · {testResult.matched.ab_quick_reply_percent}%
                     </p>
                     <p className="mt-1 whitespace-pre-line text-xs text-violet-950">
                       {testResult.matched.ab_quick_reply_text}
@@ -274,6 +279,20 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
                     </span>
                     <p className="mt-1.5 text-[10px] text-violet-600">
                       После нажатия пользователь отправит ответ, и бот пришлёт ссылку.
+                    </p>
+                  </div>
+                )}
+
+                {testTrigger === 'comment' && testResult.matched.ab_profile_reply_percent > 0 && (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-2.5">
+                    <p className="text-[11px] font-semibold text-sky-800">
+                      Вариант 3 · ссылка в профиле · {testResult.matched.ab_profile_reply_percent}%
+                    </p>
+                    <p className="mt-1 whitespace-pre-line text-xs text-sky-950">
+                      {testResult.matched.ab_profile_reply_text}
+                    </p>
+                    <p className="mt-1.5 break-all text-[10px] text-sky-700">
+                      Ссылка в шапке профиля: {testResult.matched.button_url || 'не указана'}
                     </p>
                   </div>
                 )}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildProfileLinkMessage,
   buildQuickReplyMessage,
   experimentBucket,
   type LeadMagnetRow,
@@ -34,6 +35,8 @@ function rule(overrides: Partial<LeadMagnetRow> = {}): LeadMagnetRow {
     ab_quick_reply_percent: 20,
     ab_quick_reply_text: 'Материал готов. Нажмите кнопку.',
     ab_quick_reply_button: 'Забрать базу',
+    ab_profile_reply_percent: 0,
+    ab_profile_reply_text: 'Вижу комментарий. Ссылка в шапке профиля.',
     attachment_type: 'none',
     attachment_path: '',
     attachment_name: '',
@@ -41,20 +44,25 @@ function rule(overrides: Partial<LeadMagnetRow> = {}): LeadMagnetRow {
   };
 }
 
-describe('comment Quick Reply experiment', () => {
+describe('comment delivery experiment', () => {
   it('keeps the same person in a stable bucket', () => {
     expect(experimentBucket('instagram-user-42')).toBe(experimentBucket('instagram-user-42'));
     expect(selectCommentExperimentVariant(rule(), 'instagram-user-42'))
       .toBe(selectCommentExperimentVariant(rule(), 'instagram-user-42'));
   });
 
-  it('honours zero, full rollout and missing-link safeguards', () => {
+  it('honours all three arms and disables only Quick Reply when the link is missing', () => {
     expect(selectCommentExperimentVariant(rule({ ab_quick_reply_percent: 0 }), 'person'))
       .toBe('control');
     expect(selectCommentExperimentVariant(rule({ ab_quick_reply_percent: 100 }), 'person'))
       .toBe('quick_reply');
     expect(selectCommentExperimentVariant(rule({ ab_quick_reply_percent: 100, response_url: '' }), 'person'))
       .toBe('control');
+    expect(selectCommentExperimentVariant(rule({
+      ab_quick_reply_percent: 0,
+      ab_profile_reply_percent: 100,
+      response_url: '',
+    }), 'person')).toBe('profile_link');
   });
 
   it('builds and recognises an attributed Quick Reply payload', () => {
@@ -73,5 +81,12 @@ describe('comment Quick Reply experiment', () => {
       .toBe(EVENT_ID);
     expect(quickReplyParentEventId({ message: { quick_reply: { payload: 'lead_ab:not-a-uuid' } } }))
       .toBeNull();
+  });
+
+  it('builds the profile-link arm as plain text without buttons', () => {
+    const message = buildProfileLinkMessage(rule()) as { text: string };
+
+    expect(message.text).toContain('Ссылка в шапке профиля');
+    expect(message).not.toHaveProperty('quick_replies');
   });
 });

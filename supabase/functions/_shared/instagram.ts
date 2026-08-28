@@ -233,6 +233,9 @@ export function describeInstagramError(error: unknown): string {
   if (has("already replied", "already sent a private reply")) {
     return "На этот комментарий уже отправлялся личный ответ — Instagram разрешает только один.";
   }
+  if (subcode === 2534025 || has("プライベート返信には無効なコメント")) {
+    return "Instagram не разрешает приватный ответ на этот комментарий: возможно, он уже был обработан, удалён или больше недоступен для Direct.";
+  }
   if (code === 613 || code === 4 || code === 17 || code === 32 || has("rate limit", "too many")) {
     return "Достигнут лимит запросов Instagram — попробуйте позже или уменьшите частоту автоответов.";
   }

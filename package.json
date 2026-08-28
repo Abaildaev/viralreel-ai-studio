@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.sites-worker.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "schema:build": "node scripts/build-full-schema.mjs",
@@ -23,16 +23,17 @@
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "@openai/sites-vite-plugin": "0.2.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^5.0.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "vitest": "^3.2.7"
+    "vite": "^8.0.0",
+    "vitest": "^4.1.11"
   }
 }

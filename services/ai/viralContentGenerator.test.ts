@@ -6,6 +6,7 @@ import {
   CTA_OUTRO_SUBTITLE,
   generateCtaOutroCopyVariants,
   normalizeCtaOutroAction,
+  REELS_FOLLOW_NOTICE,
   REELS_PROMPT_PACK_OFFER,
 } from './viralContentGenerator';
 
@@ -45,8 +46,9 @@ describe('generateCtaOutroCopyVariants fallback', () => {
       count: 1,
     }, 0);
 
-    expect(caption.match(/пиши/giu)).toHaveLength(1);
+    expect(caption.match(/(^|[^\p{L}\p{N}_])пиши(?=$|[^\p{L}\p{N}_])/gimu)).toHaveLength(1);
     expect(caption).toContain(buildReelsCaptionCta('промт'));
+    expect(caption).toContain(REELS_FOLLOW_NOTICE);
     expect(caption.split('\n')).toHaveLength(5);
     expect(caption.split('\n')[2]).not.toContain('ПИШИ');
   });
@@ -73,7 +75,8 @@ describe('generateCtaOutroCopyVariants fallback', () => {
     expect(variants.every((value) =>
       value.toLowerCase().includes('промпт')
       && value.includes('1000+')
-      && value.toLowerCase().includes('визуал'),
+      && value.toLowerCase().includes('визуал')
+      && value.includes(REELS_FOLLOW_NOTICE),
     )).toBe(true);
   });
 

@@ -238,6 +238,9 @@ export interface LeadMagnet extends MessageAttachment {
   ab_quick_reply_percent: number;
   ab_quick_reply_text: string;
   ab_quick_reply_button: string;
+  /** Percentage of comment leads sent a plain message pointing to the profile link. */
+  ab_profile_reply_percent: number;
+  ab_profile_reply_text: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

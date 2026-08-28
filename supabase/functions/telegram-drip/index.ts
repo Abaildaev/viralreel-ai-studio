@@ -205,6 +205,7 @@ Deno.serve(async (req: Request) => {
             subscriber,
             step.funnel_id,
             step.position,
+            { replayImmediate: true },
           ).catch((cause) => console.error("Could not advance past a disabled step", cause));
         }
       }
@@ -263,7 +264,16 @@ Deno.serve(async (req: Request) => {
 
       // Sending one step is what schedules the next; the sequence has no other
       // clock.
-      await advanceSequence(supabase, botToken, subscriber, step.funnel_id, step.position);
+      await advanceSequence(
+        supabase,
+        botToken,
+        subscriber,
+        step.funnel_id,
+        step.position,
+        /* A re-armed instruction must replay its zero-delay prompt even when
+           that prompt has a delivery row from an earlier walk. */
+        { replayImmediate: true },
+      );
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
 

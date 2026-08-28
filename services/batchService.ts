@@ -2,6 +2,7 @@ import { supabase, getSignedUrl } from '../lib/supabase';
 import { assertMp4Video, renderVideoWithOverlay } from '../utils/videoRenderer';
 import {
   buildReelsCaptionCtaVariant,
+  ensureReelsFollowNotice,
   generateCtaOutroCaptions,
   generateCtaOutroCopyVariants,
   generateViralHooks,
@@ -116,7 +117,7 @@ function captionWithGeneratedCta(
       && normalizedCta.includes('промпт')
       && normalizedCta.includes('визуал');
     lines[ctaIndex] = isUsable
-      ? existingCta
+      ? ensureReelsFollowNotice(existingCta)
       : buildReelsCaptionCtaVariant(keyword, fallbackIndex);
     return lines.join('\n');
   }

@@ -5756,3 +5756,183 @@ GRANT SELECT, INSERT, UPDATE, DELETE
 GRANT ALL PRIVILEGES
   ON TABLE public.scheduled_posts
   TO service_role;
+
+-- ------------------------------------------------------------------------
+-- 20260827222000_instagram_profile_link_ab_variant.sql
+-- ------------------------------------------------------------------------
+
+/*
+  Add a third comment-to-Direct experiment arm.
+
+  Control keeps the existing attributed button. Quick Reply keeps the two-step
+  flow that opens the messaging window. The new profile-link arm is deliberately
+  plain text, matching the common Instagram pattern that sends people to the
+  link in the account bio.
+*/
+
+ALTER TABLE public.lead_magnets
+  ADD COLUMN IF NOT EXISTS ab_profile_reply_percent integer NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS ab_profile_reply_text text NOT NULL DEFAULT
+    E'Вижу твой комментарий 👊\n\nСсылка на базу промптов — в шапке моего профиля.';
+
+ALTER TABLE public.lead_magnets
+  DROP CONSTRAINT IF EXISTS lead_magnets_ab_profile_reply_percent_check,
+  DROP CONSTRAINT IF EXISTS lead_magnets_ab_experiment_total_check;
+
+ALTER TABLE public.lead_magnets
+  ADD CONSTRAINT lead_magnets_ab_profile_reply_percent_check
+    CHECK (ab_profile_reply_percent BETWEEN 0 AND 100),
+  ADD CONSTRAINT lead_magnets_ab_experiment_total_check
+    CHECK (ab_quick_reply_percent + ab_profile_reply_percent <= 100);
+
+ALTER TABLE public.instagram_automation_events
+  DROP CONSTRAINT IF EXISTS instagram_automation_events_experiment_variant_check;
+
+ALTER TABLE public.instagram_automation_events
+  ADD CONSTRAINT instagram_automation_events_experiment_variant_check
+    CHECK (
+      experiment_variant IS NULL
+      OR experiment_variant IN ('control', 'quick_reply', 'profile_link')
+    );
+
+/* Restore both earlier delivery variants and add the profile-link arm at 20%. */
+UPDATE public.lead_magnets magnet
+SET
+  reply_text = E'Забирай 1000+ готовых промптов для генерации картинок в нейросетях!\n\nВнутри — формулы под рекламу, людей, предметку и свет. Главное: там же ты сможешь сразу протестировать любой промпт и забрать результат за пару кликов.\n\nЖми кнопку ниже 👇',
+  direct_reply_variants = ARRAY[
+    E'Забирай 1000+ готовых промптов для генерации картинок в нейросетях!\n\nВнутри — формулы под рекламу, людей, предметку и свет. Главное: там же ты сможешь сразу протестировать любой промпт и забрать результат за пару кликов.\n\nЖми кнопку ниже 👇',
+    E'Хватит мучиться с генерацией картинок в нейросетях.\n\nЯ собрал 1000+ готовых промптов для идеального визуала (свет, ракурсы, стили) и настроил место, где ты сразу протестируешь их в один клик без танцев с бубном.\n\nЗабирай доступ 👇',
+    E'Твой чит-код для сочного визуала в нейросетях!\n\nВ базе — 1000+ промптов для генерации фото, товаров и рекламы. Копируешь готовый текст, там же сразу запускаешь генерацию и получаешь топ-кадр за 60 секунд.\n\nЖми кнопку 👇',
+    E'Лови 1000+ промптов для визуала в нейросетях!\n\nВнутри — формулы для картинок и место для их мгновенного теста. Схема простая: жмёшь кнопку — и бот сразу отдаёт доступ к базе. Без условий и регистраций.\n\nЗабирай по кнопке 👇',
+    E'Делай студийные картинки в нейросетях с 1-й попытки!\n\nЯ упаковал 1000+ промптов для сочного визуала и подключил движок для быстрого теста. Бот отдаёт базу сразу, делать ничего не нужно.\n\nЖми кнопку ниже 👇'
+  ],
+  direct_reply_buttons = ARRAY['1000+ схем', 'Хочу базу', 'Хочу чит', 'Забрать', 'К формулам'],
+  response_url = 'https://t.me/daily_prompt_hub_bot?start=prompts',
+  button_text = 'Забрать',
+  ab_quick_reply_percent = 20,
+  ab_quick_reply_text = 'Готово 🙌 База из 1000+ промптов уже ждёт. Нажми кнопку ниже — и я сразу пришлю доступ.',
+  ab_quick_reply_button = 'Забрать базу',
+  ab_profile_reply_percent = 20,
+  ab_profile_reply_text = E'Вижу твой комментарий 👊\n\nЯ собрал базу из 1000+ готовых промптов для генерации изображений в нейросетях — для рекламы, людей, предметки, света и разных стилей.\n\nЕсли хочешь забрать базу, переходи по ссылке в шапке моего профиля — я оставил её там.',
+  is_active = true,
+  public_reply_enabled = false,
+  updated_at = now()
+WHERE magnet.id IN (
+  SELECT funnel.lead_magnet_id
+  FROM public.telegram_funnels funnel
+  WHERE funnel.slug = 'prompts'
+    AND funnel.lead_magnet_id IS NOT NULL
+);
+
+-- ------------------------------------------------------------------------
+-- 20260827232500_replay_prompts_after_rearmed_instructions.sql
+-- ------------------------------------------------------------------------
+
+/*
+  A repeated /start re-armed the delayed instruction but its zero-delay prompt
+  kept the `sent` row from the reader's earlier walk. The instruction therefore
+  arrived again while the prompt it explicitly promised did not.
+
+  Requeue only fresh broken hand-offs. Older historical walks are left alone so
+  a repair cannot dump several days of prompts into somebody's chat at once.
+*/
+
+WITH prompt_steps AS (
+  SELECT step.id, step.position
+  FROM public.telegram_funnel_steps step
+  JOIN public.telegram_funnels funnel ON funnel.id = step.funnel_id
+  WHERE funnel.slug = 'prompts'
+),
+fresh_misses AS (
+  SELECT prompt_delivery.id
+  FROM public.telegram_step_deliveries instruction_delivery
+  JOIN prompt_steps instruction_step
+    ON instruction_step.id = instruction_delivery.step_id
+   AND instruction_step.position IN (2, 4, 6, 8)
+  JOIN prompt_steps prompt_step
+    ON prompt_step.position = instruction_step.position + 1
+  JOIN public.telegram_step_deliveries prompt_delivery
+    ON prompt_delivery.subscriber_id = instruction_delivery.subscriber_id
+   AND prompt_delivery.step_id = prompt_step.id
+  JOIN public.telegram_subscribers subscriber
+    ON subscriber.id = instruction_delivery.subscriber_id
+  WHERE instruction_delivery.status = 'sent'
+    AND instruction_delivery.sent_at >= now() - interval '30 minutes'
+    AND instruction_delivery.sent_at > coalesce(prompt_delivery.sent_at, '-infinity'::timestamptz)
+    AND prompt_delivery.status IN ('sent', 'cancelled', 'failed')
+    AND subscriber.is_blocked = false
+    AND subscriber.unsubscribed_at IS NULL
+)
+UPDATE public.telegram_step_deliveries delivery
+SET
+  status = 'pending',
+  due_at = now(),
+  attempts = 0,
+  error_message = null,
+  sent_at = null,
+  telegram_message_id = null,
+  claimed_at = null,
+  claim_token = null
+FROM fresh_misses
+WHERE delivery.id = fresh_misses.id;
+
+-- ------------------------------------------------------------------------
+-- 20260827234000_retry_unique_instagram_failures_after_access_restore.sql
+-- ------------------------------------------------------------------------
+
+/*
+  The account owner restored Instagram messaging access and explicitly asked
+  to retry everyone whose promised Direct message failed.
+
+  Retry at most one event per person and lead magnet, exclude anyone who has a
+  successful delivery anywhere in their history, and stagger the queue so the
+  recovery looks like normal human-paced traffic rather than a burst. Public
+  comment replies remain skipped; only the missing private message is retried.
+*/
+
+WITH eligible AS (
+  SELECT
+    event.id,
+    row_number() OVER (
+      PARTITION BY event.sender_igsid, event.lead_magnet_id
+      ORDER BY event.created_at DESC, event.id
+    ) AS recipient_rank
+  FROM public.instagram_automation_events event
+  JOIN public.instagram_accounts account
+    ON account.id = event.instagram_account_id
+  WHERE account.username = 'alym_digital'
+    AND event.status = 'failed'
+    AND event.trigger_type = 'comment'
+    AND event.sender_igsid IS NOT NULL
+    AND event.response_message_id IS NULL
+    AND event.created_at >= now() - interval '7 days'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM public.instagram_automation_events delivered
+      WHERE delivered.sender_igsid = event.sender_igsid
+        AND delivered.lead_magnet_id = event.lead_magnet_id
+        AND delivered.id <> event.id
+        AND (delivered.status = 'sent' OR delivered.dm_status = 'sent')
+    )
+),
+unique_recipients AS (
+  SELECT
+    eligible.id,
+    row_number() OVER (ORDER BY md5(eligible.id::text)) - 1 AS queue_position
+  FROM eligible
+  WHERE eligible.recipient_rank = 1
+)
+UPDATE public.instagram_automation_events event
+SET
+  status = 'received',
+  dm_status = 'pending',
+  public_reply_status = 'skipped',
+  public_reply_id = null,
+  response_message_id = null,
+  attempts = 0,
+  next_attempt_at = now() + unique_recipients.queue_position * interval '45 seconds',
+  claimed_at = null,
+  processed_at = null,
+  error_message = 'Повторная отправка после восстановления доступа к сообщениям'
+FROM unique_recipients
+WHERE event.id = unique_recipients.id;

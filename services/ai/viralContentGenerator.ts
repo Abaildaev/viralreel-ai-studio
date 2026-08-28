@@ -394,6 +394,9 @@ export interface CtaOutroCaptionRequest {
 export const REELS_PROMPT_PACK_OFFER =
   'пак из 1000+ готовых промптов для визуала';
 
+export const REELS_FOLLOW_NOTICE =
+  'Важно: сначала подпишись на меня, чтобы сообщение точно пришло в Direct.';
+
 /** The bottom line on every rendered CTA card is fixed by the offer. */
 export const CTA_OUTRO_SUBTITLE = 'и получи 1000+ готовых промптов для визуала';
 
@@ -412,7 +415,16 @@ function normalizeCaptionKeyword(value: string): string {
 }
 
 export function buildReelsCaptionCta(keyword: string): string {
-  return `ПИШИ «${normalizeCaptionKeyword(keyword)}» в директ — и получи ${REELS_PROMPT_PACK_OFFER}.`;
+  return ensureReelsFollowNotice(
+    `ПИШИ «${normalizeCaptionKeyword(keyword)}» в директ — и получи ${REELS_PROMPT_PACK_OFFER}.`,
+  );
+}
+
+export function ensureReelsFollowNotice(value: string): string {
+  const normalized = value.toLowerCase().replace(/ё/g, 'е');
+  return normalized.includes('подпишись на меня')
+    ? value.trim()
+    : `${value.trim()} ${REELS_FOLLOW_NOTICE}`;
 }
 
 /*
@@ -437,9 +449,11 @@ const REELS_CAPTION_CTA_VARIANTS = [
 
 export function buildReelsCaptionCtaVariant(keyword: string, index = 0): string {
   const normalizedKeyword = normalizeCaptionKeyword(keyword);
-  return REELS_CAPTION_CTA_VARIANTS[
-    Math.abs(index) % REELS_CAPTION_CTA_VARIANTS.length
-  ](normalizedKeyword);
+  return ensureReelsFollowNotice(
+    REELS_CAPTION_CTA_VARIANTS[
+      Math.abs(index) % REELS_CAPTION_CTA_VARIANTS.length
+    ](normalizedKeyword),
+  );
 }
 
 function hasReelsCaptionCta(line: string, keyword: string): boolean {
@@ -455,7 +469,7 @@ function hasReelsCaptionCta(line: string, keyword: string): boolean {
 function normalizeReelsCaptionCtaLine(line: string, keyword: string, index: number): string {
   const normalized = line.replace(/\s+/g, ' ').trim();
   return hasReelsCaptionCta(normalized, keyword)
-    ? normalized
+    ? ensureReelsFollowNotice(normalized)
     : buildReelsCaptionCtaVariant(keyword, index);
 }
 
@@ -744,6 +758,7 @@ ${example}
 - Первые три строки вместе не длиннее 480 символов; они должны звучать как живой полезный Instagram-текст, а не как рекламный шаблон.
 - Кодовое слово '${request.keyword}' обязательно в четвёртой строке; можно использовать кавычки или естественную фразу «напиши кодовое слово».
 - В четвёртой строке обязательно сохрани 1000+, слова «промпт» и «визуал», но каждый вариант формулируй по-разному: «получи», «забери», «отправлю», «пришлю», «оставь слово» и т.д.
+- В конце четвёртой строки всегда добавляй «${REELS_FOLLOW_NOTICE}».
 - Не используй одну и ту же CTA-формулировку во всех вариантах и не копируй дословно пример.
 - Каждый вариант должен быть уникальным: не повторяй начало, метафору, практический совет или связку слов.
 - Меняй продающий угол между вариантами: экономия времени, меньше неудачных генераций, готовая структура, лёгкая адаптация, идеи для контента, управление стилем, светом и камерой.

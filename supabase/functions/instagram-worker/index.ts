@@ -20,6 +20,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createAdminClient, hasValidCronSecret } from "../_shared/auth.ts";
 import { describeInstagramError, InstagramApiError } from "../_shared/instagram.ts";
 import {
+  buildProfileLinkMessage,
   buildQuickReplyMessage,
   buildDirectMessage,
   pickDirectReply,
@@ -135,10 +136,16 @@ function isRetryable(error: unknown): boolean {
   if (text.includes("rate limit") || text.includes("too many")) return true;
 
   // Permanent: the recipient cannot be reached, now or later.
-  if (code === 551 || subcode === 2534022 || subcode === 2534014) return false;
+  if (
+    code === 551 ||
+    subcode === 2534022 ||
+    subcode === 2534014 ||
+    subcode === 2534025
+  ) return false;
   if (text.includes("isn't available") || text.includes("cannot message")) return false;
   if (text.includes("outside of allowed window") || text.includes("24 hours")) return false;
   if (text.includes("already replied") || text.includes("already sent a private reply")) return false;
+  if (text.includes("プライベート返信には無効なコメント")) return false;
 
   // Permanent until a human intervenes; retrying cannot fix a revoked token.
   if (code === 190 || text.includes("session has expired")) return false;
@@ -770,6 +777,8 @@ async function processEvent(
       event,
       experimentVariant === "quick_reply"
         ? buildQuickReplyMessage(matched, event.id)
+        : experimentVariant === "profile_link"
+        ? buildProfileLinkMessage(matched)
         : buildDirectMessage(matched, directReply, event.id),
     );
   } catch (error) {
@@ -803,7 +812,11 @@ async function processEvent(
   let attachmentError = "";
   const attachment = readAttachment(matched);
 
-  if (attachment && event.sender_igsid && experimentVariant !== "quick_reply") {
+  if (
+    attachment &&
+    event.sender_igsid &&
+    (event.trigger_type === "dm" || experimentVariant === "control")
+  ) {
     try {
       await deliverAttachment(supabase, account, event.sender_igsid, attachment);
     } catch (error) {

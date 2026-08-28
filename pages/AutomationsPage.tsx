@@ -64,6 +64,9 @@ const blankForm: AutomationForm = {
   ab_quick_reply_percent: 0,
   ab_quick_reply_text: 'Материал готов 🙌 Нажми кнопку ниже — и я сразу пришлю доступ.',
   ab_quick_reply_button: 'Забрать базу',
+  ab_profile_reply_percent: 0,
+  ab_profile_reply_text:
+    'Вижу твой комментарий 👊\n\nСсылка на базу промптов — в шапке моего профиля.',
   is_active: true,
   ...NO_ATTACHMENT,
 };
@@ -217,6 +220,10 @@ export default function AutomationsPage() {
       ab_quick_reply_text:
         rule.ab_quick_reply_text || 'Материал готов 🙌 Нажми кнопку ниже — и я сразу пришлю доступ.',
       ab_quick_reply_button: rule.ab_quick_reply_button || 'Забрать базу',
+      ab_profile_reply_percent: rule.ab_profile_reply_percent ?? 0,
+      ab_profile_reply_text:
+        rule.ab_profile_reply_text ||
+        'Вижу твой комментарий 👊\n\nСсылка на базу промптов — в шапке моего профиля.',
       is_active: rule.is_active,
       attachment_type: rule.attachment_type ?? 'none',
       attachment_path: rule.attachment_path ?? '',
@@ -302,6 +309,18 @@ export default function AutomationsPage() {
         ab_quick_reply_text:
           form.ab_quick_reply_text.trim() || 'Материал готов 🙌 Нажми кнопку ниже — и я сразу пришлю доступ.',
         ab_quick_reply_button: form.ab_quick_reply_button.trim() || 'Забрать базу',
+        ab_profile_reply_percent: form.trigger_comments
+          ? Math.max(
+              0,
+              Math.min(
+                100 - Math.max(0, Math.min(100, form.ab_quick_reply_percent)),
+                form.ab_profile_reply_percent,
+              ),
+            )
+          : 0,
+        ab_profile_reply_text:
+          form.ab_profile_reply_text.trim() ||
+          'Вижу твой комментарий 👊\n\nСсылка на базу промптов — в шапке моего профиля.',
         is_active: form.is_active,
         ...attachmentFields(form),
       };
