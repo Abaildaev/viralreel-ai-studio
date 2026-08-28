@@ -98,8 +98,17 @@ const sections = [
           group by 1 order by 2 desc;`,
   },
   {
-    title: 'A/B: доходимость до Telegram',
-    sql: `select coalesce(e.experiment_variant, 'без A/B') as вариант,
+    /* `experiment_variant` больше не разделяет доставки сам по себе:
+       персонализированные помечаются как quick_reply, чтобы работало
+       нажатие, — отличает их `direct_ai_written`. */
+    title: 'Доходимость до Telegram по форме доставки',
+    sql: `select case
+                   when e.direct_ai_written then 'ИИ, без ссылки в 1-м'
+                   when e.experiment_variant = 'quick_reply' then 'quick reply (шаблон)'
+                   when e.experiment_variant = 'profile_link' then 'ссылка в шапке'
+                   when e.experiment_variant = 'control' then 'control (ссылка сразу)'
+                   else 'без A/B'
+                 end as форма,
                  count(*) as ушло_в_direct,
                  count(*) filter (
                    where exists (select 1 from telegram_subscribers s
@@ -155,9 +164,12 @@ for (const section of sections) {
 console.log(`
 ### На что смотреть
   - «пропущено» в публичном ответе при включённом тумблере — ответы снова молчат.
-  - «контрольная_доля» = 0 — все лиды уходят в экспериментальные варианты.
+  - Ожидаемая форма доставки сейчас — «ИИ, без ссылки в 1-м», её должно быть
+    подавляющее большинство. Заметная доля «control (ссылка сразу)» означает,
+    что ИИ отвалился: смотри ошибки и ключ DeepSeek.
   - «ОПЕЧАТКА в кодовом слове» — потерянные лиды, лечится ключевыми словами.
   - «добавлено_за_период» = 0 при новых комментариях — имя не подставляется.
+  - «ab_кнопка»/«ab_профиль» должны быть 0: эксперимент выключен, доставка одна.
 `);
 
 process.exit(failed ? 1 : 0);
