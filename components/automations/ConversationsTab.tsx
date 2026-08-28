@@ -52,7 +52,12 @@ function timeLabel(value: string): string {
   });
 }
 
-export default function ConversationsTab() {
+interface ConversationsTabProps {
+  /** Instagram account whose Direct threads are shown; `null` shows all. */
+  accountId?: string | null;
+}
+
+export default function ConversationsTab({ accountId = null }: ConversationsTabProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,15 +71,22 @@ export default function ConversationsTab() {
 
   const loadMessages = async () => {
     setLoading(true);
+
+    /* Scoped in the query rather than after the fact: the 300-row cap would
+       otherwise be spent on the other account's threads. */
+    const messageQuery = supabase
+      .from('ai_sales_messages')
+      .select('id,instagram_account_id,sender_igsid,role,content,detected_intent,handed_off,created_at,instagram_accounts(username)')
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    const contactQuery = supabase
+      .from('instagram_contacts')
+      .select('instagram_account_id,sender_igsid,username,display_name,profile_picture_url');
+
     const [messageResult, contactResult] = await Promise.all([
-      supabase
-        .from('ai_sales_messages')
-        .select('id,instagram_account_id,sender_igsid,role,content,detected_intent,handed_off,created_at,instagram_accounts(username)')
-        .order('created_at', { ascending: false })
-        .limit(300),
-      supabase
-        .from('instagram_contacts')
-        .select('instagram_account_id,sender_igsid,username,display_name,profile_picture_url'),
+      accountId ? messageQuery.eq('instagram_account_id', accountId) : messageQuery,
+      accountId ? contactQuery.eq('instagram_account_id', accountId) : contactQuery,
     ]);
 
     if (!messageResult.error) setMessages((messageResult.data ?? []) as unknown as ConversationMessage[]);
@@ -93,7 +105,7 @@ export default function ConversationsTab() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ai_sales_messages' }, () => loadMessages())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [accountId]);
 
   const conversations = useMemo(() => {
     const grouped = new Map<string, Conversation>();

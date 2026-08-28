@@ -25,7 +25,7 @@ import type {
  * `select('*')` fail, so every query has to go through this list.
  */
 export const TELEGRAM_BOT_COLUMNS =
-  'id,user_id,bot_username,bot_name,channel_id,channel_title,channel_username,' +
+  'id,user_id,instagram_account_id,bot_username,bot_name,channel_id,channel_title,channel_username,' +
   'channel_invite_url,is_active,webhook_set_at,last_error,subscriber_goal,created_at,updated_at';
 
 const FUNNEL_COLUMNS = '*, lead_magnets(id,title,description,codeword)';
@@ -57,34 +57,50 @@ async function callSetup<T>(body: Record<string, unknown>): Promise<T> {
 /* Bot                                                                         */
 /* -------------------------------------------------------------------------- */
 
-export async function loadBot(): Promise<TelegramBot | null> {
-  const { data, error } = await supabase
-    .from('telegram_bots')
-    .select(TELEGRAM_BOT_COLUMNS)
-    .maybeSingle();
+/**
+ * The bot serving one Instagram account.
+ *
+ * A user may own a bot per account plus one account-agnostic bot, so this
+ * prefers the account's own row and falls back to the shared one — the same
+ * rule `loadSalesAgentConfig` and the generator's lead magnets already use.
+ * Without an account there is nothing to scope to, so only the shared bot is
+ * in play.
+ */
+export async function loadBot(accountId?: string | null): Promise<TelegramBot | null> {
+  const query = supabase.from('telegram_bots').select(TELEGRAM_BOT_COLUMNS);
+
+  const { data, error } = accountId
+    ? await query.or(`instagram_account_id.eq.${accountId},instagram_account_id.is.null`)
+    : await query.is('instagram_account_id', null);
 
   if (error) throw error;
+
   // The column list is a runtime string, so supabase-js cannot infer the row
   // shape from it and falls back to its "unparsed select" placeholder type.
-  return (data as unknown as TelegramBot) ?? null;
+  const rows = (data ?? []) as unknown as TelegramBot[];
+  return rows.find((row) => row.instagram_account_id === accountId)
+    ?? rows.find((row) => row.instagram_account_id === null)
+    ?? null;
 }
 
-export function connectBot(botToken: string) {
+export function connectBot(botToken: string, instagramAccountId: string | null) {
   return callSetup<{ id: string; botUsername: string; botName: string }>({
     action: 'connect',
     botToken,
+    instagramAccountId,
   });
 }
 
-export function setBotChannel(channel: string) {
+export function setBotChannel(botId: string, channel: string) {
   return callSetup<{ channelId: string; channelTitle: string }>({
     action: 'set_channel',
+    botId,
     channel,
   });
 }
 
-export function refreshWebhook() {
-  return callSetup<{ ok: true; pendingUpdates: number }>({ action: 'refresh_webhook' });
+export function refreshWebhook(botId: string) {
+  return callSetup<{ ok: true; pendingUpdates: number }>({ action: 'refresh_webhook', botId });
 }
 
 export interface SubscriptionSetupCheck {
@@ -98,12 +114,23 @@ export interface SubscriptionSetupCheck {
  * Proves the subscription gate against the live Telegram API and repairs the
  * webhook's chat_member subscription if an older registration omitted it.
  */
-export function verifySubscriptionSetup() {
-  return callSetup<SubscriptionSetupCheck>({ action: 'verify_subscription' });
+export function verifySubscriptionSetup(botId: string) {
+  return callSetup<SubscriptionSetupCheck>({ action: 'verify_subscription', botId });
 }
 
-export function disconnectBot() {
-  return callSetup<{ ok: true }>({ action: 'disconnect' });
+export function disconnectBot(botId: string) {
+  return callSetup<{ ok: true }>({ action: 'disconnect', botId });
+}
+
+/**
+ * Moves an existing bot to one Instagram account, or back to serving all of
+ * them when `instagramAccountId` is null.
+ *
+ * The funnels, subscribers and broadcasts stay where they are — this rewrites
+ * one column, unlike disconnecting and reconnecting, which cascades them away.
+ */
+export function assignBotAccount(botId: string, instagramAccountId: string | null) {
+  return callSetup<{ ok: true }>({ action: 'assign_account', botId, instagramAccountId });
 }
 
 export async function updateBot(
@@ -307,8 +334,18 @@ export async function deleteFunnel(funnelId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function loadFunnelStats(): Promise<TelegramFunnelStats[]> {
-  const { data, error } = await supabase.from('telegram_funnel_stats').select('*');
+/**
+ * Per-funnel counts for one bot.
+ *
+ * Scoped like every other read on the page: a user may own a bot per Instagram
+ * account, and the analytics table renders these rows directly — unfiltered it
+ * would list the other account's funnels underneath this one's.
+ */
+export async function loadFunnelStats(botId: string): Promise<TelegramFunnelStats[]> {
+  const { data, error } = await supabase
+    .from('telegram_funnel_stats')
+    .select('*')
+    .eq('telegram_bot_id', botId);
   if (error) throw error;
   return (data ?? []) as TelegramFunnelStats[];
 }

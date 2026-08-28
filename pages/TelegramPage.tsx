@@ -8,6 +8,7 @@ import {
   UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import { supabase } from '../lib/supabase';
+import { useAccount } from '../contexts/AccountContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../contexts/ModalContext';
 import type {
@@ -83,6 +84,7 @@ function pluralizeRu(count: number, one: string, few: string, many: string): str
 
 export default function TelegramPage() {
   const { user } = useAuth();
+  const { selectedAccount } = useAccount();
   const { confirm, toast } = useConfirm();
 
   const [activeTab, setActiveTab] = useState<Tab>('bot');
@@ -102,12 +104,20 @@ export default function TelegramPage() {
   const [broadcastDraft, setBroadcastDraft] = useState<BroadcastDraft | null>(null);
   const [saving, setSaving] = useState(false);
 
+  /*
+    Everything on this page hangs off one bot, and a bot now belongs to one
+    Instagram account, so switching accounts in the sidebar switches the whole
+    page — funnels, subscribers, broadcasts and stats included. Without this
+    the owner of two accounts saw one shared set of funnels under both.
+  */
+  const accountId = selectedAccount?.id ?? null;
+
   const refresh = useCallback(async () => {
     if (!user) return;
     setLoadError(null);
 
     try {
-      const currentBot = await loadBot();
+      const currentBot = await loadBot(accountId);
       setBot(currentBot);
 
       if (!currentBot) {
@@ -134,8 +144,17 @@ export default function TelegramPage() {
         loadSubscriberTotals(currentBot.id),
         loadSignupDates(currentBot.id, DAYS_SHOWN),
         loadBroadcasts(currentBot.id),
-        loadFunnelStats(),
-        supabase.from('lead_magnets').select('*').eq('user_id', user.id),
+        loadFunnelStats(currentBot.id),
+        /* The funnel editor offers these as the Instagram codeword feeding a
+           funnel, so it may only see this account's own scenarios plus the
+           ones marked for every account. */
+        accountId
+          ? supabase
+              .from('lead_magnets')
+              .select('*')
+              .eq('user_id', user.id)
+              .or(`instagram_account_id.eq.${accountId},instagram_account_id.is.null`)
+          : supabase.from('lead_magnets').select('*').eq('user_id', user.id),
       ]);
 
       setFunnels(funnelRows);
@@ -148,7 +167,7 @@ export default function TelegramPage() {
     } catch (error) {
       setLoadError(getErrorMessage(error, 'Не удалось загрузить данные Telegram'));
     }
-  }, [user]);
+  }, [user, accountId]);
 
   useEffect(() => {
     if (!user) return;
@@ -348,7 +367,11 @@ export default function TelegramPage() {
     <PageShell width="wide" className="telegram-page space-y-8">
       <PageHeader
         title="Telegram"
-        description="Свяжите Instagram с Telegram: бот встретит человека, выдаст материал и поможет довести его до заявки."
+        description={
+          selectedAccount
+            ? `Бот, воронки и подписчики аккаунта @${selectedAccount.username}. Переключите аккаунт в боковом меню, чтобы открыть его воронки.`
+            : 'Свяжите Instagram с Telegram: бот встретит человека, выдаст материал и поможет довести его до заявки.'
+        }
         className="mb-0"
         actions={
           bot && currentTab === 'funnels' ? (
@@ -448,7 +471,9 @@ export default function TelegramPage() {
         </Callout>
       )}
 
-      {currentTab === 'bot' && <BotSetupTab bot={bot} onChanged={refresh} />}
+      {currentTab === 'bot' && (
+        <BotSetupTab bot={bot} account={selectedAccount} onChanged={refresh} />
+      )}
 
       {bot && currentTab === 'funnels' && (
         <FunnelsTab

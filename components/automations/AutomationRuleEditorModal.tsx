@@ -101,12 +101,17 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
     mistake nothing downstream reports — the bot answers with its default
     funnel, and the reader gets a lead magnet they did not ask for.
   */
+  /* Keyed to the scenario's own account, because a bot belongs to one: reading
+     the shared bot instead would offer another account's funnels here and then
+     accuse a perfectly good link of pointing at a funnel that does not exist. */
   useEffect(() => {
     let cancelled = false;
+    setBotUsername('');
+    setFunnels([]);
 
     (async () => {
       try {
-        const bot = await loadBot();
+        const bot = await loadBot(form.instagram_account_id);
         if (!bot || cancelled) return;
         setBotUsername(bot.bot_username);
 
@@ -118,7 +123,7 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
     })();
 
     return () => { cancelled = true; };
-  }, []);
+  }, [form.instagram_account_id]);
 
   const linkedSlug = useMemo(() => funnelSlugFromLink(form.response_url), [form.response_url]);
   const linkedFunnel = funnels.find((funnel) => funnel.slug === linkedSlug);

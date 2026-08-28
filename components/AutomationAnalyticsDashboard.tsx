@@ -18,6 +18,8 @@ import {
 interface AutomationAnalyticsDashboardProps {
   view?: 'analytics' | 'leads';
   rules: LeadMagnet[];
+  /** Instagram account to report on; `null` covers every account of the user. */
+  accountId?: string | null;
 }
 
 type CrmContact = LiveAutomationEvent & {
@@ -99,6 +101,7 @@ const EMPTY_ANALYTICS: AutomationAnalyticsData = {
 export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboardProps> = ({
   view = 'analytics',
   rules,
+  accountId = null,
 }) => {
   const [timeRange, setTimeRange] = useState<'7d' | '14d' | '30d'>('7d');
   const [crmSearch, setCrmSearch] = useState('');
@@ -119,9 +122,12 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
 
     void (async () => {
       try {
+        /* Filtered in SQL, not here: the function returns finished aggregates,
+           so there is nothing left to narrow down once they arrive. */
         const { data, error } = await supabase.rpc('get_automation_analytics', {
           p_days: 30,
           p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+          p_instagram_account_id: accountId,
         });
         if (error) throw error;
         if (!cancelled) {
@@ -135,7 +141,10 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
     })();
 
     return () => { cancelled = true; };
-  }, [view]);
+  }, [view, accountId]);
+
+  /* Page 4 of one account's leads is not page 4 of another's. */
+  useEffect(() => { setCrmPage(0); }, [accountId]);
 
   useEffect(() => {
     if (view !== 'leads') return;
@@ -149,6 +158,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
           p_offset: crmPage * LEADS_PAGE_SIZE,
           p_search: crmSearch.trim(),
           p_status: crmStatusFilter,
+          p_instagram_account_id: accountId,
         });
         if (error) throw error;
         if (cancelled) return;
@@ -191,7 +201,7 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [view, crmPage, crmSearch, crmStatusFilter]);
+  }, [view, crmPage, crmSearch, crmStatusFilter, accountId]);
 
   const contactLabel = (lead: LiveAutomationEvent) => {
     if (lead.commenter_username) return `@${lead.commenter_username}`;

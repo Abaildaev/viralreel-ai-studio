@@ -109,21 +109,63 @@ Deno.serve(async (req: Request) => {
         return response({ error: "Токен бота выглядит некорректно. Скопируйте его из @BotFather." }, 400);
       }
 
+      /*
+        Which Instagram account this bot serves. Null keeps the pre-per-account
+        behaviour: one bot shared by every account of the user.
+      */
+      const instagramAccountId = typeof body?.instagramAccountId === "string" && body.instagramAccountId
+        ? body.instagramAccountId
+        : null;
+
+      if (instagramAccountId) {
+        const { data: account } = await supabase
+          .from("instagram_accounts")
+          .select("id")
+          .eq("id", instagramAccountId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!account) return response({ error: "Instagram-аккаунт не найден" }, 404);
+      }
+
       const me = await callTelegram<{ id: number; username: string; first_name: string }>(
         botToken,
         "getMe",
       );
 
+      /*
+        One bot may not serve two accounts: the funnels, subscribers and
+        broadcasts hang off the bot row, so a shared token would silently merge
+        two audiences back together — the very thing per-account bots exist to
+        stop. Telegram would also point the webhook at whichever row registered
+        last, leaving the other one deaf.
+      */
+      const { data: sameUsername } = await supabase
+        .from("telegram_bots")
+        .select("id,instagram_account_id")
+        .eq("user_id", user.id)
+        .eq("bot_username", me.username ?? "");
+
+      const clash = (sameUsername ?? []).find(
+        (row) => row.instagram_account_id !== instagramAccountId,
+      );
+
+      if (clash) {
+        return response({
+          error: `@${me.username} уже подключён к другому аккаунту. Создайте отдельного бота в @BotFather.`,
+        }, 409);
+      }
+
       const secret = randomSecret();
       const encrypted = await encryptCredential(botToken);
       const now = new Date().toISOString();
 
-      // Upsert on user_id: reconnecting replaces the token in place, so funnels
-      // and subscribers survive a token rotation.
+      // Upsert on (user_id, instagram_account_id): reconnecting replaces the
+      // token in place, so funnels and subscribers survive a token rotation.
       const { data: saved, error } = await supabase
         .from("telegram_bots")
         .upsert({
           user_id: user.id,
+          instagram_account_id: instagramAccountId,
           bot_token_encrypted: encrypted,
           webhook_secret: secret,
           bot_username: me.username ?? "",
@@ -131,7 +173,7 @@ Deno.serve(async (req: Request) => {
           is_active: true,
           last_error: null,
           updated_at: now,
-        }, { onConflict: "user_id" })
+        }, { onConflict: "user_id,instagram_account_id" })
         .select("id,bot_username,bot_name")
         .single();
 
@@ -156,13 +198,80 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: bot } = await supabase
+    /*
+      Every other action names the bot it operates on. A user can now own one
+      row per Instagram account, so "the user's bot" is no longer a unique
+      thing to look up; the id is checked against the caller rather than
+      trusted.
+
+      It stays optional so this function and the interface can be deployed in
+      either order: a caller from before per-account bots sends no id, and
+      while the user still owns exactly one bot there is no ambiguity to
+      resolve. Once there are several, the id is the only way to say which.
+    */
+    const botId = typeof body?.botId === "string" ? body.botId.trim() : "";
+
+    const query = supabase
       .from("telegram_bots")
       .select("id,bot_token_encrypted,bot_username,webhook_secret,channel_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      .eq("user_id", user.id);
 
-    if (!bot) return response({ error: "Бот не подключён" }, 404);
+    const { data: bots } = botId ? await query.eq("id", botId) : await query;
+
+    if (!bots || bots.length === 0) return response({ error: "Бот не подключён" }, 404);
+    if (bots.length > 1) return response({ error: "Не указан бот" }, 400);
+
+    const bot = bots[0];
+
+    /*
+      Moves an existing bot between Instagram accounts, or back to serving all
+      of them.
+
+      Disconnecting and reconnecting would do the same thing to the row and
+      take the funnels, subscribers and broadcasts with it — they cascade off
+      the bot. That made the only way to stop a shared bot answering for a
+      second account cost the first account everything it had collected, which
+      is no choice at all. Nothing here touches Telegram: the webhook is
+      registered against the bot's id, and the id does not change.
+    */
+    if (action === "assign_account") {
+      const targetAccountId = typeof body?.instagramAccountId === "string" && body.instagramAccountId
+        ? body.instagramAccountId
+        : null;
+
+      if (targetAccountId) {
+        const { data: account } = await supabase
+          .from("instagram_accounts")
+          .select("id,username")
+          .eq("id", targetAccountId)
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!account) return response({ error: "Instagram-аккаунт не найден" }, 404);
+
+        // The unique constraint would reject this anyway; saying which bot is
+        // in the way beats surfacing a constraint violation.
+        const { data: taken } = await supabase
+          .from("telegram_bots")
+          .select("id,bot_username")
+          .eq("user_id", user.id)
+          .eq("instagram_account_id", targetAccountId)
+          .neq("id", bot.id);
+
+        if (taken && taken.length > 0) {
+          return response({
+            error: `У @${account.username} уже есть бот @${taken[0].bot_username}. Сначала отключите его.`,
+          }, 409);
+        }
+      }
+
+      const { error } = await supabase
+        .from("telegram_bots")
+        .update({ instagram_account_id: targetAccountId, updated_at: new Date().toISOString() })
+        .eq("id", bot.id);
+
+      if (error) throw error;
+      return response({ ok: true });
+    }
 
     const botToken = await decryptCredential(bot.bot_token_encrypted as string);
 

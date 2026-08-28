@@ -43,7 +43,7 @@ export function useGenerator() {
       loadLeadMagnets();
       loadTemplates();
     }
-  }, [user]);
+  }, [user, selectedAccount?.id]);
 
   // Warm the render-only webfonts while the user is still picking settings, so
   // the first render does not stall waiting on the font CDN. The renderer awaits
@@ -117,12 +117,22 @@ export function useGenerator() {
     }
   };
 
+  /*
+    Scoped to the chosen account, the way the templates page that manages these
+    rows already scopes them. Unfiltered, the generator offered backgrounds
+    belonging to an account the reel was not being made for — and every one of
+    them disappeared from «Шаблоны» the moment you looked for it there.
+  */
   const loadTemplates = async () => {
     if (!user) return;
-    const { data } = await supabase
+    let query = supabase
       .from('video_templates')
       .select('*')
       .eq('user_id', user.id);
+
+    if (selectedAccount) query = query.eq('instagram_account_id', selectedAccount.id);
+
+    const { data } = await query;
     if (data) setTemplates(data);
   };
 

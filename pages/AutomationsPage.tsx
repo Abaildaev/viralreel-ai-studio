@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { INSTAGRAM_ACCOUNT_COLUMNS, supabase } from '../lib/supabase';
-import { LeadMagnet, LeadMagnetStats, InstagramAccount, NO_ATTACHMENT, TelegramBot } from '../types';
+import { LeadMagnet, LeadMagnetStats, InstagramAccount, NO_ATTACHMENT } from '../types';
 import { attachmentFields } from '../services/attachmentService';
+import { useAccount } from '../contexts/AccountContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useConfirm } from '../contexts/ModalContext';
 import AutomationAnalyticsDashboard from '../components/AutomationAnalyticsDashboard';
@@ -12,8 +13,7 @@ import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
 import ConversationsTab from '../components/automations/ConversationsTab';
-import { Button, PageHeader, PageShell } from '../components/ui';
-import { loadBot } from '../services/telegramService';
+import { Button, Callout, PageHeader, PageShell } from '../components/ui';
 import {
   DEFAULT_SALES_AGENT_CONFIG,
   loadSalesAgentConfig,
@@ -73,6 +73,7 @@ const blankForm: AutomationForm = {
 
 export default function AutomationsPage() {
   const { user } = useAuth();
+  const { selectedAccount } = useAccount();
   const { confirm, alert, toast } = useConfirm();
 
   const [activeTab, setActiveTab] = useState<Tab>('rules');
@@ -80,8 +81,15 @@ export default function AutomationsPage() {
   const [stats, setStats] = useState<LeadMagnetStats[]>([]);
   const [events, setEvents] = useState<LiveAutomationEvent[]>([]);
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
-  const [telegramBot, setTelegramBot] = useState<TelegramBot | null>(null);
   const [loading, setLoading] = useState(true);
+
+  /*
+    Scenarios, events, leads and analytics all belong to one Instagram account,
+    but the page used to read them by user alone — so the owner of two accounts
+    saw one shared list under both. `null` on a scenario still means "все
+    аккаунты", the convention the generator's lead magnets already follow.
+  */
+  const accountId = selectedAccount?.id ?? null;
 
   // Editor Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,15 +103,25 @@ export default function AutomationsPage() {
   // The agent config lives in the database and localStorage
   useEffect(() => {
     if (!user) return;
-    const defaultAccId = accounts[0]?.id ?? null;
+    const defaultAccId = accountId ?? accounts[0]?.id ?? null;
     setSelectedAgentAccountId(defaultAccId);
     loadSalesAgentConfig(defaultAccId).then(setAgentConfig);
-  }, [user, accounts]);
+  }, [user, accounts, accountId]);
 
   const handleSaveAgent = async () => {
     if (!user) return;
     setSavingAgent(true);
-    const { error, isLocalFallback } = await saveSalesAgentConfig(agentConfig, user.id);
+    /*
+      Bound to the account picked above, not to whichever row the editor was
+      filled from. An account with no agent of its own loads the user's shared
+      one as a starting point, and saving that back carried its null account id
+      along — so configuring the agent for the second account quietly rewrote
+      the config the first one was still using.
+    */
+    const { error, isLocalFallback } = await saveSalesAgentConfig(
+      { ...agentConfig, instagram_account_id: selectedAgentAccountId },
+      user.id,
+    );
     setSavingAgent(false);
 
     if (error) {
@@ -131,21 +149,30 @@ export default function AutomationsPage() {
     if (user) {
       loadAll();
     }
-  }, [user]);
+  }, [user, accountId]);
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [rRes, sRes, eRes, aRes, currentTelegramBot] = await Promise.all([
-        supabase.from('lead_magnets').select('*').order('created_at', { ascending: false }),
+      const rulesQuery = supabase
+        .from('lead_magnets')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      /* The live feed stays capped at 50 rows. Analytics and CRM contacts are
+         calculated by bounded RPCs only when their tabs are mounted. */
+      const eventsQuery = supabase
+        .from('instagram_automation_events')
+        .select('*, lead_magnets(title, codeword, response_url), instagram_accounts(username)')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      const [rRes, sRes, eRes, aRes] = await Promise.all([
+        accountId
+          ? rulesQuery.or(`instagram_account_id.eq.${accountId},instagram_account_id.is.null`)
+          : rulesQuery,
         supabase.from('lead_magnet_stats').select('*'),
-        /* The live feed stays capped at 50 rows. Analytics and CRM contacts are
-           calculated by bounded RPCs only when their tabs are mounted. */
-        supabase
-          .from('instagram_automation_events')
-          .select('*, lead_magnets(title, codeword, response_url), instagram_accounts(username)')
-          .order('created_at', { ascending: false })
-          .limit(50),
+        accountId ? eventsQuery.eq('instagram_account_id', accountId) : eventsQuery,
         /*
           `select('*')` fails here by design — the hardening migration revoked
           column access so the browser can never read `access_token`, which
@@ -156,7 +183,6 @@ export default function AutomationsPage() {
           .from('instagram_accounts')
           .select(INSTAGRAM_ACCOUNT_COLUMNS)
           .order('created_at', { ascending: false }),
-        loadBot().catch(() => null),
       ]);
 
       // Supabase reports failures in the result rather than throwing, so a
@@ -168,7 +194,6 @@ export default function AutomationsPage() {
       if (sRes.data) setStats(sRes.data);
       if (eRes.data) setEvents(eRes.data as unknown as LiveAutomationEvent[]);
       if (aRes.data) setAccounts(aRes.data);
-      setTelegramBot(currentTelegramBot);
     } catch (err: any) {
       console.error('Error loading automations:', err);
       toast({ message: `Не удалось загрузить автоматизации: ${err.message}`, tone: 'error' });
@@ -180,7 +205,7 @@ export default function AutomationsPage() {
   const handleCreateNew = () => {
     setEditingForm({
       ...blankForm,
-      instagram_account_id: accounts[0]?.id || null,
+      instagram_account_id: accountId || accounts[0]?.id || null,
     });
     setIsModalOpen(true);
   };
@@ -346,7 +371,11 @@ export default function AutomationsPage() {
     <PageShell width="wide" className="crm-page space-y-8">
       <PageHeader
         title="Автоматизации"
-        description="Настройте воронки: от кодового слова в комментарии до выдачи материала в Direct."
+        description={
+          selectedAccount
+            ? `Воронки аккаунта @${selectedAccount.username}: от кодового слова в комментарии до выдачи материала в Direct.`
+            : 'Настройте воронки: от кодового слова в комментарии до выдачи материала в Direct.'
+        }
         className="mb-0"
         actions={
           activeTab === 'rules' ? (
@@ -460,16 +489,25 @@ export default function AutomationsPage() {
 
       {/* Tab 1: Rules List */}
       {activeTab === 'rules' && (
-        <AutomationRulesTab
-          rules={rules}
-          stats={stats}
-          accounts={accounts}
-          loading={loading}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onToggleActive={handleToggleActive}
-          onCreateNew={handleCreateNew}
-        />
+        <>
+          {selectedAccount && rules.some((rule) => !rule.instagram_account_id) && (
+            <Callout tone="info" className="mb-6">
+              Часть воронок помечена «Все аккаунты» — они срабатывают на каждом подключённом
+              Instagram и поэтому видны здесь под любым аккаунтом. Чтобы воронка работала только
+              на @{selectedAccount.username}, выберите этот аккаунт в её настройках.
+            </Callout>
+          )}
+          <AutomationRulesTab
+            rules={rules}
+            stats={stats}
+            accounts={accounts}
+            loading={loading}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onToggleActive={handleToggleActive}
+            onCreateNew={handleCreateNew}
+          />
+        </>
       )}
 
       {/* Tab 2: AI Sales Agent */}
@@ -499,26 +537,30 @@ export default function AutomationsPage() {
 
       {/* Leads */}
       {activeTab === 'leads' && (
-        <AutomationAnalyticsDashboard view="leads" rules={rules} />
+        <AutomationAnalyticsDashboard view="leads" rules={rules} accountId={accountId} />
       )}
 
       {/* Analytics */}
       {activeTab === 'analytics' && (
-        <AutomationAnalyticsDashboard view="analytics" rules={rules} />
+        <AutomationAnalyticsDashboard view="analytics" rules={rules} accountId={accountId} />
       )}
 
-      {activeTab === 'conversations' && <ConversationsTab />}
+      {activeTab === 'conversations' && <ConversationsTab accountId={accountId} />}
 
       {/* Events */}
       {activeTab === 'events' && (
         <div className="mx-auto w-full max-w-5xl">
-          <AutomationLiveFeed initialEvents={events} onRefresh={loadAll} />
+          <AutomationLiveFeed
+            initialEvents={events}
+            selectedAccountId={accountId}
+            onRefresh={loadAll}
+          />
         </div>
       )}
 
       {/* Tab 5: Trigger Tester */}
       {activeTab === 'tester' && (
-        <AutomationTesterTab rules={rules} accounts={accounts} />
+        <AutomationTesterTab rules={rules} accounts={accounts} accountId={accountId} />
       )}
 
       {/* Rule Create/Edit Modal */}

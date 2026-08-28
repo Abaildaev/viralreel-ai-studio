@@ -13,16 +13,48 @@ interface AccountContextType {
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
+/*
+  The chosen account now decides what most of the app shows — automations,
+  Telegram bot and funnels, scheduler, templates. Forgetting it on reload would
+  drop the reader back onto the first account and make their own scenarios look
+  like they had vanished, so the id outlives the tab.
+*/
+const SELECTED_ACCOUNT_KEY = 'viralreel_selected_account_id';
+
+function readStoredAccountId(): string | null {
+  try {
+    return localStorage.getItem(SELECTED_ACCOUNT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeAccountId(accountId: string | null): void {
+  try {
+    if (accountId) localStorage.setItem(SELECTED_ACCOUNT_KEY, accountId);
+    else localStorage.removeItem(SELECTED_ACCOUNT_KEY);
+  } catch {
+    /* private mode or blocked storage — the selection is simply not remembered */
+  }
+}
+
 export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<InstagramAccount[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<InstagramAccount | null>(null);
+  const [selectedAccount, setSelectedAccountState] = useState<InstagramAccount | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const setSelectedAccount = (account: InstagramAccount | null) => {
+    setSelectedAccountState(account);
+    storeAccountId(account?.id ?? null);
+  };
 
   const loadAccounts = async () => {
     if (!user) {
       setAccounts([]);
-      setSelectedAccount(null);
+      // Signing out clears the list, not the preference: the same person
+      // signing back in should land on the account they were working with.
+      setSelectedAccountState(null);
       setLoading(false);
       return;
     }
@@ -53,8 +85,9 @@ export const AccountProvider: React.FC<{ children: ReactNode }> = ({ children })
           object made the main card show the avatar while the sidebar still
           rendered the initial letter.
         */
-        const refreshedSelected = selectedAccount
-          ? data.find((account: InstagramAccount) => account.id === selectedAccount.id)
+        const wantedId = selectedAccount?.id ?? readStoredAccountId();
+        const refreshedSelected = wantedId
+          ? data.find((account: InstagramAccount) => account.id === wantedId)
           : null;
         const nextSelected = refreshedSelected || data.find((account: InstagramAccount) => account.is_active) || data[0] || null;
         setSelectedAccount(nextSelected);

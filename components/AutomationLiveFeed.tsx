@@ -75,6 +75,12 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
         (payload) => {
           if (payload.eventType === 'INSERT') {
             const newRow = payload.new as any;
+            /* Realtime delivers every event the subscription can see, and the
+               feed is scoped to one account — an insert from another one would
+               appear here and nowhere else, since the initial page never
+               fetched it. */
+            if (selectedAccountId && newRow.instagram_account_id !== selectedAccountId) return;
+
             const formattedEvent: LiveAutomationEvent = {
               id: newRow.id,
               trigger_type: newRow.trigger_type || 'comment',
@@ -121,7 +127,7 @@ export const AutomationLiveFeed: React.FC<AutomationLiveFeedProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [selectedAccountId]);
 
   const filteredEvents = events.filter((e) => {
     if (statusFilter !== 'all' && e.status !== statusFilter) return false;

@@ -337,6 +337,8 @@ export interface AiSalesMessage {
 export interface TelegramBot {
   id: string;
   user_id: string;
+  /** Instagram account this bot serves. `null` = shared by every account. */
+  instagram_account_id: string | null;
   bot_username: string;
   bot_name: string;
   channel_id: string;

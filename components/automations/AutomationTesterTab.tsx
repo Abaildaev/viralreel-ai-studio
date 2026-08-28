@@ -25,13 +25,16 @@ interface TestResult {
 interface AutomationTesterTabProps {
   rules: LeadMagnet[];
   accounts: InstagramAccount[];
+  /** The account the page is scoped to, so the tester opens on the same one. */
+  accountId?: string | null;
 }
 
 export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
   rules,
   accounts,
+  accountId = null,
 }) => {
-  const [selectedAccountId, setSelectedAccountId] = useState<string>(accounts[0]?.id || '');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(accountId || accounts[0]?.id || '');
   const [testTrigger, setTestTrigger] = useState<'comment' | 'dm'>('comment');
   const [testText, setTestText] = useState('');
   const [testing, setTesting] = useState(false);
@@ -48,9 +51,15 @@ export const AutomationTesterTab: React.FC<AutomationTesterTabProps> = ({
     setSelectedAccountId((current) =>
       accounts.some((account) => account.id === current)
         ? current
-        : (accounts[0]?.id ?? '')
+        : (accountId ?? accounts[0]?.id ?? '')
     );
-  }, [accounts]);
+  }, [accounts, accountId]);
+
+  /* Switching accounts in the sidebar reloads `rules` for that account, so a
+     tester still pointed at the previous one would find nothing to match. */
+  useEffect(() => {
+    if (accountId) setSelectedAccountId(accountId);
+  }, [accountId]);
 
   const evaluateTrigger = (text: string, triggerType: 'comment' | 'dm') => {
     const trimmed = text.trim();

@@ -42,17 +42,50 @@ const BatchGeneratorPage: React.FC = () => {
 
   useEffect(() => {
     if (user) loadAll();
-  }, [user]);
+  }, [user, selectedAccount?.id]);
 
+  /*
+    Scoped to the chosen account.
+
+    A preset and a background belong to exactly one account — that is what the
+    modal asks for and what «Шаблоны» shows — so listing every account's here
+    put two sets of presets in one column and made a run against the wrong one
+    a click away. Scenarios keep the `null` escape hatch: «Все аккаунты» is a
+    real setting for them, and the worker honours it.
+  */
   const loadAll = async () => {
     if (!user) return;
     setLoading(true);
 
+    const accountId = selectedAccount?.id;
+
+    let presetsQuery = supabase
+      .from('batch_presets')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    let templatesQuery = supabase.from('video_templates').select('*').eq('user_id', user.id);
+
+    let magnetsQuery = supabase
+      .from('lead_magnets')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (accountId) {
+      presetsQuery = presetsQuery.eq('instagram_account_id', accountId);
+      templatesQuery = templatesQuery.eq('instagram_account_id', accountId);
+      magnetsQuery = magnetsQuery.or(
+        `instagram_account_id.eq.${accountId},instagram_account_id.is.null`,
+      );
+    }
+
     const [presetsRes, templatesRes, audioRes, lmRes] = await Promise.all([
-      supabase.from('batch_presets').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('video_templates').select('*').eq('user_id', user.id),
+      presetsQuery,
+      templatesQuery,
       supabase.from('audio_files').select('*').eq('user_id', user.id),
-      supabase.from('lead_magnets').select('*').eq('user_id', user.id).eq('is_active', true),
+      magnetsQuery,
     ]);
 
     if (presetsRes.data) setPresets(presetsRes.data);
@@ -184,7 +217,11 @@ const BatchGeneratorPage: React.FC = () => {
     <PageShell>
       <PageHeader
         title="Автогенератор"
-        description={`${activePresetsCount} пресетов, ${totalVideos} видео за запуск`}
+        description={
+          selectedAccount
+            ? `@${selectedAccount.username} · ${activePresetsCount} пресетов, ${totalVideos} видео за запуск`
+            : `${activePresetsCount} пресетов, ${totalVideos} видео за запуск`
+        }
         actions={
           <>
           <Button
@@ -266,7 +303,9 @@ const BatchGeneratorPage: React.FC = () => {
         <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
           <ExclamationTriangleIcon className="w-5 h-5 text-amber-500 flex-shrink-0" />
           <p className="text-sm text-amber-700">
-            Загрузите подложки для аккаунтов в разделе "Подложки".
+            {selectedAccount
+              ? `У @${selectedAccount.username} нет активных подложек — загрузите их в разделе «Шаблоны».`
+              : 'Загрузите подложки для аккаунтов в разделе «Шаблоны».'}
           </p>
         </div>
       )}
@@ -276,7 +315,9 @@ const BatchGeneratorPage: React.FC = () => {
           <BoltIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-500 mb-2">Нет пресетов</h3>
           <p className="text-sm text-gray-400 mb-6">
-            Создайте пресет для автоматической генерации контента
+            {selectedAccount
+              ? `У @${selectedAccount.username} пока нет пресетов. Пресеты других аккаунтов открываются переключателем в боковом меню.`
+              : 'Создайте пресет для автоматической генерации контента'}
           </p>
           <button
             onClick={() => { setEditingPreset(null); setShowModal(true); }}

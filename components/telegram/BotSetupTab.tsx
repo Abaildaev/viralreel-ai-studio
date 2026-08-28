@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ArrowPathIcon,
   CheckCircleIcon,
@@ -6,12 +6,14 @@ import {
   MegaphoneIcon,
   ShieldCheckIcon,
   TrashIcon,
+  UserCircleIcon,
 } from '@heroicons/react/24/outline';
-import type { TelegramBot } from '../../types';
+import type { InstagramAccount, TelegramBot } from '../../types';
 import { Badge, Button, Callout, Card, Field, Input, Section, Switch } from '../ui';
 import { useConfirm } from '../../contexts/ModalContext';
 import { getErrorMessage } from '../../utils/errorMessage';
 import {
+  assignBotAccount,
   connectBot,
   disconnectBot,
   refreshWebhook,
@@ -22,19 +24,30 @@ import {
 
 interface BotSetupTabProps {
   bot: TelegramBot | null;
+  /** The account the page is scoped to; a new bot is bound to it. */
+  account: InstagramAccount | null;
   onChanged: () => Promise<void> | void;
 }
 
-const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
+const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, account, onChanged }) => {
   const { confirm, toast } = useConfirm();
 
   const [token, setToken] = useState('');
   const [channel, setChannel] = useState('');
   const [goal, setGoal] = useState(String(bot?.subscriber_goal ?? 1000));
   const [busy, setBusy] = useState<
-    'connect' | 'channel' | 'subscription' | 'webhook' | 'disconnect' | 'goal' | null
+    'connect' | 'channel' | 'subscription' | 'webhook' | 'disconnect' | 'goal' | 'assign' | null
   >(null);
   const [error, setError] = useState<string | null>(null);
+
+  /* Switching Instagram accounts swaps the whole bot underneath this tab, and
+     a goal seeded once on mount would keep showing the previous bot's number. */
+  useEffect(() => {
+    setGoal(String(bot?.subscriber_goal ?? 1000));
+    setToken('');
+    setChannel('');
+    setError(null);
+  }, [bot?.id]);
 
   const run = async (kind: typeof busy, action: () => Promise<void>, success: string) => {
     setBusy(kind);
@@ -53,15 +66,61 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
   const handleDisconnect = async () => {
     const confirmed = await confirm({
       title: 'Отключить бота?',
-      message:
-        'Воронки, подписчики и рассылки будут удалены вместе с ботом. Ссылки ?start= перестанут работать.',
+      message: shared
+        ? 'Это общий бот — он отключится на всех Instagram-аккаунтах. Воронки, подписчики и рассылки будут удалены, ссылки ?start= перестанут работать.'
+        : 'Воронки, подписчики и рассылки будут удалены вместе с ботом. Ссылки ?start= перестанут работать.',
       variant: 'danger',
     });
-    if (!confirmed) return;
+    if (!confirmed || !bot) return;
     await run('disconnect', async () => {
-      await disconnectBot();
+      await disconnectBot(bot.id);
     }, 'Бот отключён');
   };
+
+  /*
+    A bot with no account of its own answers for every account of the user.
+    That is what everyone had before bots became per-account, so it is stated
+    rather than hidden: on a shared bot both accounts show the same funnels,
+    and the way out is connecting a second bot while this account is selected.
+  */
+  const shared = Boolean(bot) && bot?.instagram_account_id === null;
+
+  const connectForm = (
+    <div className="space-y-4">
+      <Callout tone="info">
+        Создайте бота в <span className="font-medium">@BotFather</span>, отправьте
+        команду <span className="font-medium">/newbot</span> и вставьте выданный токен сюда.
+        {account && (
+          <> Бот будет отвечать только за <span className="font-medium">@{account.username}</span>.</>
+        )}
+      </Callout>
+
+      <Field label="Токен бота" required>
+        {({ id }) => (
+          <Input
+            id={id}
+            type="password"
+            autoComplete="off"
+            placeholder="1234567890:AA..."
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+          />
+        )}
+      </Field>
+
+      <Button
+        variant="primary"
+        disabled={!token.trim()}
+        loading={busy === 'connect'}
+        onClick={() => run('connect', async () => {
+          await connectBot(token.trim(), account?.id ?? null);
+          setToken('');
+        }, 'Бот подключён')}
+      >
+        Подключить бота
+      </Button>
+    </div>
+  );
 
   return (
     <div className="animate-in fade-in grid gap-6 lg:grid-cols-12">
@@ -84,7 +143,20 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                 {bot.webhook_set_at
                   ? <Badge tone="success" dot>вебхук активен</Badge>
                   : <Badge tone="warning" dot>вебхук не установлен</Badge>}
+                <Badge tone={shared ? 'neutral' : 'accent'}>
+                  {shared ? 'общий для всех аккаунтов' : `@${account?.username ?? 'аккаунт'}`}
+                </Badge>
               </div>
+
+              {shared && account && (
+                <Callout tone="warning">
+                  Этот бот общий — его воронки, подписчики и рассылки показываются на всех
+                  Instagram-аккаунтах. Разделить можно двумя способами: закрепить его
+                  за <span className="font-medium">@{account.username}</span> (воронки и подписчики
+                  останутся на месте, остальные аккаунты останутся без бота) либо подключить
+                  им отдельных ботов из @BotFather — у каждого будет свой @username.
+                </Callout>
+              )}
 
               {bot.last_error && (
                 <Callout tone="danger">
@@ -98,7 +170,7 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                   loading={busy === 'webhook'}
                   icon={<ArrowPathIcon className="h-4 w-4" />}
                   onClick={() => run('webhook', async () => {
-                    await refreshWebhook();
+                    await refreshWebhook(bot.id);
                   }, 'Вебхук переустановлен')}
                 >
                   Переустановить вебхук
@@ -120,39 +192,46 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                 }, checked ? 'Бот включён' : 'Бот выключен — воронки не отвечают')}
                 label="Бот отвечает на сообщения"
               />
+
+              {account && (
+                <div className="space-y-4 border-t border-gray-100 pt-4">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Кому принадлежит бот</p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {shared
+                        ? `Сейчас общий. Закрепите за @${account.username}, чтобы его воронки перестали показываться на других аккаунтах — ничего не удалится.`
+                        : `Закреплён за @${account.username}. Верните в общий доступ, если бот должен отвечать за все аккаунты сразу.`}
+                    </p>
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    loading={busy === 'assign'}
+                    icon={<UserCircleIcon className="h-4 w-4" />}
+                    onClick={() => run(
+                      'assign',
+                      async () => {
+                        await assignBotAccount(bot.id, shared ? account.id : null);
+                      },
+                      shared ? `Бот закреплён за @${account.username}` : 'Бот снова общий',
+                    )}
+                  >
+                    {shared ? `Закрепить за @${account.username}` : 'Сделать общим'}
+                  </Button>
+
+                  {shared && (
+                    <div className="border-t border-gray-100 pt-4">
+                      <p className="mb-3 text-sm font-semibold text-gray-900">
+                        Или подключить отдельного бота для @{account.username}
+                      </p>
+                      {connectForm}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
-            <div className="space-y-4">
-              <Callout tone="info">
-                Создайте бота в <span className="font-medium">@BotFather</span>, отправьте
-                команду <span className="font-medium">/newbot</span> и вставьте выданный токен сюда.
-              </Callout>
-
-              <Field label="Токен бота" required>
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    type="password"
-                    autoComplete="off"
-                    placeholder="1234567890:AA..."
-                    value={token}
-                    onChange={(event) => setToken(event.target.value)}
-                  />
-                )}
-              </Field>
-
-              <Button
-                variant="primary"
-                disabled={!token.trim()}
-                loading={busy === 'connect'}
-                onClick={() => run('connect', async () => {
-                  await connectBot(token.trim());
-                  setToken('');
-                }, 'Бот подключён')}
-              >
-                Подключить бота
-              </Button>
-            </div>
+            connectForm
           )}
 
           {error && <Callout tone="danger" className="mt-4">{error}</Callout>}
@@ -194,7 +273,7 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                   loading={busy === 'subscription'}
                   icon={<ShieldCheckIcon className="h-4 w-4" />}
                   onClick={() => run('subscription', async () => {
-                    await verifySubscriptionSetup();
+                    await verifySubscriptionSetup(bot.id);
                   }, 'Подписка работает: бот — администратор, webhook получает вступления')}
                 >
                   Проверить канал и подписку
@@ -215,7 +294,7 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                   disabled={!channel.trim()}
                   loading={busy === 'channel'}
                   onClick={() => run('channel', async () => {
-                    await setBotChannel(channel.trim());
+                    await setBotChannel(bot.id, channel.trim());
                     setChannel('');
                   }, 'Канал обновлён')}
                 >
@@ -239,7 +318,7 @@ const BotSetupTab: React.FC<BotSetupTabProps> = ({ bot, onChanged }) => {
                   disabled={!channel.trim()}
                   loading={busy === 'channel'}
                   onClick={() => run('channel', async () => {
-                    await setBotChannel(channel.trim());
+                    await setBotChannel(bot.id, channel.trim());
                     setChannel('');
                   }, 'Канал подключён')}
                 >

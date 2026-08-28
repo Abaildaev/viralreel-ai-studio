@@ -132,9 +132,17 @@ const AccountsPage: React.FC = () => {
   };
 
   const handleDeleteAccount = async (id: string) => {
+    /*
+      Spelled out because nothing here is deleted along with the account, and
+      the things that survive stop being anyone's: a bot closed on this account
+      goes back to answering for all of them, and the scenarios and posts that
+      pointed here are left without a target rather than removed.
+    */
     const ok = await confirm({
       title: 'Удалить аккаунт?',
-      message: 'Вы уверены, что хотите удалить этот Instagram-аккаунт? Запланированные посты останутся, но не смогут публиковаться.',
+      message:
+        'Запланированные посты, сценарии и подложки этого аккаунта останутся, но публиковать и срабатывать перестанут. ' +
+        'Telegram-бот, закреплённый за аккаунтом, не удаляется — он снова станет общим вместе со своими воронками и подписчиками.',
       confirmText: 'Удалить',
       variant: 'danger',
       icon: 'trash',
