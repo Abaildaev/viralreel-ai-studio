@@ -16,6 +16,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAccount } from '../contexts/AccountContext';
 import { AudioFile } from '../types';
 import { renderBudgetReelsVideo } from '../utils/budgetReelsRenderer';
+import {
+  generateBudgetReelsCaptions,
+  normalizeBudgetCodeword,
+} from '../services/ai/budgetReelsCaptions';
 
 // --- ДАННЫЕ И КОНФИГИ ---
 
@@ -88,24 +92,6 @@ const BUDGET_TITLES = [
   "ФИНАНСОВАЯ\nПОДУШКА БЕЗОПАСНОСТИ"
 ];
 
-const BUDGET_CAPTIONS = [
-  "Хочешь навести порядок в деньгах? Пиши ТАБЛИЦА в комментариях — и я отправлю тебе шаблон для учёта финансов в директ 💸",
-  "Сохрани, чтобы не потерять 📌\nПиши «БЮДЖЕТ» в комменты — скину готовый шаблон бесплатно 🎁",
-  "90% людей не знают, куда уходят их деньги.\nПиши «ХОЧУ» — отправлю таблицу учёта в директ 📊",
-  "Ты тоже каждый месяц не понимаешь, куда делись деньги?\nПиши ШАБЛОН — пришлю бесплатный инструмент для учёта 💰",
-  "Этот метод помог мне откладывать 20% с любого дохода.\nХочешь таблицу? Пиши ФИНАНСЫ в комменты 👇",
-  "Деньги любят счёт. А ты ведёшь свой бюджет?\nПиши «ПЛАН» — скину готовую систему в директ 📋",
-  "Если бы мне показали это раньше, я бы сэкономил(а) сотни тысяч.\nПиши ТАБЛИЦА — получи шаблон бесплатно ✨",
-  "Перестань тратить на автомате.\nПиши «УЧЁТ» в комменты — отправлю таблицу для контроля расходов 📱",
-  "Сколько ты тратишь на еду? А на развлечения?\nЕсли не знаешь — пиши БЮДЖЕТ, помогу разобраться 🔍",
-  "Финансовая грамотность начинается с одной таблицы.\nПиши «СТАРТ» — скину шаблон в директ 🚀",
-  "Этот способ планирования бюджета изменит твоё отношение к деньгам.\nПиши ФОРМУЛА — получи в директ бесплатно 💡",
-  "Правило 50/30/20 работает, если делать правильно.\nПиши «КАК» — отправлю пошаговую инструкцию 📝",
-  "Не экономь — управляй!\nХочешь таблицу для управления бюджетом? Пиши ДЕНЬГИ 👇💸",
-  "Я веду бюджет уже 2 года и это лучшее, что я сделал(а).\nПиши «НАЧАТЬ» — скину свой шаблон в директ 🎯",
-  "Один простой инструмент = полный контроль над финансами.\nПиши ТАБЛИЦА в комменты — отправлю бесплатно 📊✨",
-];
-
 const formatMoney = (amount: number): string => {
   return Math.round(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 };
@@ -139,6 +125,8 @@ export default function BudgetReelsPage() {
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number; step: string } | null>(null);
   const [batchErrors, setBatchErrors] = useState<string[]>([]);
   const [batchDone, setBatchDone] = useState(false);
+  const [codewordOptions, setCodewordOptions] = useState<Array<{ value: string; label: string }>>([]);
+  const [selectedCodeword, setSelectedCodeword] = useState('');
   const abortRef = useRef(false);
 
   // === Загрузка аудио при монтировании ===
@@ -147,6 +135,44 @@ export default function BudgetReelsPage() {
     supabase.from('audio_files').select('*').order('created_at', { ascending: false })
       .then(({ data }) => { if (data) setAudioFiles(data); });
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    const loadCodewords = async () => {
+      let query = supabase
+        .from('lead_magnets')
+        .select('id,title,codeword')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      if (selectedAccount?.id) {
+        query = query.or(`instagram_account_id.eq.${selectedAccount.id},instagram_account_id.is.null`);
+      }
+
+      const { data } = await query.order('created_at', { ascending: false });
+      if (cancelled) return;
+
+      const seen = new Set<string>();
+      const options = (data ?? []).flatMap((rule) => {
+        const value = normalizeBudgetCodeword(String(rule.codeword ?? ''));
+        if (!value || seen.has(value)) return [];
+        seen.add(value);
+        return [{ value, label: `${value} — ${rule.title}` }];
+      });
+
+      setCodewordOptions(options);
+      setSelectedCodeword((current) =>
+        options.some((option) => option.value === current)
+          ? current
+          : options[0]?.value || '',
+      );
+    };
+
+    void loadCodewords();
+    return () => { cancelled = true; };
+  }, [user, selectedAccount?.id]);
 
   // === Превью ===
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,6 +251,13 @@ export default function BudgetReelsPage() {
   const startBatchGeneration = async () => {
     if (!user || batchRunning) return;
 
+    const codeword = normalizeBudgetCodeword(selectedCodeword);
+    if (!codeword) {
+      setBatchErrors(['Выберите кодовое слово из активной Instagram-воронки.']);
+      setBatchDone(true);
+      return;
+    }
+
     setBatchRunning(true);
     setBatchDone(false);
     setBatchErrors([]);
@@ -233,6 +266,8 @@ export default function BudgetReelsPage() {
 
     const errors: string[] = [];
     const usedTitles = new Set<string>();
+    setBatchProgress({ current: 0, total: batchCount, step: 'ИИ пишет описания...' });
+    const captions = await generateBudgetReelsCaptions({ codeword, count: batchCount });
 
     for (let i = 0; i < batchCount; i++) {
       if (abortRef.current) break;
@@ -284,7 +319,7 @@ export default function BudgetReelsPage() {
             user_id: user.id,
             instagram_account_id: selectedAccount?.id || null,
             video_path: fileName,
-            caption: pickRandom(BUDGET_CAPTIONS),
+            caption: captions[i],
             hook_text: title.replace(/\n/g, ' '),
             font_settings: {
               type: 'budget_reels',
@@ -492,6 +527,28 @@ export default function BudgetReelsPage() {
             {/* Количество видео */}
             <div className="mb-5">
               <label className="text-sm font-medium text-gray-700 mb-2 block">
+                Кодовое слово в описании
+              </label>
+              <select
+                value={selectedCodeword}
+                onChange={(event) => setSelectedCodeword(event.target.value)}
+                disabled={batchRunning}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-brand-400 disabled:bg-gray-50"
+              >
+                {codewordOptions.length === 0 && (
+                  <option value="">Нет активных кодовых слов</option>
+                )}
+                {codewordOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-gray-500">
+                ИИ использует только выбранное слово во всех описаниях; оно должно совпадать с активной воронкой.
+              </p>
+            </div>
+
+            <div className="mb-5">
+              <label className="text-sm font-medium text-gray-700 mb-2 block">
                 Количество видео
               </label>
               <div className="flex items-center gap-4">
@@ -565,7 +622,7 @@ export default function BudgetReelsPage() {
             {!batchRunning ? (
               <button
                 onClick={startBatchGeneration}
-                disabled={disabled || !user}
+                disabled={disabled || !user || !selectedCodeword}
                 className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-semibold transition-colors shadow-lg disabled:shadow-none"
               >
                 <BoltIcon className="w-5 h-5" />
@@ -628,9 +685,10 @@ export default function BudgetReelsPage() {
           {/* Подсказка */}
           <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
             <p className="text-xs text-gray-500 leading-relaxed">
-              <strong>Как работает:</strong> Каждое видео получает уникальный заголовок, уникальную числовую анимацию 
-              и случайный аудиотрек из вашей базы. Видео сохраняются в хранилище и появляются в Планировщике 
-              со статусом «Черновик».
+              <strong>Как работает:</strong> Каждое видео получает уникальный заголовок, числовую анимацию,
+              отдельное описание от ИИ с выбранным кодовым словом и случайный аудиотрек из базы. Описания
+              пишутся от мужского лица или нейтрально — без форм вроде «сделал(а)». Видео сохраняются в
+              хранилище и появляются в Планировщике со статусом «Черновик».
             </p>
           </div>
         </div>
