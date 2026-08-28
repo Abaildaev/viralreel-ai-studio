@@ -137,21 +137,20 @@ export default function BudgetReelsPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!user) return;
+    setCodewordOptions([]);
+    setSelectedCodeword('');
+
+    if (!user || !selectedAccount?.id) return;
     let cancelled = false;
 
     const loadCodewords = async () => {
-      let query = supabase
+      const { data } = await supabase
         .from('lead_magnets')
         .select('id,title,codeword')
         .eq('user_id', user.id)
-        .eq('is_active', true);
-
-      if (selectedAccount?.id) {
-        query = query.or(`instagram_account_id.eq.${selectedAccount.id},instagram_account_id.is.null`);
-      }
-
-      const { data } = await query.order('created_at', { ascending: false });
+        .eq('instagram_account_id', selectedAccount.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
       if (cancelled) return;
 
       const seen = new Set<string>();
@@ -163,11 +162,6 @@ export default function BudgetReelsPage() {
       });
 
       setCodewordOptions(options);
-      setSelectedCodeword((current) =>
-        options.some((option) => option.value === current)
-          ? current
-          : options[0]?.value || '',
-      );
     };
 
     void loadCodewords();
@@ -249,7 +243,7 @@ export default function BudgetReelsPage() {
 
   // === ПАКЕТНАЯ ГЕНЕРАЦИЯ ===
   const startBatchGeneration = async () => {
-    if (!user || batchRunning) return;
+    if (!user || !selectedAccount || batchRunning) return;
 
     const codeword = normalizeBudgetCodeword(selectedCodeword);
     if (!codeword) {
@@ -317,7 +311,7 @@ export default function BudgetReelsPage() {
           .from('scheduled_posts')
           .insert({
             user_id: user.id,
-            instagram_account_id: selectedAccount?.id || null,
+            instagram_account_id: selectedAccount.id,
             video_path: fileName,
             caption: captions[i],
             hook_text: title.replace(/\n/g, ' '),
@@ -339,6 +333,7 @@ export default function BudgetReelsPage() {
     setBatchProgress({ current: batchCount, total: batchCount, step: 'Завершено!' });
     setBatchDone(true);
     setBatchRunning(false);
+    setSelectedCodeword('');
 
     // Восстанавливаем дефолт
     setInputValue(DEFAULTS.budget);
@@ -532,18 +527,24 @@ export default function BudgetReelsPage() {
               <select
                 value={selectedCodeword}
                 onChange={(event) => setSelectedCodeword(event.target.value)}
-                disabled={batchRunning}
+                disabled={batchRunning || !selectedAccount || codewordOptions.length === 0}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition-colors focus:border-brand-400 disabled:bg-gray-50"
               >
-                {codewordOptions.length === 0 && (
-                  <option value="">Нет активных кодовых слов</option>
-                )}
+                <option value="" disabled>
+                  {!selectedAccount
+                    ? 'Сначала выберите Instagram-аккаунт'
+                    : codewordOptions.length === 0
+                      ? 'У аккаунта нет активных воронок'
+                      : 'Выберите кодовое слово из воронки'}
+                </option>
                 {codewordOptions.map((option) => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
               <p className="mt-2 text-xs text-gray-500">
-                ИИ использует только выбранное слово во всех описаниях; оно должно совпадать с активной воронкой.
+                {selectedAccount
+                  ? `Показаны только активные воронки @${selectedAccount.username}. Перед каждым запуском выберите слово вручную.`
+                  : 'Выберите аккаунт в боковом меню, чтобы загрузить его воронки.'}
               </p>
             </div>
 
@@ -622,7 +623,7 @@ export default function BudgetReelsPage() {
             {!batchRunning ? (
               <button
                 onClick={startBatchGeneration}
-                disabled={disabled || !user || !selectedCodeword}
+                disabled={disabled || !user || !selectedAccount || !selectedCodeword}
                 className="w-full flex items-center justify-center gap-2 px-5 py-3.5 bg-brand-600 hover:bg-brand-700 disabled:bg-gray-200 text-white disabled:text-gray-500 rounded-xl text-sm font-semibold transition-colors shadow-lg disabled:shadow-none"
               >
                 <BoltIcon className="w-5 h-5" />
