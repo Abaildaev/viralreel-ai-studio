@@ -8,6 +8,7 @@ function brief(overrides: Partial<OpenerBrief> = {}): OpenerBrief {
     examples: ['Забирай 1000+ готовых промптов!\n\nЖми кнопку ниже 👇'],
     name: 'Кирилл',
     comment: 'промпт',
+    buttonTitle: '1000+ схем',
     ...overrides,
   };
 }
@@ -32,8 +33,18 @@ describe('buildOpenerPrompt', () => {
     expect(prompt).toContain('«хочу промпты»');
   });
 
-  it('запрещает ссылку в тексте — под сообщением уже есть кнопка', () => {
-    expect(buildOpenerPrompt(brief())).toContain('Не вставляй ссылок');
+  it('запрещает ссылку в тексте и зовёт нажать кнопку по её надписи', () => {
+    const prompt = buildOpenerPrompt(brief());
+    expect(prompt).toContain('Не вставляй ссылок');
+    expect(prompt).toContain('«1000+ схем»');
+  });
+
+  /* Надпись берётся из сценария и может быть пустой — тогда кнопка
+     называется просто кнопкой, а не «кнопку «»». */
+  it('обходится без надписи, если её не задали', () => {
+    const prompt = buildOpenerPrompt(brief({ buttonTitle: '  ' }));
+    expect(prompt).toContain('кнопку рядом с сообщением');
+    expect(prompt).not.toContain('«»');
   });
 
   it('переживает пустое описание и отсутствие комментария', () => {

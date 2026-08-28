@@ -91,11 +91,14 @@ export function selectCommentExperimentVariant(
 export function buildQuickReplyMessage(
   leadMagnet: LeadMagnetRow,
   automationEventId: string,
+  /* Позволяет отправить эту же форму со своим текстом — так первое сообщение
+     от ИИ уходит без ссылки, ровно как вариант A/B. */
+  overrides: { text?: string; title?: string } = {},
 ): Record<string, unknown> {
-  const text = leadMagnet.ab_quick_reply_text.trim() ||
+  const text = overrides.text?.trim() || leadMagnet.ab_quick_reply_text.trim() ||
     "Материал готов 🙌 Нажмите кнопку ниже — и я сразу пришлю доступ.";
   const title = truncateChars(
-    leadMagnet.ab_quick_reply_button.trim() || "Забрать базу",
+    overrides.title?.trim() || leadMagnet.ab_quick_reply_button.trim() || "Забрать базу",
     BUTTON_TITLE_CHARS,
   );
 

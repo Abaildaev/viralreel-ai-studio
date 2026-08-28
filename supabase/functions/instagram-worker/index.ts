@@ -891,16 +891,27 @@ async function processEvent(
   let messageId: string;
 
   /*
-    The model rewrites the wording, never the delivery: the button, the link
-    and the attachment are still assembled by buildDirectMessage from the same
-    reply. A null here — no key, a timeout, a refusal — simply leaves the
-    prepared variant in place, so the material goes out either way.
+    The personalised path deliberately borrows the quick-reply shape: a first
+    message with no link in it, and the address handed over only after the
+    person taps.
 
-    Only the plain variant is rewritten. The quick-reply and profile-link arms
-    of the experiment carry wording of their own, and rewriting them would
-    measure the model instead of the arm.
+    That ordering is the whole point. A link to t.me in an unsolicited first
+    message to someone who does not follow the account is what buries these
+    threads in Hidden Requests, where the owner found his own. The chip costs
+    one tap and keeps the opener clean, and the model writes the words that
+    earn the tap.
+
+    The tap is answered by the same handler as the experiment's own arm, which
+    recognises its parent by `experiment_variant`, so the event is labelled
+    "quick_reply" too. `direct_ai_written` records who wrote the text, so the
+    two remain separable in the numbers.
   */
-  if (matched.direct_ai_personalize && experimentVariant !== "quick_reply" && experimentVariant !== "profile_link") {
+  const aiPersonalised = matched.direct_ai_personalize &&
+    experimentVariant !== "quick_reply" &&
+    experimentVariant !== "profile_link";
+  let aiWritten = false;
+
+  if (aiPersonalised) {
     const firstName = await resolveCommenterName(supabase, account, event.sender_igsid);
     const written = await generateDirectOpener(await deepSeekKeyFor(supabase, account.user_id), {
       title: matched.title,
@@ -908,15 +919,28 @@ async function processEvent(
       examples: matched.direct_reply_variants ?? [],
       name: firstName,
       comment: event.incoming_text ?? "",
+      buttonTitle: directReply.buttonText,
     });
-    if (written) directReply = { ...directReply, text: written };
+    if (written) {
+      aiWritten = true;
+      directReply = { ...directReply, text: written };
+    }
   }
+
+  /* The arm this delivery is recorded as. A personalised send is a quick
+     reply in every way that matters to the follow-up. */
+  const recordedVariant = aiPersonalised ? "quick_reply" : experimentVariant;
 
   try {
     messageId = await sendInstagramReply(
       account,
       event,
-      experimentVariant === "quick_reply"
+      aiPersonalised
+        ? buildQuickReplyMessage(matched, event.id, {
+          text: directReply.text,
+          title: directReply.buttonText,
+        })
+        : experimentVariant === "quick_reply"
         ? buildQuickReplyMessage(matched, event.id)
         : experimentVariant === "profile_link"
         ? buildProfileLinkMessage(matched)
@@ -930,7 +954,8 @@ async function processEvent(
       status: "failed",
       public_reply_status: "skipped",
       dm_status: "failed",
-      experiment_variant: experimentVariant,
+      experiment_variant: recordedVariant,
+      direct_ai_written: aiWritten,
       error_message: describeInstagramError(error),
     });
     return;
@@ -1009,7 +1034,8 @@ async function processEvent(
 
   await finish({
     lead_magnet_id: matched.id,
-    experiment_variant: experimentVariant,
+    experiment_variant: recordedVariant,
+    direct_ai_written: aiWritten,
     status: "sent",
     public_reply_status: publicReplyStatus,
     public_reply_id: publicReplyId || null,

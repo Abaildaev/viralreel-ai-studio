@@ -33,6 +33,7 @@ function rule(overrides: Partial<LeadMagnetRow> = {}): LeadMagnetRow {
     media_ids: [],
     repeat_delay_hours: 24,
     reply_delay_seconds: 5,
+    direct_ai_personalize: false,
     ab_quick_reply_percent: 20,
     ab_quick_reply_text: 'Материал готов. Нажмите кнопку.',
     ab_quick_reply_button: 'Забрать базу',
@@ -97,5 +98,25 @@ describe('comment delivery experiment', () => {
 
     expect(message.text).toContain('Ссылка в шапке профиля');
     expect(message).not.toHaveProperty('quick_replies');
+  });
+});
+
+describe('buildQuickReplyMessage с подменой текста', () => {
+  /* Так уходит персонализированная доставка: слова от модели, но форма
+     quick reply — то есть без ссылки в первом сообщении. */
+  it('берёт текст и надпись из overrides', () => {
+    const message = buildQuickReplyMessage(rule(), EVENT_ID, {
+      text: 'Кирилл, лови — собрал каталог формул. Жми кнопку.',
+      title: '1000+ схем',
+    }) as { text: string; quick_replies: Array<{ title: string }> };
+
+    expect(message.text).toBe('Кирилл, лови — собрал каталог формул. Жми кнопку.');
+    expect(message.quick_replies[0].title).toBe('1000+ схем');
+    expect(message).not.toHaveProperty('attachment');
+  });
+
+  it('падает обратно на текст сценария, когда подмены нет', () => {
+    const message = buildQuickReplyMessage(rule(), EVENT_ID, {}) as { text: string };
+    expect(message.text).toBe('Материал готов. Нажмите кнопку.');
   });
 });
