@@ -46,6 +46,7 @@ const blankForm: AutomationForm = {
   media_scope: 'all',
   media_ids: [],
   public_reply_enabled: true,
+  direct_ai_personalize: false,
   public_reply_variants: [
     'Отправил в Direct! Проверяйте сообщения 🚀',
     'Ссылка уже у вас в Direct 🙌',
@@ -223,6 +224,7 @@ export default function AutomationsPage() {
       media_scope: rule.media_scope || 'all',
       media_ids: rule.media_ids || [],
       public_reply_enabled: rule.public_reply_enabled ?? true,
+      direct_ai_personalize: rule.direct_ai_personalize ?? false,
       public_reply_variants: rule.public_reply_variants?.length
         ? rule.public_reply_variants
         : ['Отправил в Direct! 🚀'],
@@ -305,6 +307,7 @@ export default function AutomationsPage() {
         media_scope: form.media_scope,
         media_ids: form.media_ids,
         public_reply_enabled: form.public_reply_enabled,
+        direct_ai_personalize: form.direct_ai_personalize,
         public_reply_variants: form.public_reply_variants,
         reply_text: form.reply_text.trim(),
         /* Kept as pairs through the filter, so a blank variant cannot shift

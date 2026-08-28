@@ -41,6 +41,8 @@ import {
   TranscriptMessage,
 } from "../_shared/sales-agent.ts";
 import { decryptCredential } from "../_shared/credentials.ts";
+import { personalize, resolveFirstName } from "../_shared/personalize.ts";
+import { generateDirectOpener } from "../_shared/direct-opener.ts";
 import {
   type Attachment,
   instagramAttachmentType,
@@ -427,20 +429,7 @@ async function runSalesAgent(
   }));
   const alreadyHandedOff = (history ?? []).some((row) => row.handed_off);
 
-  const { data: credential } = await supabase
-    .from("user_ai_credentials")
-    .select("deepseek_api_key_encrypted")
-    .eq("user_id", account.user_id)
-    .maybeSingle();
-
-  let apiKey: string | null = null;
-  if (credential?.deepseek_api_key_encrypted) {
-    try {
-      apiKey = await decryptCredential(credential.deepseek_api_key_encrypted);
-    } catch (error) {
-      console.error("Could not decrypt DeepSeek credential", error);
-    }
-  }
+  const apiKey = await deepSeekKeyFor(supabase, account.user_id);
 
   const decision = await decideAgentReply(
     agent,
@@ -717,6 +706,89 @@ async function handleQuickReplyFollowup(
 }
 
 /** Processes one claimed event. Throws only for retryable failures. */
+/**
+ * The commenter's first name, when Instagram's profile gives one worth using.
+ *
+ * Read from `instagram_contacts` first: the same people comment under post
+ * after post, and a Graph call per comment would add a round trip to every
+ * delivery for a value that does not change. A miss is fetched once and cached
+ * for everyone after.
+ *
+ * Never throws. A greeting is a nicety; failing to look one up must not cost
+ * the delivery it was meant to decorate.
+ */
+/**
+ * The user's DeepSeek key, decrypted, or null when there is nothing usable.
+ *
+ * Both the sales agent and the personalised opener need it, and neither may
+ * fall over because a key is missing or a decrypt fails — each has its own
+ * silent fallback. So the failure is swallowed here once rather than twice.
+ */
+async function deepSeekKeyFor(
+  supabase: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<string | null> {
+  const { data: credential } = await supabase
+    .from("user_ai_credentials")
+    .select("deepseek_api_key_encrypted")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (!credential?.deepseek_api_key_encrypted) return null;
+
+  try {
+    return await decryptCredential(credential.deepseek_api_key_encrypted as string);
+  } catch (error) {
+    console.error("Could not decrypt DeepSeek credential", error);
+    return null;
+  }
+}
+
+async function resolveCommenterName(
+  supabase: ReturnType<typeof createAdminClient>,
+  account: AccountRow,
+  senderIgsid: string | null,
+): Promise<string | null> {
+  if (!senderIgsid) return null;
+
+  try {
+    const { data: cached } = await supabase
+      .from("instagram_contacts")
+      .select("display_name,username")
+      .eq("instagram_account_id", account.id)
+      .eq("sender_igsid", senderIgsid)
+      .maybeSingle();
+
+    if (cached) {
+      return resolveFirstName(
+        cached.display_name as string | null,
+        cached.username as string | null,
+      );
+    }
+
+    const response = await fetch(
+      `${GRAPH_API_BASE_URL}/${senderIgsid}?fields=name,username,profile_pic`,
+      { headers: { Authorization: `Bearer ${account.access_token}` } },
+    );
+    const profile = await response.json().catch(() => null);
+    if (!response.ok || profile?.error) return null;
+
+    await supabase.from("instagram_contacts").upsert({
+      instagram_account_id: account.id,
+      sender_igsid: senderIgsid,
+      username: profile?.username ?? null,
+      display_name: profile?.name ?? null,
+      profile_picture_url: profile?.profile_pic ?? null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "instagram_account_id,sender_igsid" });
+
+    return resolveFirstName(profile?.name ?? null, profile?.username ?? null);
+  } catch (error) {
+    console.error("Could not resolve commenter name", error);
+    return null;
+  }
+}
+
 async function processEvent(
   supabase: ReturnType<typeof createAdminClient>,
   account: AccountRow,
@@ -815,8 +887,30 @@ async function processEvent(
     Sending the announcement first would publicly claim a delivery that may
     never happen, so the DM goes out first and gates everything else.
   */
-  const directReply = pickDirectReply(matched);
+  let directReply = pickDirectReply(matched);
   let messageId: string;
+
+  /*
+    The model rewrites the wording, never the delivery: the button, the link
+    and the attachment are still assembled by buildDirectMessage from the same
+    reply. A null here — no key, a timeout, a refusal — simply leaves the
+    prepared variant in place, so the material goes out either way.
+
+    Only the plain variant is rewritten. The quick-reply and profile-link arms
+    of the experiment carry wording of their own, and rewriting them would
+    measure the model instead of the arm.
+  */
+  if (matched.direct_ai_personalize && experimentVariant !== "quick_reply" && experimentVariant !== "profile_link") {
+    const firstName = await resolveCommenterName(supabase, account, event.sender_igsid);
+    const written = await generateDirectOpener(await deepSeekKeyFor(supabase, account.user_id), {
+      title: matched.title,
+      description: matched.description ?? "",
+      examples: matched.direct_reply_variants ?? [],
+      name: firstName,
+      comment: event.incoming_text ?? "",
+    });
+    if (written) directReply = { ...directReply, text: written };
+  }
 
   try {
     messageId = await sendInstagramReply(
@@ -879,12 +973,22 @@ async function processEvent(
 
   if (event.trigger_type === "comment" && matched.public_reply_enabled) {
     try {
+      /*
+        Looked up only now, after the Direct has landed. The name changes how
+        the announcement reads, never whether the material is delivered, so it
+        must not sit on the path of the thing that matters.
+      */
+      const firstName = await resolveCommenterName(supabase, account, event.sender_igsid);
+
       publicReplyId = await sendPublicCommentReply(
         event.meta_event_id,
         account.access_token,
-        experimentVariant === "quick_reply"
-          ? "Отправил в Direct 🙌 Нажмите кнопку в сообщении, чтобы получить материал."
-          : pickPublicReply(matched),
+        personalize(
+          experimentVariant === "quick_reply"
+            ? "Отправил в Direct 🙌 Нажмите кнопку в сообщении, чтобы получить материал."
+            : pickPublicReply(matched),
+          firstName,
+        ),
       );
       publicReplyStatus = "sent";
     } catch (error) {

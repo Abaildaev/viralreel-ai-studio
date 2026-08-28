@@ -229,6 +229,8 @@ export interface LeadMagnet extends MessageAttachment {
   trigger_dm: boolean;
   trigger_comments: boolean;
   public_reply_enabled: boolean;
+  /** Писать ли текст Direct моделью под каждого человека. */
+  direct_ai_personalize: boolean;
   public_reply_variants: string[];
   media_scope: 'all' | 'selected';
   media_ids: string[];

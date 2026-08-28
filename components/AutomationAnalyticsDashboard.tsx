@@ -5,6 +5,7 @@ import LeadDetailModal from './LeadDetailModal';
 import LeadAvatar from './LeadAvatar';
 import { supabase } from '../lib/supabase';
 import { getErrorMessage } from '../utils/errorMessage';
+import { listInstagramMedia } from '../services/instagramMediaService';
 import {
   ChatBubbleBottomCenterTextIcon,
   EnvelopeIcon,
@@ -113,6 +114,9 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
   const [crmTotal, setCrmTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [mediaLinks, setMediaLinks] = useState<Map<string, { permalink: string; caption: string }>>(
+    new Map(),
+  );
 
   useEffect(() => {
     if (view !== 'analytics') return;
@@ -295,6 +299,37 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
     leadsCount: Number(item.leads_count),
     lastTrigger: item.last_trigger,
   })), [analytics.media]);
+
+  /*
+    Turns the leaderboard's media ids into openable posts.
+
+    A reel id is not an address, so the permalink is fetched — for the fifty
+    most recent posts at once rather than one lookup per row. Anything older
+    than that window keeps showing its bare id, which is what the block did
+    for every row before; a leaderboard that cannot be opened is still worth
+    more than an error.
+  */
+  const leaderboardIds = mediaStats.map((item) => item.mediaId).join(',');
+
+  useEffect(() => {
+    if (view !== 'analytics' || !accountId || !leaderboardIds) return;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const media = await listInstagramMedia(accountId);
+        if (cancelled) return;
+        setMediaLinks(new Map(media.map((item) => [
+          item.id,
+          { permalink: item.permalink ?? '', caption: (item.caption ?? '').trim() },
+        ])));
+      } catch {
+        /* The ids still render; a failed lookup is not worth an error banner. */
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [view, accountId, leaderboardIds]);
 
   const crmPageCount = Math.max(1, Math.ceil(crmTotal / LEADS_PAGE_SIZE));
 
@@ -572,25 +607,52 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                 Лиды будут сгруппированы по ID роликов
               </div>
             ) : (
-              mediaStats.map((item, idx) => (
-                <div key={idx} className="p-3 bg-gray-50/70 hover:bg-gray-100/70 rounded-xl border border-gray-200/60 flex items-center justify-between gap-3 transition-colors">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-5 h-5 rounded-md bg-white border border-gray-200 text-gray-600 font-medium text-[11px] flex items-center justify-center flex-shrink-0">
-                      {idx + 1}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold text-gray-900 truncate">Reel ID: {item.mediaId}</p>
-                      <p className="text-[11px] text-gray-400">{new Date(item.lastTrigger).toLocaleDateString('ru-RU')}</p>
-                    </div>
-                  </div>
+              mediaStats.map((item, idx) => {
+                const link = mediaLinks.get(item.mediaId);
+                /* The caption names the reel far better than its id does, but
+                   it is a whole post — only the opening line is a title. */
+                const title = link?.caption?.split('\n')[0].trim();
+                const rowClass = 'p-3 bg-gray-50/70 hover:bg-gray-100/70 rounded-xl border border-gray-200/60 flex items-center justify-between gap-3 transition-colors';
 
-                  <div className="text-right flex-shrink-0">
-                    <span className="text-xs font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
-                      {item.leadsCount} срабатываний
-                    </span>
-                  </div>
-                </div>
-              ))
+                const body = (
+                  <>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-5 h-5 rounded-md bg-white border border-gray-200 text-gray-600 font-medium text-[11px] flex items-center justify-center flex-shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-gray-900 truncate">
+                          {title || `Reel ID: ${item.mediaId}`}
+                        </p>
+                        <p className="text-[11px] text-gray-400">
+                          {new Date(item.lastTrigger).toLocaleDateString('ru-RU')}
+                          {link?.permalink && ' · открыть в Instagram'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-xs font-medium text-gray-800 bg-white border border-gray-200 px-2 py-0.5 rounded-md">
+                        {item.leadsCount} срабатываний
+                      </span>
+                    </div>
+                  </>
+                );
+
+                return link?.permalink ? (
+                  <a
+                    key={item.mediaId}
+                    href={link.permalink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`${rowClass} hover:border-brand-300`}
+                  >
+                    {body}
+                  </a>
+                ) : (
+                  <div key={item.mediaId} className={rowClass}>{body}</div>
+                );
+              })
             )}
           </div>
         </div>

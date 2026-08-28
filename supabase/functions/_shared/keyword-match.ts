@@ -35,6 +35,8 @@ export interface LeadMagnetRow {
   ab_quick_reply_button: string;
   ab_profile_reply_percent: number;
   ab_profile_reply_text: string;
+  /* Писать ли текст Direct моделью под каждого человека. */
+  direct_ai_personalize: boolean;
   /* The file sent after the Direct message. Declared inline rather than
      imported so this module stays dependency-free; the shape is the one in
      _shared/attachment.ts and `readAttachment` accepts it structurally. */
@@ -49,7 +51,7 @@ export const LEAD_MAGNET_COLUMNS =
   "button_text,match_mode,trigger_dm,trigger_comments,public_reply_enabled," +
   "public_reply_variants,media_scope,media_ids,repeat_delay_hours,reply_delay_seconds," +
   "ab_quick_reply_percent,ab_quick_reply_text,ab_quick_reply_button," +
-  "ab_profile_reply_percent,ab_profile_reply_text," +
+  "ab_profile_reply_percent,ab_profile_reply_text,direct_ai_personalize," +
   "attachment_type,attachment_path,attachment_name";
 
 export type CommentExperimentVariant = "control" | "quick_reply" | "profile_link";

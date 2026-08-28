@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { InstagramAccount } from '../../types';
-import { getAuthenticatedHeaders } from '../../lib/supabase';
+import { listInstagramMedia } from '../../services/instagramMediaService';
 import {
   XMarkIcon,
   PlusIcon,
@@ -35,6 +35,7 @@ export interface AutomationForm extends MessageAttachment {
   media_scope: 'all' | 'selected';
   media_ids: string[];
   public_reply_enabled: boolean;
+  direct_ai_personalize: boolean;
   public_reply_variants: string[];
   reply_text: string;
   direct_reply_variants: string[];
@@ -142,29 +143,11 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
     }
   }, [form.instagram_account_id, form.media_scope]);
 
-  /*
-    The function is named `list-instagram-media` and takes a POST with the
-    account id in the body. This called `instagram-media` over GET with a query
-    string — wrong on all three counts, so it answered 404 and the swallowed
-    error left the picker permanently empty with nothing on screen to say why.
-  */
   const loadMedia = async (accountId: string) => {
     setMediaLoading(true);
     setMediaError('');
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/list-instagram-media`,
-        {
-          method: 'POST',
-          headers: await getAuthenticatedHeaders(),
-          body: JSON.stringify({ account_id: accountId }),
-        },
-      );
-      const json = await res.json().catch(() => null);
-      if (!res.ok || json?.error) {
-        throw new Error(json?.error || `Instagram вернул ошибку (${res.status})`);
-      }
-      setMedia(json.media || []);
+      setMedia(await listInstagramMedia(accountId));
     } catch (error: any) {
       setMedia([]);
       setMediaError(error?.message || 'Не удалось загрузить посты');
@@ -463,9 +446,26 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
 
             {directReplyError && <p className="text-[11px] text-red-600">{directReplyError}</p>}
 
+            <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+              <input
+                type="checkbox"
+                checked={form.direct_ai_personalize}
+                onChange={(e) => setForm((c) => ({ ...c, direct_ai_personalize: e.target.checked }))}
+                className="mt-0.5 rounded text-brand-600 focus:ring-0"
+              />
+              <span className="text-[11px] leading-relaxed text-emerald-900">
+                <b>ИИ пишет каждому лично</b> — по имени и по тексту его комментария. Кнопка и
+                ссылка не меняются, а если модель недоступна, уйдёт вариант из списка ниже.
+                Одинаковый текст на сотни отправок — одна из причин, по которым Instagram прячет
+                переписку в «Скрытые запросы». Нужен ключ DeepSeek в настройках.
+              </span>
+            </label>
+
             <div className="space-y-2">
               <p className="text-[11px] font-semibold text-emerald-900">
-                Варианты сообщений: {form.direct_reply_variants.length} — бот выбирает один случайно
+                {form.direct_ai_personalize
+                  ? `Запасные варианты: ${form.direct_reply_variants.length} — уйдут, если ИИ не ответит`
+                  : `Варианты сообщений: ${form.direct_reply_variants.length} — бот выбирает один случайно`}
               </p>
               {form.direct_reply_variants.map((variant, index) => (
                 <div key={index} className="flex items-start gap-2">
@@ -727,6 +727,14 @@ export const AutomationRuleEditorModal: React.FC<AutomationRuleEditorModalProps>
                 />
                 Отвечать в комментариях под постом (рандомный ответ из списка)
               </label>
+
+              {form.public_reply_enabled && (
+                <p className="text-[11px] leading-relaxed text-gray-500">
+                  Впишите <code className="rounded bg-gray-100 px-1 font-mono">{'{имя}'}</code> — подставится имя
+                  автора комментария. Если Instagram вместо имени отдаёт ник вроде «officiant», обращение
+                  вместе с запятой убирается, и фраза читается как обычная.
+                </p>
+              )}
 
               {form.public_reply_enabled && (
                 <div className="flex items-center gap-3">
