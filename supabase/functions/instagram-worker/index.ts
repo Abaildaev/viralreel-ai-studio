@@ -906,7 +906,18 @@ async function processEvent(
     "quick_reply" too. `direct_ai_written` records who wrote the text, so the
     two remain separable in the numbers.
   */
+  /*
+    Только для комментариев.
+
+    Ссылку убрали из первого сообщения, чтобы уйти из «Скрытых запросов», —
+    но туда попадает лишь непрошеное сообщение тому, кто на аккаунт не
+    подписан. Когда человек написал сам, переписка уже открыта, прятать
+    нечего, и снятая ссылка не спасает от фильтра, а просто добавляет лишний
+    шаг. Замер это и показал: 0 переходов в Telegram из 52 доставок по
+    личным сообщениям против 25% на прежней форме со ссылкой.
+  */
   const aiPersonalised = matched.direct_ai_personalize &&
+    event.trigger_type === "comment" &&
     experimentVariant !== "quick_reply" &&
     experimentVariant !== "profile_link";
   let aiWritten = false;

@@ -98,7 +98,13 @@ export async function generateDirectOpener(
         model: MODEL_ID,
         messages: [{ role: "system", content: buildOpenerPrompt(brief) }],
         temperature: 0.9,
-        max_tokens: 300,
+        /*
+          300 было впритык: два-три предложения на русском — это уже
+          120-200 токенов, а если провайдер считает в бюджет ещё и скрытое
+          рассуждение (reasoning), ответ обрезается до пустого content ещё
+          до того, как модель успевает написать сам текст.
+        */
+        max_tokens: 500,
       }),
     });
 
@@ -108,16 +114,38 @@ export async function generateDirectOpener(
       return null;
     }
 
-    const text = String(data?.choices?.[0]?.message?.content ?? "")
+    const choice = data?.choices?.[0];
+    const text = String(choice?.message?.content ?? "")
       .replace(/^["«»']+|["«»']+$/g, "")
       .trim();
+
+    if (!text) {
+      /*
+        Пусто, но ответ 200 — модель либо срезана по max_tokens (обычно
+        видно по finish_reason: "length"), либо часть провайдеров кладёт
+        текст в reasoning_content, а content оставляет пустым. Раньше это
+        падало в шаблон без единого следа в логах — теперь видно, что именно
+        произошло.
+      */
+      console.error(
+        "Opener returned empty content",
+        JSON.stringify({
+          finish_reason: choice?.finish_reason,
+          has_reasoning_content: Boolean(choice?.message?.reasoning_content),
+        }),
+      );
+      return null;
+    }
 
     /*
       Модель иногда всё же вставляет ссылку, несмотря на запрет. Такое
       сообщение отправлять нельзя: ссылка в тексте — ровно тот признак, из-за
       которого переписку и прячут, а кнопка ниже делает её лишней.
     */
-    if (!text || /https?:\/\/|t\.me\//i.test(text)) return null;
+    if (/https?:\/\/|t\.me\//i.test(text)) {
+      console.error("Opener text contained a link, discarded", text.slice(0, 120));
+      return null;
+    }
 
     return text.slice(0, MAX_OPENER_CHARS);
   } catch (error) {
