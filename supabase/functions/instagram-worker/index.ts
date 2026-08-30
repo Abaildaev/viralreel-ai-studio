@@ -947,8 +947,17 @@ async function processEvent(
       account,
       event,
       aiPersonalised
+        /*
+          Текст подменяется только когда его написала модель. Заготовки из
+          direct_reply_variants сочинялись под кнопку внутри сообщения и
+          заканчиваются на «Жми кнопку ниже 👇» — в форме чипса стрелка
+          показывает в пустоту, потому что чипс висит над полем ввода. Один
+          из читателей так и ответил: «Не вижу вашего сообщения ;(».
+          Без подмены сюда встаёт ab_quick_reply_text, написанный под эту
+          форму.
+        */
         ? buildQuickReplyMessage(matched, event.id, {
-          text: directReply.text,
+          text: aiWritten ? directReply.text : undefined,
           title: directReply.buttonText,
         })
         : experimentVariant === "quick_reply"
