@@ -98,7 +98,7 @@ const sections = [
           group by 1 order by 2 desc;`,
   },
   {
-    /* `experiment_variant` больше не разделяет доставки сам по себе:
+    /* `experiment_variant` не разделяет доставки сам по себе:
        персонализированные помечаются как quick_reply, чтобы работало
        нажатие, — отличает их `direct_ai_written`. */
     title: 'Доходимость до Telegram по форме доставки',
@@ -117,6 +117,53 @@ const sections = [
           from instagram_automation_events e
           where e.dm_status = 'sent' and e.created_at > ${since}
           group by 1 order by 2 desc;`,
+  },
+  {
+    /*
+      Сравнивать плечи можно только там, где они работали в одни и те же
+      дни. Панель в интерфейсе этого не делает и однажды уже показала
+      победителем плечо, набравшее объём после починки воронки, против
+      плеча, работавшего во время поломки.
+    */
+    title: 'A/B на общих днях (только там, где работали все плечи)',
+    sql: `with days as (
+            select created_at::date as d
+            from instagram_automation_events
+            where experiment_variant is not null and dm_status = 'sent'
+            group by 1
+            having count(distinct experiment_variant) >= 2
+          )
+          select e.experiment_variant as плечо,
+                 count(*) as доставок,
+                 count(*) filter (
+                   where exists (select 1 from telegram_subscribers s
+                                 where s.automation_event_id = e.id)
+                 ) as дошло,
+                 round(100.0 * count(*) filter (
+                   where exists (select 1 from telegram_subscribers s
+                                 where s.automation_event_id = e.id)
+                 ) / nullif(count(*), 0), 1) as процент,
+                 count(distinct e.created_at::date) as дней
+          from instagram_automation_events e
+          join days on days.d = e.created_at::date
+          where e.dm_status = 'sent' and e.experiment_variant is not null
+          group by 1 order by 4 desc nulls last;`,
+  },
+  {
+    /*
+      Плечо profile_link отправляет в шапку профиля, а та ссылка одна на
+      всех и метки события не несёт — его подписчики приходят сюда, а не в
+      своё плечо. Прямой конверсии у него не будет по построению; читать
+      его можно только по движению этой строки.
+    */
+    title: 'Приходы в бот без метки события (шапка профиля и прочие ссылки)',
+    sql: `select created_at::date as день,
+                 count(*) filter (where automation_event_id is null) as без_метки,
+                 count(*) filter (where automation_event_id is not null) as из_direct,
+                 count(*) as всего
+          from telegram_subscribers
+          where created_at > now() - interval '10 days'
+          group by 1 order by 1 desc;`,
   },
   {
     title: 'Ошибки',
@@ -164,12 +211,13 @@ for (const section of sections) {
 console.log(`
 ### На что смотреть
   - «пропущено» в публичном ответе при включённом тумблере — ответы снова молчат.
-  - Ожидаемая форма доставки сейчас — «ИИ, без ссылки в 1-м», её должно быть
-    подавляющее большинство. Заметная доля «control (ссылка сразу)» означает,
-    что ИИ отвалился: смотри ошибки и ключ DeepSeek.
+  - Сравнивать плечи ТОЛЬКО по таблице «A/B на общих днях». Первая таблица по
+    формам смешивает разные периоды и вводит в заблуждение.
   - «ОПЕЧАТКА в кодовом слове» — потерянные лиды, лечится ключевыми словами.
   - «добавлено_за_период» = 0 при новых комментариях — имя не подставляется.
-  - «ab_кнопка»/«ab_профиль» должны быть 0: эксперимент выключен, доставка одна.
+  - У profile_link прямая конверсия будет около нуля по построению: его люди
+    приходят без метки. Смотри вместо неё строку «без_метки» по дням.
+  - Итог воронки за день — это «всего» в той же таблице, а не проценты плеч.
 `);
 
 process.exit(failed ? 1 : 0);
