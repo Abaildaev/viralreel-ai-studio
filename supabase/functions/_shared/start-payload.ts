@@ -22,11 +22,26 @@ export const SLUG_PATTERN = /^[a-z0-9]{2,24}$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Метка источника: `prompts_bio`, `prompts_stories`. Те же символы, что у
+ * слага, чтобы ссылку можно было написать рукой и не гадать про регистр.
+ */
+export const SOURCE_TAG_PATTERN = /^[a-z0-9-]{2,24}$/;
+
 export interface StartPayload {
   /** Empty when the visitor arrived on a bare /start. */
   slug: string;
   /** The automation event to attribute this subscriber to, when trustworthy. */
   eventId: string | null;
+  /**
+   * Откуда пришла ссылка, когда после слага стоит не UUID.
+   *
+   * Без этого шапка профиля, сторис и описание под Reels неразличимы: все они
+   * приводят на один и тот же `?start=<slug>`, и подписчик записывается просто
+   * как «по ссылке». На боевых данных этот безымянный канал давал больше
+   * подписчиков, чем кнопка в Direct, и измерить его было нечем.
+   */
+  tag: string | null;
 }
 
 /**
@@ -38,20 +53,24 @@ export interface StartPayload {
  */
 export function parseStartPayload(payload: string): StartPayload {
   const trimmed = payload.trim();
-  if (!trimmed) return { slug: "", eventId: null };
+  if (!trimmed) return { slug: "", eventId: null, tag: null };
 
   const separator = trimmed.indexOf("_");
   if (separator === -1) {
     const slug = trimmed.toLowerCase();
-    return { slug: SLUG_PATTERN.test(slug) ? slug : "", eventId: null };
+    return { slug: SLUG_PATTERN.test(slug) ? slug : "", eventId: null, tag: null };
   }
 
   const slug = trimmed.slice(0, separator).toLowerCase();
   const rest = trimmed.slice(separator + 1);
+  const tag = rest.toLowerCase();
 
   return {
     slug: SLUG_PATTERN.test(slug) ? slug : "",
     eventId: UUID_PATTERN.test(rest) ? rest : null,
+    /* UUID — это привязка к событию, а не источник; всё остальное разумной
+       формы — метка канала. Мусор отбрасывается так же, как и раньше. */
+    tag: !UUID_PATTERN.test(rest) && SOURCE_TAG_PATTERN.test(tag) ? tag : null,
   };
 }
 

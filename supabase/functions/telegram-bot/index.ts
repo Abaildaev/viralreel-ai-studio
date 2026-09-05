@@ -216,7 +216,7 @@ async function handleStart(
   payload: string,
   forceNewUserGate = false,
 ): Promise<void> {
-  const { slug, eventId } = parseStartPayload(payload);
+  const { slug, eventId, tag } = parseStartPayload(payload);
   const funnel = await selectFunnel(supabase, bot, slug);
   if (!funnel) {
     console.warn(`Bot ${bot.id} has no active funnel to answer /start`);
@@ -271,7 +271,13 @@ async function handleStart(
         username: from.username ?? "",
         first_name: from.first_name ?? "",
         language_code: from.language_code ?? "",
-        source: attribution.eventId ? "instagram" : "link",
+        /*
+          Метка из ссылки, когда она есть: `?start=prompts_bio` записывается
+          как «bio», а не как безымянное «link». Иначе шапка профиля, сторис и
+          описание под Reels неотличимы друг от друга — а именно этот канал
+          оказался крупнее кнопки в Direct.
+        */
+        source: attribution.eventId ? "instagram" : (tag ?? "link"),
         started_at: now,
         last_message_at: now,
       })

@@ -16,16 +16,17 @@ describe('parseStartPayload', () => {
     expect(parseStartPayload(`guide_${EVENT_ID}`)).toEqual({
       slug: 'guide',
       eventId: EVENT_ID,
+      tag: null,
     });
   });
 
   it('accepts a bare slug with no attribution', () => {
-    expect(parseStartPayload('guide')).toEqual({ slug: 'guide', eventId: null });
+    expect(parseStartPayload('guide')).toEqual({ slug: 'guide', eventId: null, tag: null });
   });
 
   it('treats an empty payload as a plain start', () => {
-    expect(parseStartPayload('')).toEqual({ slug: '', eventId: null });
-    expect(parseStartPayload('   ')).toEqual({ slug: '', eventId: null });
+    expect(parseStartPayload('')).toEqual({ slug: '', eventId: null, tag: null });
+    expect(parseStartPayload('   ')).toEqual({ slug: '', eventId: null, tag: null });
   });
 
   it('lowercases the slug, since Telegram links get retyped by hand', () => {
@@ -49,8 +50,17 @@ describe('parseStartPayload', () => {
     expect(parseStartPayload(`guide_${EVENT_ID.slice(0, -1)}`).eventId).toBeNull();
   });
 
-  it('keeps the slug even when the attribution half is junk', () => {
-    expect(parseStartPayload('guide_garbage')).toEqual({ slug: 'guide', eventId: null });
+  /*
+    Раньше всё, что не UUID, отбрасывалось целиком. Теперь вторая половина
+    разумной формы читается как метка канала — `guide_bio`, `guide_stories`.
+    Привязки к событию у неё по-прежнему нет: это разные вещи.
+  */
+  it('reads a well-formed attribution half as a source tag, not an event', () => {
+    expect(parseStartPayload('guide_garbage')).toEqual({
+      slug: 'guide',
+      eventId: null,
+      tag: 'garbage',
+    });
   });
 
   /*
@@ -69,19 +79,20 @@ describe('parseStartPayload', () => {
     expect(parseStartPayload(`guide_${EVENT_ID}_extra`)).toEqual({
       slug: 'guide',
       eventId: null,
+      tag: null,
     });
   });
 
   it('survives a payload that is only a separator', () => {
-    expect(parseStartPayload('_')).toEqual({ slug: '', eventId: null });
-    expect(parseStartPayload(`_${EVENT_ID}`)).toEqual({ slug: '', eventId: EVENT_ID });
+    expect(parseStartPayload('_')).toEqual({ slug: '', eventId: null, tag: null });
+    expect(parseStartPayload(`_${EVENT_ID}`)).toEqual({ slug: '', eventId: EVENT_ID, tag: null });
   });
 });
 
 describe('buildStartPayload', () => {
   it('round-trips through the parser', () => {
     const payload = buildStartPayload('guide', EVENT_ID);
-    expect(parseStartPayload(payload)).toEqual({ slug: 'guide', eventId: EVENT_ID });
+    expect(parseStartPayload(payload)).toEqual({ slug: 'guide', eventId: EVENT_ID, tag: null });
   });
 
   it('omits the separator when there is nothing to attribute', () => {
@@ -93,5 +104,37 @@ describe('buildStartPayload', () => {
      plus separator plus UUID is 61 at the maximum slug length. */
   it('stays inside Telegram 64-character limit at the longest slug', () => {
     expect(buildStartPayload('a'.repeat(24), EVENT_ID)).toHaveLength(61);
+  });
+});
+
+describe('метка источника', () => {
+  /* Ссылка из шапки профиля: воронка та же, но канал теперь называется. */
+  it('читает метку после слага', () => {
+    expect(parseStartPayload('prompts_bio')).toEqual({
+      slug: 'prompts', eventId: null, tag: 'bio',
+    });
+    expect(parseStartPayload('prompts_stories-2')).toEqual({
+      slug: 'prompts', eventId: null, tag: 'stories-2',
+    });
+  });
+
+  it('не путает привязку к событию с меткой канала', () => {
+    const uuid = '123e4567-e89b-42d3-a456-426614174000';
+    expect(parseStartPayload(`prompts_${uuid}`)).toEqual({
+      slug: 'prompts', eventId: uuid, tag: null,
+    });
+  });
+
+  it('отбрасывает метку неразумной формы, не ломая воронку', () => {
+    expect(parseStartPayload('prompts_!!!')).toEqual({
+      slug: 'prompts', eventId: null, tag: null,
+    });
+    expect(parseStartPayload('prompts_a')).toEqual({
+      slug: 'prompts', eventId: null, tag: null,
+    });
+  });
+
+  it('приводит метку к нижнему регистру', () => {
+    expect(parseStartPayload('prompts_BIO').tag).toBe('bio');
   });
 });
