@@ -175,7 +175,30 @@ const AudioPage: React.FC = () => {
     if (!trimmed) { setEditingId(null); return; }
     savingRef.current = true;
     setEditingId(null);
-    const { error } = await supabase.from('audio_files').update({ name: trimmed }).eq('id', id);
+    /*
+      `select()` здесь не для данных, а для доказательства.
+
+      Апдейт, не нашедший строки, возвращается без ошибки — так и было, пока у
+      таблицы отсутствовала политика UPDATE: интерфейс показывал новое имя,
+      база хранила старое. Пустой ответ на запрос по первичному ключу означает,
+      что запись не изменилась, и об этом надо сказать, а не праздновать.
+    */
+    const { data, error } = await supabase
+      .from('audio_files')
+      .update({ name: trimmed })
+      .eq('id', id)
+      .select('id');
+
+    if (!error && (data?.length ?? 0) === 0) {
+      await alert({
+        title: 'Не удалось переименовать',
+        message: 'Запись не изменилась — обновите страницу и попробуйте ещё раз.',
+        variant: 'error',
+      });
+      savingRef.current = false;
+      return;
+    }
+
     if (error) {
       console.error('Rename error:', error);
       await alert({
