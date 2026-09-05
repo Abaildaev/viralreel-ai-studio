@@ -170,6 +170,18 @@ export const AutomationRulesTab: React.FC<AutomationRulesTabProps> = ({
                         >
                           {rule.is_active ? 'Активен' : 'Пауза'}
                         </span>
+                        {/*
+                          Сценарий может быть «Активен» и при этом молчать под
+                          комментариями: публичный ответ выключается отдельным
+                          полем, и однажды его выключила миграция, настраивавшая
+                          A/B. Два дня ответы не уходили, а карточка всё это
+                          время показывала зелёное.
+                        */}
+                        {rule.trigger_comments && !rule.public_reply_enabled && (
+                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                            без ответа в комментариях
+                          </span>
+                        )}
                         {(rule.ab_quick_reply_percent > 0 || rule.ab_profile_reply_percent > 0) && (
                           <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
                             A/B · {Math.max(0, 100 - rule.ab_quick_reply_percent - rule.ab_profile_reply_percent)}% / {rule.ab_quick_reply_percent}% / {rule.ab_profile_reply_percent}%

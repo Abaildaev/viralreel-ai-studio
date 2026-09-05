@@ -11,6 +11,7 @@ import AiSalesAgentConfigView from '../components/AiSalesAgentConfig';
 import AiSalesAgentSimulator from '../components/AiSalesAgentSimulator';
 import AutomationRulesTab from '../components/automations/AutomationRulesTab';
 import AutomationRuleEditorModal, { AutomationForm } from '../components/automations/AutomationRuleEditorModal';
+import AutomationQueueHealth from '../components/automations/AutomationQueueHealth';
 import AutomationTesterTab from '../components/automations/AutomationTesterTab';
 import ConversationsTab from '../components/automations/ConversationsTab';
 import { Button, Callout, PageHeader, PageShell } from '../components/ui';
@@ -552,7 +553,14 @@ export default function AutomationsPage() {
 
       {/* Events */}
       {activeTab === 'events' && (
-        <div className="mx-auto w-full max-w-5xl">
+        <div className="mx-auto w-full max-w-5xl space-y-4">
+          {/*
+            Очередь стоит над лентой, а не под ней: событие, застрявшее в
+            обработке, лента показать не может — оно ещё не случилось. Этот
+            компонент был написан и не отрисован нигде, хотя очередь — ровно
+            то место, где доставки пропадают молча.
+          */}
+          <AutomationQueueHealth accountId={accountId} />
           <AutomationLiveFeed
             initialEvents={events}
             selectedAccountId={accountId}

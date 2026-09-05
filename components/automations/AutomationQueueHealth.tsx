@@ -120,13 +120,21 @@ export const QueueHealthStrip: React.FC<{ rows: InstagramQueueHealth[] }> = ({ r
 };
 
 /** Loads the queue state and keeps it current while the page is open. */
-const AutomationQueueHealth: React.FC = () => {
+interface AutomationQueueHealthProps {
+  /** Аккаунт, к которому сведена страница; null — все аккаунты пользователя. */
+  accountId?: string | null;
+}
+
+const AutomationQueueHealth: React.FC<AutomationQueueHealthProps> = ({ accountId }) => {
   const [rows, setRows] = useState<InstagramQueueHealth[]>([]);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('instagram_queue_health').select('*');
+    let query = supabase.from('instagram_queue_health').select('*');
+    if (accountId) query = query.eq('instagram_account_id', accountId);
+
+    const { data } = await query;
     setRows((data ?? []) as InstagramQueueHealth[]);
-  }, []);
+  }, [accountId]);
 
   useEffect(() => {
     load();
