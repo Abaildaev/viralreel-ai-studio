@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  # Все ветки, а не только main: workflow, срабатывающий лишь при слиянии,
+  # ловит поломку через две недели после того, как её внесли — ровно это и
+  # произошло с «supabaseUrl is required», лежавшей в main незамеченной.
   push:
-    branches: [main, master]
   pull_request:
 
 permissions:
