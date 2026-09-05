@@ -46,12 +46,17 @@ interface AutomationAnalyticsData {
   media: Array<{ media_id: string; leads_count: number; last_trigger: string }>;
   ab_test: {
     started_at: string | null;
+    last_at: string | null;
+    /** Дней, в которые рядом работало хотя бы два плеча. Меньше двух — сравнивать нечего. */
+    comparable_days: number;
     control_exposures: number;
     control_telegram_starts: number;
     quick_reply_exposures: number;
     quick_reply_clicks: number;
     quick_reply_link_deliveries: number;
     quick_reply_telegram_starts: number;
+    profile_link_exposures: number;
+    profile_link_telegram_starts: number;
   };
 }
 
@@ -90,12 +95,16 @@ const EMPTY_ANALYTICS: AutomationAnalyticsData = {
   media: [],
   ab_test: {
     started_at: null,
+    last_at: null,
+    comparable_days: 0,
     control_exposures: 0,
     control_telegram_starts: 0,
     quick_reply_exposures: 0,
     quick_reply_clicks: 0,
     quick_reply_link_deliveries: 0,
     quick_reply_telegram_starts: 0,
+    profile_link_exposures: 0,
+    profile_link_telegram_starts: 0,
   },
 };
 
@@ -229,6 +238,9 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
     : 0;
   const quickReplyTelegramRate = Number(abTest.quick_reply_exposures) > 0
     ? Math.round((Number(abTest.quick_reply_telegram_starts) / Number(abTest.quick_reply_exposures)) * 100)
+    : 0;
+  const profileLinkTelegramRate = abTest.profile_link_exposures > 0
+    ? Math.round((abTest.profile_link_telegram_starts / abTest.profile_link_exposures) * 100)
     : 0;
   const hasAbTestData = Number(abTest.control_exposures) + Number(abTest.quick_reply_exposures) > 0;
 
@@ -433,10 +445,28 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
             </div>
             {abTest.started_at && (
               <span className="text-[11px] text-violet-600">
-                Старт: {new Date(abTest.started_at).toLocaleDateString('ru-RU')}
+                {new Date(abTest.started_at).toLocaleDateString('ru-RU')}
+                {abTest.last_at && ` — ${new Date(abTest.last_at).toLocaleDateString('ru-RU')}`}
+                {' · '}
+                {abTest.comparable_days}{' '}
+                {abTest.comparable_days === 1 ? 'общий день' : 'общих дней'}
               </span>
             )}
           </div>
+
+          {/*
+            Цифры ниже посчитаны только по дням, когда плечи работали рядом.
+            Без этой оговорки панель однажды сравнила плечо, набравшее объём
+            после починки воронки, с плечом, работавшим во время поломки, и
+            назвала победителем проигравшего.
+          */}
+          {abTest.comparable_days < 2 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-800">
+              Сравнивать пока нечего: плечи работали рядом{' '}
+              {abTest.comparable_days === 0 ? 'ни одного дня' : 'всего один день'}.
+              Разница между ними на таком объёме — случайность, а не результат.
+            </div>
+          )}
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-xl border border-gray-200 bg-white p-4">
@@ -479,6 +509,36 @@ export const AutomationAnalyticsDashboard: React.FC<AutomationAnalyticsDashboard
                 Ссылка доставлена после нажатия: {abTest.quick_reply_link_deliveries}
               </p>
             </div>
+
+            {/*
+              Третье плечо не показывалось вовсе, хотя работало и получало треть
+              трафика. Его собственная конверсия занижена по построению: оно
+              отправляет человека по ссылке из шапки профиля, а та метки события
+              не несёт, поэтому подписчик приходит без привязки к плечу. Число
+              оставлено, но подписано — иначе ноль читается как приговор.
+            */}
+            {abTest.profile_link_exposures > 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 md:col-span-2">
+                <p className="text-xs font-semibold text-gray-900">Эксперимент · ссылка в шапке профиля</p>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-xl font-semibold text-gray-900">{abTest.profile_link_exposures}</p>
+                    <p className="text-[11px] text-gray-500">доставок</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-semibold text-gray-900">{profileLinkTelegramRate}%</p>
+                    <p className="text-[11px] text-gray-500">
+                      {abTest.profile_link_telegram_starts} стартов Telegram
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-[11px] text-gray-500">
+                  Цифра занижена: ссылка в шапке одна на всех и метки не несёт, поэтому пришедшие
+                  по ней не попадают в это плечо. Судить о нём можно только по общему числу
+                  подписчиков за день.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
